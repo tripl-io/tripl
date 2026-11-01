@@ -82,7 +82,20 @@ because they were too large or could not be read.
   function that finally sends the event) and the count drops.
 - **Errors** found now are already in your code. Fix them, add the missing
   events to the plan, or mark the ones you are retiring as deprecated (a
-  warning, not an error) before you make the check block merges in step 5.
+  warning, not an error). What is left, record in a baseline and commit it:
+
+  ```bash
+  uvx tripl@X.Y.Z check --write-baseline .tripl/check-baseline.json
+  git add .tripl/check-baseline.json
+  ```
+
+  The jobs below pass `--baseline .tripl/check-baseline.json`, so a run fails
+  only on findings the file does not hold, on the default branch and on a
+  schedule too, where there is no change to gate on. A new finding, a pasted
+  copy of a recorded call and a warning that became an error still fail. See
+  [Baseline](../integrate/tripl-check.md#baseline). Without a baseline, drop
+  the flag and keep the default branch report-only (`allow_failure: true` on
+  its rule) until it is clean.
 
 ## 3. Add the job
 
@@ -105,8 +118,7 @@ tripl-check:
     - if: $TRIPL_API_KEY == null       # a merge request from a fork has no key: skip
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH   # what merge requests are compared with
-      allow_failure: true      # the default branch and its schedules only report
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH   # what merge requests are compared with, and its schedules
   before_script: []            # none of the build's own setup
   cache: []
   script:
@@ -114,7 +126,7 @@ tripl-check:
     # pipeline or a merge train, else the merge base. Empty on the default branch.
     - BASE="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-$CI_MERGE_REQUEST_DIFF_BASE_SHA}"
     - '[ -z "$BASE" ] || git fetch --no-tags --depth=1 origin "$BASE"'
-    - tripl check --new-from-rev "$BASE" --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+    - tripl check --new-from-rev "$BASE" --baseline .tripl/check-baseline.json --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
   artifacts:
     when: always
     expire_in: 30 days
@@ -146,14 +158,22 @@ tripl-check:
   request adds or fixes. The plan changes in tripl, not in git, so also run the
   pipeline on a schedule (nightly, say) to keep that comparison current. There
   `BASE` is empty, so there is no gate (the job log says
-  `--new-from-rev is empty: every finding counts.`) and the run reports every
-  finding; the rule's `allow_failure: true` keeps it from failing those
-  pipelines. It stays that way until a baseline file can mark the findings the
-  default branch already has.
+  `--new-from-rev is empty: every finding counts.`) and the baseline decides:
+  the run fails only on a finding the committed baseline does not hold, such
+  as a call nobody touched that a plan edit broke overnight, which is what the
+  schedule is there to catch. The reports still list every finding. In a
+  merge request the two combine: a finding fails only when the merge request
+  brings it in and the baseline does not hold it.
+- **Keep the baseline small.** Never let the check job rewrite it. Now and
+  then, by hand or in a separate maintenance job that opens a merge request,
+  drop what was fixed: `tripl check --baseline .tripl/check-baseline.json
+  --prune-baseline` lowers counts and drops entries, never adds one, and
+  writes nothing after a run that could not see everything.
 - **Merge request pipelines.** The rules assume your project runs them. With
   branch pipelines only, there is no merge request base: gate each branch on
   its merge base with the default branch, and keep the default-branch rule
-  first (rules match in order) so the default branch still only reports:
+  first (rules match in order) so the default branch runs with no gate, on the
+  baseline alone:
 
   ```yaml
     variables:
@@ -162,7 +182,6 @@ tripl-check:
       - if: $TRIPL_API_KEY == null
         when: never
       - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-        allow_failure: true
       - if: $CI_COMMIT_BRANCH
     script:
       - BASE=""
@@ -171,7 +190,7 @@ tripl-check:
           git fetch --no-tags origin "$CI_DEFAULT_BRANCH"
           BASE="$(git merge-base FETCH_HEAD HEAD)"
         fi
-      - tripl check --new-from-rev "$BASE" --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+      - tripl check --new-from-rev "$BASE" --baseline .tripl/check-baseline.json --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
   ```
 - **The address.** `TRIPL_BASE_URL` must be the instance's final `https://`
   address. The check sends a `POST`, and a redirect is refused rather than
@@ -208,7 +227,7 @@ jobs:
         env:
           TRIPL_BASE_URL: https://tripl.example.com
           TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
-        run: uvx tripl@X.Y.Z check --report sarif=tripl-check.sarif
+        run: uvx tripl@X.Y.Z check --baseline .tripl/check-baseline.json --report sarif=tripl-check.sarif
       - name: Upload findings to code scanning
         if: always() && hashFiles('tripl-check.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
@@ -221,7 +240,11 @@ The upload runs even when the check failed, which is when its findings matter.
 A run that could not finish writes no report, and the `hashFiles` condition then
 skips the upload. Code scanning on a private repository needs GitHub Code
 Security. Without it, read the findings in the job log, or add `--report
-junit=tripl-check.xml` for a test-report action.
+junit=tripl-check.xml` for a test-report action. To run it on a schedule as
+well, where the plan may have changed with no push, add
+`schedule: [{cron: "0 4 * * *"}]` under `on:` and
+`github.event_name == 'schedule' ||` at the start of the job's `if:`: the
+baseline gates that run like any other.
 
 ### Any other CI {#other-ci}
 
@@ -251,7 +274,9 @@ of them.
 - **GitHub:** findings are code scanning alerts on the lines of the pull request.
 - **Everywhere:** the job log lists every finding with its file and line;
   under `--new-from-rev`, only the ones new in the change and what fails the
-  run, with a `Gate:` line counting the rest. The Code Quality and JUnit reports
+  run, with a `Gate:` line counting the rest, and with `--baseline`, a
+  `Baseline:` line counting the ones the baseline holds and the ones it holds
+  that are gone. The Code Quality and JUnit reports
   list every finding either way, so GitLab's comparison with the default branch
   sees the whole picture; a legacy failure can therefore show as a failed test
   in a job that passed.
@@ -263,7 +288,9 @@ the file does not report it again as new.
 
 With the gate a merge request fails only on what it adds, so the job can
 block merges before the default branch is clean: remove the job's
-`allow_failure: true` and keep the one on the default-branch rule. In GitLab,
+`allow_failure: true`. With the baseline the default branch and its schedule
+gate too; without one, keep `allow_failure: true` on the default-branch rule
+until it is clean. In GitLab,
 also turn on **Pipelines must succeed** in the merge request settings. Then let
 an outage of tripl pass while a finding still blocks:
 
@@ -274,9 +301,9 @@ an outage of tripl pass while a finding still blocks:
 
 | Exit code | Meaning |
 |-----------|---------|
-| 0 | No errors, or only [suppressed](#accept-one-call) ones. Warnings pass unless you add `--strict`. |
+| 0 | No errors, or only [suppressed](#accept-one-call) ones, ones not new in the change (`--new-from-rev`) or ones the baseline holds (`--baseline`). Warnings pass unless you add `--strict`. |
 | 1 | At least one error (or warning, with `--strict`). Also a refused key or an unknown project: a retry would not fix those. |
-| 2 | A configuration problem, including a configuration that matched no call. |
+| 2 | A configuration problem, including a configuration that matched no call, and a `--baseline` file that is missing or was written for another project, mode or tripl version's keys. |
 | 4 | The instance was unavailable: unreachable, timed out, or it answered `429` or a `5xx`. Nothing was checked. |
 
 GitHub Actions has no list of exit codes to allow; end the command with
@@ -287,9 +314,9 @@ Exit 4 covers every failure to reach the instance, so a mistyped host name in
 passes as well. GitLab shows such a job as **passed with warnings**: open it
 after you change the address or the runners.
 
-Without `--new-from-rev`, every error fails the run wherever it is, not only
-where a merge request changed something, so get the default branch clean
-first. Exit 2 also covers a gate that cannot read the change: the base commit
+Without `--new-from-rev` or `--baseline`, every error fails the run wherever
+it is, not only where a merge request changed something, so commit a baseline
+or get the default branch clean first. Exit 2 also covers a gate that cannot read the change: the base commit
 is not in the clone (the message says how to fetch it: by SHA, as `origin/<branch>` for a branch, or with more history for a name like `HEAD^1`), git is
 missing, or git refuses a checkout another user owns (the message names the
 `safe.directory` command; the CLI never bypasses it).

@@ -212,6 +212,10 @@ class CheckFinding:
     # one at a call the change left alone is new anyway (``CAUSE_PLAN_BRANCH``).
     in_change: bool | None = None
     cause: str | None = None
+    # Under a baseline (``--baseline``, ``--write-baseline``): whether the
+    # baseline file holds this finding, so it does not fail the run; None
+    # with no baseline.
+    baselined: bool | None = None
 
 
 def severe(finding: CheckFinding, strict: bool) -> bool:
@@ -224,14 +228,19 @@ def severe(finding: CheckFinding, strict: bool) -> bool:
 def finding_fails(finding: CheckFinding, strict: bool, *, gated: bool = True) -> bool:
     """Whether ``finding`` fails the run on its own: severe, not suppressed, and new.
 
-    New is the gate's call (``in_change``), so with no gate every finding is.
-    ``no_verdict`` is new whatever the gate says: nothing was decided about
-    the call. ``gated`` False asks the question with the gate left out, as
-    JUnit does.
+    New is the gate's call (``in_change``) and the baseline's (``baselined``),
+    both at once: a finding new in the change that the baseline holds does not
+    fail, nor does one the change did not bring in. With neither, every finding
+    is new. ``no_verdict`` is new whatever the gate says, and no baseline holds
+    one: nothing was decided about the call. ``gated`` False asks the question
+    with the gate and the baseline left out, as JUnit does.
     """
     if not severe(finding, strict) or finding.suppression is not None:
         return False
-    return not gated or finding.in_change is not False or finding.code == CODE_NO_VERDICT
+    if not gated:
+        return True
+    in_change = finding.in_change is not False or finding.code == CODE_NO_VERDICT
+    return in_change and not finding.baselined
 
 
 @dataclass(frozen=True)
@@ -287,6 +296,35 @@ class GateInfo:
     plan_branch: PlanBranchComparison | None = None
 
 
+# What a run does with its baseline file: compare with it (``--baseline``),
+# also drop from it what the run no longer has (``--prune-baseline``), or
+# write it afresh (``--write-baseline``).
+BASELINE_CHECK = "check"
+BASELINE_PRUNE = "prune"
+BASELINE_WRITE = "write"
+
+
+@dataclass(frozen=True)
+class BaselineInfo:
+    """What a run with a baseline read or wrote, as ``baseline.py`` matched it.
+
+    ``path`` is the file as given; ``action`` one of ``BASELINE_*``.
+    ``entries`` and ``findings`` count the file's entries and the findings
+    they hold (their counts summed): as read, or as written. ``stale``
+    counts the findings the file holds that this run did not have. Under
+    ``--prune-baseline``, ``pruned`` counts the findings dropped from the file
+    (0 when there were none), or ``not_pruned`` says why it was left alone.
+    """
+
+    path: str
+    action: str
+    entries: int
+    findings: int
+    stale: int = 0
+    pruned: int | None = None
+    not_pruned: str | None = None
+
+
 @dataclass(frozen=True)
 class SkippedFile:
     """A file the static scan was configured to read and did not."""
@@ -323,6 +361,8 @@ class CheckReport:
     # Set when the run was gated on a change; each result and finding then
     # carries ``in_change``.
     gate: GateInfo | None = None
+    # Set when the run had a baseline; each finding then carries ``baselined``.
+    baseline: BaselineInfo | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)
@@ -357,7 +397,8 @@ class CheckReport:
         Its status must fail (an error, or a warning under ``--strict``), and
         one finding behind that must fail on its own (``finding_fails``): a
         result whose severe findings are all suppressed passes, and so, under
-        a gate, does one whose severe findings are none of them new. One with
+        a gate, does one whose severe findings are none of them new, and under
+        a baseline one whose severe findings the baseline all holds. One with
         no severe finding at all (a reply whose status and findings disagree)
         fails on its status alone, under a gate only when its item changed;
         so with no marker and no gate this is exactly the status rule.
@@ -365,7 +406,7 @@ class CheckReport:
         return self._fails(result, gated=True)
 
     def verdict_fails(self, result: CheckResult) -> bool:
-        """``fails`` with the gate left out: what the plan and the markers say about the call.
+        """``fails`` with the gate and the baseline left out: what the plan and the markers say.
 
         JUnit's rule, so its cases read the same with and without a gate.
         """

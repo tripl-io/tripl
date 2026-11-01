@@ -43,6 +43,16 @@ in the same ``run_gate``. The gate changes the exit code, the listing and the
 gate fields of JSON and SARIF; Code Quality and JUnit read the same with it
 and without.
 
+``--baseline FILE`` fails the run only on findings the committed baseline
+file does not hold (``check/baseline.py``): the one gate for ``--payloads``
+and for a run with no diff base (the default branch, a schedule). With a gate
+too, a finding fails only when it is new in the change AND not in the
+baseline. ``--write-baseline FILE`` writes that file from this run's
+findings, and ``--prune-baseline`` rewrites the ``--baseline`` file without
+what this run no longer has, never when the run could not see everything. A
+baseline that cannot be read, or was written for another project, mode or
+key recipe, is exit 2 before any request.
+
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime) that no
 ``tripl-check-ignore`` marker suppresses (``check/suppress.py``) and that, under
@@ -77,6 +87,7 @@ from typing import Any, TextIO
 
 import httpx
 
+from tripl_cli.check import baseline as baseline_mod
 from tripl_cli.check import changes as changes_mod
 from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
@@ -85,10 +96,15 @@ from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfi
 from tripl_cli.check.inventory import inventory
 from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import (
+    BASELINE_CHECK,
+    BASELINE_PRUNE,
+    BASELINE_WRITE,
+    CODE_NO_VERDICT,
     GATE_PATCH,
     GATE_REV,
     MODE_PAYLOADS,
     MODE_STATIC,
+    BaselineInfo,
     CheckItem,
     CheckReport,
     CheckResult,
@@ -116,7 +132,7 @@ from tripl_cli.diagnostics.collect import instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
 from tripl_cli.install.shell import Runner, subprocess_runner
 from tripl_cli.model import Run, to_rfc3339
-from tripl_cli.render import render_header
+from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
 
@@ -173,9 +189,11 @@ def register(
             "A finding can be suppressed by a comment at its call, "
             "tripl-check-ignore[CODE] -- REASON. "
             "With --new-from-rev or --new-from-patch, only findings new in that change "
-            "fail the run. "
+            "fail the run; with --baseline, only findings the baseline file does not hold "
+            "(write it with --write-baseline). "
             "Exits 1 on any error (or warning, with --strict) that is not suppressed (and, "
-            "with a gate, is new in the change), 4 when the instance was unavailable."
+            "with a gate, is new in the change, and with a baseline, is not in it), 4 when "
+            "the instance was unavailable."
         ),
     )
     add_check_config(parser)
@@ -230,6 +248,37 @@ def register(
         help=(
             "fail only on findings new in the change FILE holds, a unified diff from the base "
             "to the working tree (git diff format; - for stdin); needs no git"
+        ),
+    )
+    # Not argparse groups: a conflict is a refusal like any other, which
+    # removes the --report files an earlier run left (``_baseline_refusal``).
+    parser.add_argument(
+        "--baseline",
+        dest="baseline",
+        metavar="FILE",
+        help=(
+            "fail only on findings the baseline FILE does not hold (written by "
+            "--write-baseline and committed, e.g. .tripl/check-baseline.json); with "
+            "--new-from-rev or --new-from-patch, only on findings new in the change and "
+            "not in FILE"
+        ),
+    )
+    parser.add_argument(
+        "--write-baseline",
+        dest="write_baseline",
+        metavar="FILE",
+        help=(
+            "write every finding that fails this run to the baseline FILE (overwriting it), "
+            "and exit 0 unless the run could not be checked"
+        ),
+    )
+    parser.add_argument(
+        "--prune-baseline",
+        dest="prune_baseline",
+        action="store_true",
+        help=(
+            "with --baseline FILE: rewrite FILE without the findings this run no longer has; "
+            "never adds one, and leaves FILE alone when the run could not see everything"
         ),
     )
     add_project_flag(parser)
@@ -349,10 +398,19 @@ def abandon(args: argparse.Namespace) -> None:
     Called on every run that cannot finish: by ``run`` when the check fails,
     and by ``cli.main`` when the connection settings do not resolve, before
     ``run`` starts. A spec without ``FORMAT=`` names no path, so a mistyped
-    ``--report src/app.ts`` never touches a source file.
+    ``--report src/app.ts`` never touches a source file, and a report path that
+    is also the baseline is left alone: the run refuses that pairing, and the
+    committed baseline must not be what it removes.
     """
+    kept = {
+        Path(raw).resolve()
+        for raw in (getattr(args, "baseline", None), getattr(args, "write_baseline", None))
+        if raw
+    }
     named = (spec.partition("=")[2] for spec in args.reports or ())
-    _discard(Path(raw) for raw in named if raw and _names_a_file(raw))
+    _discard(
+        Path(raw) for raw in named if raw and _names_a_file(raw) and Path(raw).resolve() not in kept
+    )
 
 
 def run(args: argparse.Namespace, config: Config) -> int:
@@ -426,7 +484,9 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
-    gate = _gate_flag(args)
+    gate = _gate_flag(args) or _baseline_flag(args)
+    if gate == "--write-baseline":
+        return "--write-baseline records a check's findings, and --list checks nothing; drop it."
     if gate is not None:
         return (
             f"{gate} decides which findings fail a check, and --list checks nothing; drop {gate}."
@@ -508,6 +568,57 @@ def _gate_flag(args: argparse.Namespace) -> str | None:
         return "--new-from-rev"
     if args.new_from_patch is not None:
         return "--new-from-patch"
+    return None
+
+
+def _baseline_flag(args: argparse.Namespace) -> str | None:
+    if args.baseline is not None:
+        return "--baseline"
+    if args.write_baseline is not None:
+        return "--write-baseline"
+    if args.prune_baseline:
+        return "--prune-baseline"
+    return None
+
+
+def _baseline_refusal(args: argparse.Namespace, targets: Sequence[tuple[str, Path]]) -> str | None:
+    """Why the baseline flags cannot do what they say together; None when they can.
+
+    Only the flags and the path to write are looked at here; the file
+    ``--baseline`` reads is checked once the project is known (``baseline.load``).
+    """
+    write: str | None = args.write_baseline
+    if write is not None and args.baseline is not None:
+        return (
+            "--write-baseline writes the baseline --baseline reads; pick one "
+            "(--baseline FILE --prune-baseline updates FILE)."
+        )
+    if write is not None and args.prune_baseline:
+        return "--write-baseline writes the whole file afresh; drop --prune-baseline."
+    if args.prune_baseline and args.baseline is None:
+        return "--prune-baseline rewrites the --baseline file; pass --baseline FILE."
+    gate = _gate_flag(args)
+    if write is not None and gate is not None:
+        return (
+            f"--write-baseline records every finding of the run, and {gate} only decides "
+            f"which of them fail it; drop {gate}."
+        )
+    flag, path = ("--write-baseline", write) if write is not None else ("--baseline", args.baseline)
+    if path is None:
+        return None
+    # Read or written, the baseline is never a report path too: a report
+    # written over it, or removed by a run that fails, would take it with it.
+    if any(Path(path).resolve() == report.resolve() for _, report in targets):
+        return f"{flag} {path} is also a --report path; each needs its own file."
+    if write is None and not args.prune_baseline:
+        return None
+    if not _names_a_file(path):
+        return f"{flag} {path!r}: give it the path of a file."
+    target = Path(path)
+    if os.path.lexists(target) and (target.is_symlink() or not target.is_file()):
+        # Written through a temporary file and a rename, as a report is: a
+        # link would be replaced, not written through.
+        return f"{flag} {path}: a directory, a link or a special file; give it a regular file."
     return None
 
 
@@ -593,7 +704,7 @@ def default_runner() -> Runner:
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
-    refusal = _gate_refusal(args)
+    refusal = _gate_refusal(args) or _baseline_refusal(args, targets)
     if refusal is not None:
         raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
@@ -607,6 +718,14 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             "with --payloads FILE."
         )
     project = project_of(args, check_config, "check")
+    mode = MODE_STATIC if args.payloads is None else MODE_PAYLOADS
+    # Before the scan and any request: a baseline of another project, mode or
+    # recipe must stop the run, never read as one that holds nothing.
+    baseline = (
+        None
+        if args.baseline is None
+        else baseline_mod.load(args.baseline, project=project, mode=mode)
+    )
     selector: str | None = args.branch
     if selector is None and check_config is not None:
         selector = check_config.branch
@@ -615,11 +734,9 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     markers: tuple[Marker, ...] = ()
     items: tuple[CheckItem, ...]
     if args.payloads is not None:
-        mode = MODE_PAYLOADS
         items = tuple(payloads_mod.load(args.payloads, allow_empty=args.allow_empty))
     else:
         assert check_config is not None  # raised above when missing
-        mode = MODE_STATIC
         outcome = scan_mod.scan(check_config)
         items, files, skipped = outcome.items, outcome.files, outcome.skipped
         markers = outcome.markers
@@ -704,10 +821,14 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         markers=marker_states(markers, results),
         gate=None if gated is None else gated[0],
     )
+    report, written = _with_baseline(args, report, baseline)
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.
+    # The baseline last, so a run that fails writing a report leaves it alone.
     for report_format, path in targets:
         _write(path, _render(report_format, report, scan_root))
+    if written is not None:
+        _write(Path(written[0]), written[1], what="baseline")
     human = sys.stdout if output == FORMAT_TEXT else sys.stderr
     source = config.sources.get("base_url", "unknown")
     lines = [render_header("check", context.base_url, source), ""]
@@ -720,6 +841,78 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
+
+
+def _with_baseline(
+    args: argparse.Namespace, report: CheckReport, baseline: baseline_mod.Baseline | None
+) -> tuple[CheckReport, tuple[str, str] | None]:
+    """``report`` matched against its baseline, and the baseline file to write, if any.
+
+    ``--write-baseline`` matches the run against the baseline it writes, so
+    it exits 0 unless a call got no verdict. ``--prune-baseline`` writes only
+    when the file changes, and never after a run that did not see
+    everything: what it did not see would be dropped.
+    """
+    if args.write_baseline is not None:
+        entries = baseline_mod.collect(report)
+        matching = baseline_mod.match(
+            report.results, entries, presence=report.mode == MODE_PAYLOADS
+        )
+        info = BaselineInfo(
+            path=args.write_baseline,
+            action=BASELINE_WRITE,
+            entries=len(entries),
+            findings=sum(entry.count for entry in entries),
+        )
+        text = baseline_mod.render_file(entries, project=report.project, mode=report.mode)
+        return replace(report, results=matching.results, baseline=info), (args.write_baseline, text)
+    if baseline is None:
+        return report, None
+    matching = baseline_mod.match(
+        report.results, baseline.entries, presence=report.mode == MODE_PAYLOADS
+    )
+    info = BaselineInfo(
+        path=baseline.path,
+        action=BASELINE_PRUNE if args.prune_baseline else BASELINE_CHECK,
+        entries=len(baseline.entries),
+        findings=baseline.findings,
+        stale=matching.stale(baseline.entries),
+    )
+    written: tuple[str, str] | None = None  # unless the prune changes the file
+    if args.prune_baseline:
+        unseen = _unseen(report)
+        if unseen is not None:
+            info = replace(info, not_pruned=unseen)
+        else:
+            kept = baseline_mod.pruned(baseline.entries, matching)
+            info = replace(info, pruned=baseline.findings - sum(entry.count for entry in kept))
+            if kept != tuple(sorted(baseline.entries, key=baseline_mod.entry_order)):
+                text = baseline_mod.render_file(kept, project=report.project, mode=report.mode)
+                written = (baseline.path, text)
+    return replace(report, results=matching.results, baseline=info), written
+
+
+def _unseen(report: CheckReport) -> str | None:
+    """Why this run cannot prune a baseline: what it could not see; None when it saw everything."""
+    if not report.results:
+        return "nothing was checked"
+    if report.skipped:
+        files = len(report.skipped)
+        return (
+            f"{plural(files, 'configured file')} {'was' if files == 1 else 'were'} not read, "
+            "so the findings there are unknown"
+        )
+    blank = sum(
+        1
+        for result in report.results
+        if any(finding.code == CODE_NO_VERDICT for finding in result.findings)
+    )
+    if blank:
+        return (
+            f"{plural(blank, 'item')} got no verdict, so {'its' if blank == 1 else 'their'} "
+            "findings are unknown"
+        )
+    return None
 
 
 def _nothing_matched(config: CheckConfig, files: int) -> str:
@@ -755,8 +948,8 @@ def _say(text: str, stream: TextIO) -> None:
     print(text.encode(encoding, "backslashreplace").decode(encoding), file=stream)
 
 
-def _write(path: Path, text: str) -> None:
-    """Write through a temporary file, so a reader never sees half a report.
+def _write(path: Path, text: str, *, what: str = "report") -> None:
+    """Write through a temporary file, so a reader never sees half a report (or baseline).
 
     The temporary file is always created afresh (``O_EXCL``), never opened
     through whatever already sits at its name, a link included, so what
@@ -778,7 +971,7 @@ def _write(path: Path, text: str) -> None:
     except OSError as exc:
         with contextlib.suppress(OSError):
             temporary.unlink(missing_ok=True)
-        raise TriplError(f"cannot write the report {path}: {exc}") from exc
+        raise TriplError(f"cannot write the {what} {path}: {exc}") from exc
 
 
 def _discard(paths: Iterable[Path]) -> None:

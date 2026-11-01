@@ -92,7 +92,7 @@ class Marking:
     untracked: tuple[str, ...] = ()
 
 
-def item_key(item: CheckItem) -> str:
+def item_key(item: CheckItem, *, markers: bool = True) -> str:
     """What an item is for the gate: the call it is sent by, what it sends, what it waives.
 
     Never its line or its file: a call moved to another file, or a function
@@ -110,14 +110,22 @@ def item_key(item: CheckItem) -> str:
     changing a code it lists changes the call, and so does pasting an
     unmarked copy of a marked call, which cannot take the marked one's place
     at the base; rewording a reason does not.
+
+    ``markers`` False leaves the waived part empty, for the baseline
+    (``baseline.py``): a marker added for one finding of a call must not turn
+    the call's other, baselined findings into new ones.
     """
     notes = sorted((note.code, note.field or "") for note in item.notes)
-    waived = sorted(
-        {
-            (code, field or "")
-            for suppression in item.suppressions
-            for code, field in suppression.targets
-        }
+    waived = (
+        sorted(
+            {
+                (code, field or "")
+                for suppression in item.suppressions
+                for code, field in suppression.targets
+            }
+        )
+        if markers
+        else []
     )
     return json.dumps(
         [
