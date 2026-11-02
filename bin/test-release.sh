@@ -90,7 +90,8 @@ docs_openapi() {
 # --- origin, at 9.9.8 ---
 git init -q --bare -b main "$origin"
 git init -q -b main "$seed"
-mkdir -p "$seed/bin" "$seed/backend" "$seed/frontend" "$seed/cli" "$seed/mcp-server" "$seed/website/openapi"
+mkdir -p "$seed/bin" "$seed/backend" "$seed/frontend" "$seed/cli" "$seed/mcp-server" "$seed/website/openapi" \
+  "$seed/ci/gitlab" "$seed/ci/github"
 cp "$SCRIPT" "$seed/bin/release.sh"
 printf '[project]\nname = "tripl-backend"\nversion = "9.9.8"\n' > "$seed/backend/pyproject.toml"
 printf '[project]\nname = "tripl"\nversion = "9.9.8"\n' > "$seed/cli/pyproject.toml"
@@ -103,6 +104,12 @@ printf '{\n  "name": "tripl-frontend",\n  "version": "9.9.8",\n  "devDependencie
   > "$seed/frontend/package.json"
 backend_openapi 9.9.8 > "$seed/backend/openapi.json"
 docs_openapi 9.9.8 > "$seed/website/openapi/tripl.openapi.json"
+# The CI templates' default version: only the marked line moves.
+ci_template() {
+  printf 'inputs:\n  other:\n    default: "1.2.3"\n  version:\n    default: "%s" # tripl version: bin/release.sh sets it\n' "$1"
+}
+ci_template 9.9.8 > "$seed/ci/gitlab/tripl-check.yml"
+ci_template 9.9.8 > "$seed/ci/github/action.yml"
 git -C "$seed" add -A
 git -C "$seed" commit -q -m "9.9.8"
 git -C "$seed" push -q "$origin" main
@@ -196,6 +203,10 @@ cmp -s <(git -C "$origin" show "$tagged:backend/openapi.json") <(backend_openapi
   || fail "$subject: backend/openapi.json is not the 9.9.8 document at 9.9.9, byte for byte"
 cmp -s <(git -C "$origin" show "$tagged:website/openapi/tripl.openapi.json") <(docs_openapi 9.9.9) \
   || fail "$subject: website/openapi/tripl.openapi.json is not the 9.9.8 document at 9.9.9, byte for byte"
+for file in ci/gitlab/tripl-check.yml ci/github/action.yml; do
+  cmp -s <(git -C "$origin" show "$tagged:$file") <(ci_template 9.9.9) \
+    || fail "$subject: $file does not default to 9.9.9, or another line moved"
+done
 git -C "$clone" diff --quiet HEAD || fail "$subject: the clone's tree has changes"
 
 subject="a tag origin already has"
