@@ -358,6 +358,7 @@ def _action(clone: Path, tmp_path: Path, **env: str) -> tuple[Ran, dict[str, str
         "INPUT_PASS_ON_OUTAGE": "true",
         "INPUT_SARIF": "true",
         "INPUT_ARGS": "",
+        "INPUT_CATEGORY": "",
         **env,
     }
     ran = _run("bash", ACTION_SCRIPT, clone, tmp_path, "uvx", variables)
@@ -396,7 +397,7 @@ def test_action_pull_request_is_gated_on_the_merge_commits_first_parent(
     assert ran.after("--new-from-rev") == _git(origin, "rev-parse", "main")
     assert ran.after("--baseline") == f"{clone}/{BASELINE}"
     sarif = ran.after("--report").removeprefix("sarif=")
-    assert outputs == {"exit-code": "0", "sarif": sarif}
+    assert outputs == {"exit-code": "0", "sarif": sarif, "category": "tripl-check"}
     assert ran.env == ["https://tripl.example.com", "key"]
 
 
@@ -416,6 +417,27 @@ def test_action_pull_request_head_checked_out_is_gated_on_its_merge_base(
     )
     assert ran.code == 0, ran.log
     assert ran.after("--new-from-rev") == fork_point
+
+
+@needs_git
+@pytest.mark.parametrize(
+    ("directory", "category", "expected"),
+    [
+        ("apps/ios/", "", "tripl-check/apps/ios"),
+        ("./apps/android", "", "tripl-check/apps/android"),
+        ("apps/ios", "ios", "ios"),
+    ],
+)
+def test_action_gives_each_app_its_own_code_scanning_category(
+    origin: Path, tmp_path: Path, directory: str, category: str, expected: str
+) -> None:
+    # Two steps of one job uploading under one category would collide.
+    clone = _clone(origin, "main", tmp_path / "clone")
+    (clone / "apps" / "ios").mkdir(parents=True)
+    (clone / "apps" / "android").mkdir(parents=True)
+    ran, outputs = _action(clone, tmp_path, INPUT_DIRECTORY=directory, INPUT_CATEGORY=category)
+    assert ran.code == 0, ran.log
+    assert outputs["category"] == expected
 
 
 @needs_git

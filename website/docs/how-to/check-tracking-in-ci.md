@@ -291,8 +291,10 @@ fetches the commits the gate needs into the shallow checkout; with
 out with `fetch-depth: 0` there. Its inputs
 match the GitLab template's: `version`, `base-url`, `api-key`, `project`,
 `check-config`, `directory`, `baseline`, `gate`, `strict` and `args`, plus
-`pass-on-outage` (default `true`) and `sarif` (default `true`; `false` skips
-the upload, for a repository without code scanning). Its `exit-code` output
+`pass-on-outage` (default `true`), `sarif` (default `true`; `false` skips
+the upload, for a repository without code scanning) and `category` (the code
+scanning category: `tripl-check`, or `tripl-check/<directory>` so that one
+step per app keeps each app's alerts). Its `exit-code` output
 is what `tripl check` exited with. For a tag that can never move, pin the
 commit instead: `tripl-io/tripl/ci/github@<commit SHA> # cli-vX.Y.Z`.
 

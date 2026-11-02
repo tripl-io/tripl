@@ -50,6 +50,11 @@ inputs:
   sarif:
     description: Upload the findings to code scanning (needs security-events write).
     default: "true"
+  category:
+    description: >-
+      The code scanning category. Empty is tripl-check, or tripl-check/<directory>,
+      so each app of a repository checked in its own step keeps its own alerts.
+    default: ""
   args:
     description: More arguments for tripl check, separated by spaces (no quoting).
     default: ""
@@ -82,6 +87,7 @@ runs:
         INPUT_STRICT: ${{ inputs.strict }}
         INPUT_PASS_ON_OUTAGE: ${{ inputs.pass-on-outage }}
         INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_CATEGORY: ${{ inputs.category }}
         INPUT_ARGS: ${{ inputs.args }}
         EVENT_NAME: ${{ github.event_name }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -166,7 +172,16 @@ runs:
         uvx "tripl@$INPUT_VERSION" "${args[@]}" || status=$?
         echo "exit-code=$status" >> "$GITHUB_OUTPUT"
         if [[ -n "$sarif" && -f "$sarif" ]]; then
+          category="$INPUT_CATEGORY"
+          if [[ -z "$category" ]]; then
+            directory="$INPUT_DIRECTORY"
+            while [[ "$directory" == ./* ]]; do directory="${directory#./}"; done
+            while [[ "$directory" == */ ]]; do directory="${directory%/}"; done
+            category="tripl-check"
+            [[ -z "$directory" || "$directory" == . ]] || category="tripl-check/$directory"
+          fi
           echo "sarif=$sarif" >> "$GITHUB_OUTPUT"
+          echo "category=$category" >> "$GITHUB_OUTPUT"
         fi
         if [[ "$status" -eq 4 && "$INPUT_PASS_ON_OUTAGE" == true ]]; then
           echo "::warning title=tripl check::tripl was unavailable, so nothing was checked (exit 4)."
@@ -177,4 +192,4 @@ runs:
       uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
       with:
         sarif_file: ${{ steps.check.outputs.sarif }}
-        category: tripl-check
+        category: ${{ steps.check.outputs.category }}
