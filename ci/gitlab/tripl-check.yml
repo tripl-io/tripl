@@ -1,0 +1,146 @@
+# tripl check as a GitLab CI/CD job: one include, pinned to a CLI release.
+#
+#   include:
+#     - remote: https://raw.githubusercontent.com/tripl-io/tripl/cli-vX.Y.Z/ci/gitlab/tripl-check.yml
+#       inputs:
+#         base_url: https://tripl.example.com
+#
+# Add TRIPL_API_KEY under Settings > CI/CD > Variables (masked, not protected).
+# Every input is described below, and in website/docs/how-to/check-tracking-in-ci.md.
+# Needs GitLab 17.0 or newer (CI/CD inputs); `integrity:` on the include, 17.9.
+spec:
+  inputs:
+    version:
+      description: The tripl CLI release to run. Defaults to the release this file comes from.
+      default: "0.3.2" # tripl version: bin/release.sh sets it
+      regex: ^[0-9]+\.[0-9]+(\.[0-9]+)?$
+    image:
+      description: The CLI image, without its tag (a mirror of ghcr.io/tripl-io/tripl-cli).
+      default: ghcr.io/tripl-io/tripl-cli
+    stage:
+      description: The stage the job runs in.
+      default: test
+    base_url:
+      description: The instance's https:// address. Empty reads the TRIPL_BASE_URL CI/CD variable.
+      default: ""
+    project:
+      description: The tripl project. Empty reads it from the check config.
+      default: ""
+    check_config:
+      description: The check config, relative to the repository root. Empty finds the nearest .tripl/check.yml.
+      default: ""
+    directory:
+      description: Where to run, relative to the repository root, for a repository holding several apps.
+      default: "."
+    baseline:
+      description: >-
+        The committed baseline, relative to the repository root. Used when the file
+        exists; empty never uses one.
+      default: .tripl/check-baseline.json
+    gate:
+      description: >-
+        In a merge request, fail only on findings it brings in (--new-from-rev).
+        With pipelines: branches, a branch is compared with its merge base with the
+        default branch.
+      type: boolean
+      default: true
+    pipelines:
+      description: >-
+        merge_requests runs in merge request pipelines and on the default branch;
+        branches runs on every branch, for projects without merge request pipelines.
+      options: [merge_requests, branches]
+      default: merge_requests
+    strict:
+      description: Fail on warnings too (--strict).
+      type: boolean
+      default: false
+    args:
+      description: More arguments for tripl check, separated by spaces (no quoting).
+      default: ""
+    allow_failure_exit_codes:
+      description: >-
+        Exit codes that pass with a warning. 4 is an outage of tripl (nothing was
+        checked); add 1 to report findings without failing.
+      type: array
+      default: [4]
+---
+tripl-check:
+  image:
+    name: $[[ inputs.image ]]:$[[ inputs.version ]]
+    entrypoint: [""]
+  stage: $[[ inputs.stage ]]
+  needs: []
+  dependencies: []
+  before_script: []
+  after_script: []
+  cache: []
+  interruptible: true
+  variables:
+    # Strings only: the script reads them as data, never as shell code.
+    TRIPL_CHECK_BASE_URL: $[[ inputs.base_url ]]
+    TRIPL_CHECK_PROJECT: $[[ inputs.project ]]
+    TRIPL_CHECK_CONFIG: $[[ inputs.check_config ]]
+    TRIPL_CHECK_DIRECTORY: $[[ inputs.directory ]]
+    TRIPL_CHECK_BASELINE: $[[ inputs.baseline ]]
+    TRIPL_CHECK_ARGS: $[[ inputs.args ]]
+    TRIPL_CHECK_MODE: "pipelines=$[[ inputs.pipelines ]] gate=$[[ inputs.gate ]] strict=$[[ inputs.strict ]]"
+  rules:
+    - if: $TRIPL_API_KEY == null || $TRIPL_API_KEY == ""
+      when: never # a merge request from a fork has no key
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: '"$[[ inputs.pipelines ]]" == "branches" && $CI_COMMIT_BRANCH'
+  script:
+    - |
+      set -eu
+      set -f # no globbing in what the inputs hold
+      mode=" $TRIPL_CHECK_MODE "
+      root="$CI_PROJECT_DIR"
+      [ -z "$TRIPL_CHECK_BASE_URL" ] || export TRIPL_BASE_URL="$TRIPL_CHECK_BASE_URL"
+      set -- check --report "codequality=$root/gl-code-quality-report.json" --report "junit=$root/tripl-check.xml"
+      [ -z "$TRIPL_CHECK_PROJECT" ] || set -- "$@" --project "$TRIPL_CHECK_PROJECT"
+      [ -z "$TRIPL_CHECK_CONFIG" ] || set -- "$@" --check-config "$root/$TRIPL_CHECK_CONFIG"
+      case "$mode" in *" strict=true "*) set -- "$@" --strict ;; esac
+      if [ -n "$TRIPL_CHECK_BASELINE" ]; then
+        if [ -f "$root/$TRIPL_CHECK_BASELINE" ]; then
+          set -- "$@" --baseline "$root/$TRIPL_CHECK_BASELINE"
+        else
+          echo "No baseline at $TRIPL_CHECK_BASELINE: every error outside the change fails the run."
+          echo "Write one with: tripl check --write-baseline $TRIPL_CHECK_BASELINE"
+        fi
+      fi
+      case "$mode" in
+        *" gate=true "*)
+          # The merge request's base: the target branch's commit in a merged
+          # results pipeline or a merge train, else the merge base. On the
+          # default branch there is none: every finding counts there, and the
+          # baseline decides.
+          base="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}}"
+          if [ -n "$base" ]; then
+            git fetch --quiet --no-tags --depth=1 origin "$base"
+          elif [ -z "${CI_MERGE_REQUEST_IID:-}" ] && [ "${CI_COMMIT_BRANCH:-}" != "$CI_DEFAULT_BRANCH" ]; then
+            # A branch pipeline (pipelines: branches): its merge base with the
+            # default branch, which needs the branch's history.
+            if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+              git fetch --quiet --no-tags --unshallow origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+            else
+              git fetch --quiet --no-tags origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+            fi
+            base="$(git merge-base "origin/$CI_DEFAULT_BRANCH" HEAD)"
+          fi
+          set -- "$@" --new-from-rev "$base"
+          ;;
+      esac
+      # shellcheck disable=SC2086 # split on spaces, on purpose
+      set -- "$@" $TRIPL_CHECK_ARGS
+      cd "$root/$TRIPL_CHECK_DIRECTORY"
+      echo "tripl $*"
+      tripl "$@"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    reports:
+      codequality: gl-code-quality-report.json
+      junit: tripl-check.xml
+  allow_failure:
+    exit_codes: $[[ inputs.allow_failure_exit_codes ]]
