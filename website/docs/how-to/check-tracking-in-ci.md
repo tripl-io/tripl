@@ -116,8 +116,8 @@ include:
 ```
 
 That adds one job, `tripl-check`, which runs the CLI of the same release in
-merge request pipelines and on the default branch, gates a merge request on
-what it changes, reads `.tripl/check-baseline.json` when it is there, and
+your branch pipelines, gates a branch on what it changes since it left the
+default branch, reads `.tripl/check-baseline.json` when it is there, and
 writes the Code Quality and JUnit reports. It needs GitLab 17.0 or newer. Every
 input is optional:
 
@@ -131,8 +131,8 @@ input is optional:
 | `check_config` | `""` | The check config, relative to the repository root. Empty finds the nearest `.tripl/check.yml`. |
 | `directory` | `.` | Where to run, relative to the repository root, for a repository with several apps. |
 | `baseline` | `.tripl/check-baseline.json` | The committed [baseline](../integrate/tripl-check.md#baseline), used when the file exists (the log says when it does not). Empty never uses one. |
-| `gate` | `true` | In a merge request, fail only on findings it brings in (`--new-from-rev`). |
-| `pipelines` | `merge_requests` | `branches` runs the job on every branch instead, gated on the branch's merge base with the default branch, for projects without merge request pipelines. |
+| `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. |
+| `pipelines` | `branches` | Where the job runs: `branches`, in branch pipelines on every branch; `merge_requests`, in merge request pipelines and on the default branch. See below. |
 | `strict` | `false` | Fail on warnings too. |
 | `args` | `""` | More `tripl check` arguments, separated by spaces. |
 | `allow_failure_exit_codes` | `[4]` | Exit codes that pass with a warning: `4` is an outage of tripl; add `1` to report findings without failing. |
@@ -148,9 +148,15 @@ input is optional:
 - **Change anything else** by naming the job again in `.gitlab-ci.yml`: GitLab
   merges the keys, so `tripl-check: {tags: [docker]}` picks the runners and
   keeps the rest.
-- **Your pipelines decide.** The job's rules add it to merge request pipelines
-  and to the default branch, but they create no pipeline: if your `workflow:
-  rules` run branch pipelines only, set `pipelines: branches`.
+- **Merge request pipelines.** Set `pipelines: merge_requests` only when your
+  `workflow: rules` already run merge request pipelines. Then the job is gated
+  on the merge request's own base, merged results pipelines and merge trains
+  included, and skips the branch's clone of history. Without such rules (and
+  GitLab has none by default), a job that matches merge requests opens a
+  merge request pipeline of its own holding only it, and GitLab then checks
+  only that pipeline before a merge: the project's tests would stop blocking
+  it. The default, `branches`, never matches a merge request pipeline, so it
+  never opens one.
 
 Without the template, the same job written out:
 
@@ -265,8 +271,6 @@ permissions:
 
 jobs:
   tripl-check:
-    # A pull request from a fork gets no secrets: skip it instead of failing.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -277,9 +281,14 @@ jobs:
 ```
 
 The action runs the CLI of its own release with `uvx`, gates a pull request
-(and a merge queue's group) on what it changes, reads
-`.tripl/check-baseline.json` when it is there, uploads the findings to code
-scanning, and passes with a warning when tripl was unavailable. Its inputs
+on what it changes, reads `.tripl/check-baseline.json` when it is there,
+uploads the findings to code scanning, and passes with a warning when tripl
+was unavailable. A pull request that gets no secrets (a fork's, or
+Dependabot's) is skipped with a notice. With a merge queue, add
+`merge_group:` under `on:`: the action gates each group on its base. It
+fetches the commits the gate needs into the shallow checkout; with
+`persist-credentials: false` on a private repository it cannot, so check
+out with `fetch-depth: 0` there. Its inputs
 match the GitLab template's: `version`, `base-url`, `api-key`, `project`,
 `check-config`, `directory`, `baseline`, `gate`, `strict` and `args`, plus
 `pass-on-outage` (default `true`) and `sarif` (default `true`; `false` skips
@@ -287,16 +296,20 @@ the upload, for a repository without code scanning). Its `exit-code` output
 is what `tripl check` exited with. For a tag that can never move, pin the
 commit instead: `tripl-io/tripl/ci/github@<commit SHA> # cli-vX.Y.Z`.
 
-Without the action, the same check as plain steps:
+Without the action, the same check as plain steps. A pull request from a
+fork or from Dependabot gets no secrets, so the step runs only when the key
+is there:
 
 ```yaml
+    env:
+      TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - name: Check tracking calls against the plan
+        if: env.TRIPL_API_KEY != ''
         env:
           TRIPL_BASE_URL: https://tripl.example.com
-          TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
         run: uvx tripl@X.Y.Z check --baseline .tripl/check-baseline.json --report sarif=tripl-check.sarif
       - name: Upload findings to code scanning
         if: always() && hashFiles('tripl-check.sarif') != ''
@@ -312,9 +325,8 @@ skips the upload. Code scanning on a private repository needs GitHub Code
 Security. Without it, read the findings in the job log, or add `--report
 junit=tripl-check.xml` for a test-report action. To run it on a schedule as
 well, where the plan may have changed with no push, add
-`schedule: [{cron: "0 4 * * *"}]` under `on:` and
-`github.event_name == 'schedule' ||` at the start of the job's `if:`: the
-baseline gates that run like any other.
+`schedule: [{cron: "0 4 * * *"}]` under `on:`: the baseline gates that run
+like any other.
 
 ### Any other CI {#other-ci}
 

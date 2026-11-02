@@ -6,6 +6,8 @@
 #         base_url: https://tripl.example.com
 #
 # Add TRIPL_API_KEY under Settings > CI/CD > Variables (masked, not protected).
+# The job runs in branch pipelines, which every project has. If yours runs
+# merge request pipelines (workflow:rules), set pipelines: merge_requests.
 # Every input is described below, and in website/docs/how-to/check-tracking-in-ci.md.
 # Needs GitLab 17.0 or newer (CI/CD inputs); `integrity:` on the include, 17.9.
 spec:
@@ -39,17 +41,20 @@ spec:
       default: .tripl/check-baseline.json
     gate:
       description: >-
-        In a merge request, fail only on findings it brings in (--new-from-rev).
-        With pipelines: branches, a branch is compared with its merge base with the
-        default branch.
+        Fail only on findings the change brings in (--new-from-rev): a branch's,
+        against its merge base with the default branch; a merge request's, against
+        its base.
       type: boolean
       default: true
     pipelines:
       description: >-
-        merge_requests runs in merge request pipelines and on the default branch;
-        branches runs on every branch, for projects without merge request pipelines.
-      options: [merge_requests, branches]
-      default: merge_requests
+        branches runs in branch pipelines, on every branch. merge_requests runs in
+        merge request pipelines and on the default branch, for a project whose
+        workflow:rules run merge request pipelines: without them, the job would
+        open a merge request pipeline of its own, and GitLab would then check
+        only that one before a merge.
+      options: [branches, merge_requests]
+      default: branches
     strict:
       description: Fail on warnings too (--strict).
       type: boolean
@@ -87,9 +92,10 @@ tripl-check:
   rules:
     - if: $TRIPL_API_KEY == null || $TRIPL_API_KEY == ""
       when: never # a merge request from a fork has no key
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # branches never matches a merge request pipeline, so it never creates one.
     - if: '"$[[ inputs.pipelines ]]" == "branches" && $CI_COMMIT_BRANCH'
+    - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
     - |
       set -eu
@@ -119,8 +125,8 @@ tripl-check:
           if [ -n "$base" ]; then
             git fetch --quiet --no-tags --depth=1 origin "$base"
           elif [ -z "${CI_MERGE_REQUEST_IID:-}" ] && [ "${CI_COMMIT_BRANCH:-}" != "$CI_DEFAULT_BRANCH" ]; then
-            # A branch pipeline (pipelines: branches): its merge base with the
-            # default branch, which needs the branch's history.
+            # A branch pipeline: its merge base with the default branch, which
+            # needs the branch's history.
             if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
               git fetch --quiet --no-tags --unshallow origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
             else

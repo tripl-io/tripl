@@ -22,7 +22,9 @@ inputs:
     description: The instance's https:// address. Empty reads the TRIPL_BASE_URL environment variable.
     default: ""
   api-key:
-    description: A read-only API key. Empty reads the TRIPL_API_KEY environment variable.
+    description: >-
+      A read-only API key. Empty reads the TRIPL_API_KEY environment variable. A pull
+      request with neither (from a fork, or Dependabot's) is skipped with a notice.
     default: ""
   project:
     description: The tripl project. Empty reads it from the check config.
@@ -54,7 +56,9 @@ inputs:
 
 outputs:
   exit-code:
-    description: What tripl check exited with (0 passed, 1 findings, 2 configuration, 4 tripl unavailable).
+    description: >-
+      What tripl check exited with (0 passed, 1 findings, 2 configuration, 4 tripl
+      unavailable); empty when a pull request without a key skipped it.
     value: ${{ steps.check.outputs.exit-code }}
 
 runs:
@@ -91,7 +95,19 @@ runs:
         }
         [[ -z "$INPUT_BASE_URL" ]] || export TRIPL_BASE_URL="$INPUT_BASE_URL"
         [[ -z "$INPUT_API_KEY" ]] || export TRIPL_API_KEY="$INPUT_API_KEY"
+        if [[ -z "${TRIPL_API_KEY:-}" && ( "$EVENT_NAME" == pull_request || "$EVENT_NAME" == pull_request_target ) ]]; then
+          # A fork's pull request, or Dependabot's, gets no secrets.
+          echo "::notice title=tripl check::No API key in this pull request (a fork's, or Dependabot's): not checked."
+          exit 0
+        fi
         root="$GITHUB_WORKSPACE"
+        has() { git -C "$root" rev-parse --quiet --verify "$1^{commit}" >/dev/null; }
+        fetch() {
+          git -C "$root" fetch --quiet --no-tags "$@" || {
+            echo "::error title=tripl check::git fetch $* failed, so the gate has no base. Check out with fetch-depth: 0, or keep the checkout's credentials."
+            exit 2
+          }
+        }
         args=(check)
         sarif=""
         if [[ "$INPUT_SARIF" == true ]]; then
@@ -114,23 +130,29 @@ runs:
           base=""
           case "$EVENT_NAME" in
             pull_request)
-              # The checkout is the merge commit GitHub made: its first parent
-              # is the base branch as the pull request will merge into it.
-              if [[ -f "$(git -C "$root" rev-parse --git-dir)/shallow" ]]; then
-                git -C "$root" fetch --quiet --no-tags --depth=2 origin "$GITHUB_SHA"
-              fi
-              if [[ "$(git -C "$root" rev-parse HEAD)" == "$GITHUB_SHA" ]] \
-                && git -C "$root" rev-parse --quiet --verify HEAD^2 >/dev/null; then
-                base="$(git -C "$root" rev-parse HEAD^1)"
+              if [[ "$(git -C "$root" rev-parse HEAD)" == "$GITHUB_SHA" ]]; then
+                # The merge commit GitHub made: its first parent is the base
+                # branch as the pull request will merge into it.
+                has HEAD^2 || fetch --depth=2 origin "$GITHUB_SHA"
+                base="$(git -C "$root" rev-parse HEAD^1)" || exit 2
               else
-                # Another ref checked out (the pull request's head): its base branch's tip.
-                base="$PR_BASE_SHA"
-                git -C "$root" fetch --quiet --no-tags --depth=1 origin "$base"
+                # The pull request's head, checked out instead: where it left
+                # the base branch, which needs both histories.
+                if [[ -f "$(git -C "$root" rev-parse --git-dir)/shallow" ]]; then
+                  fetch --unshallow origin "$PR_BASE_SHA"
+                else
+                  has "$PR_BASE_SHA" || fetch origin "$PR_BASE_SHA"
+                fi
+                base="$(git -C "$root" merge-base "$PR_BASE_SHA" HEAD)" || {
+                  echo "::error title=tripl check::The pull request's head and $PR_BASE_SHA share no commit."
+                  exit 2
+                }
               fi
               ;;
             merge_group)
+              # The group's commit is its base plus the pull requests in it.
               base="$MERGE_GROUP_BASE_SHA"
-              git -C "$root" fetch --quiet --no-tags --depth=1 origin "$base"
+              has "$base" || fetch --depth=1 origin "$base"
               ;;
           esac
           # Empty on a push or a schedule: every finding counts, and the baseline decides.

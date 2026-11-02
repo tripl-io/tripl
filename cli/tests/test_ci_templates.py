@@ -198,10 +198,26 @@ def _gitlab(clone: Path, tmp_path: Path, shell: str = "sh", **env: str) -> Ran:
         "TRIPL_CHECK_DIRECTORY": ".",
         "TRIPL_CHECK_BASELINE": BASELINE,
         "TRIPL_CHECK_ARGS": "",
-        "TRIPL_CHECK_MODE": "pipelines=merge_requests gate=true strict=false",
+        "TRIPL_CHECK_MODE": "pipelines=branches gate=true strict=false",
         **env,
     }
     return _run(shell, GITLAB_SCRIPT, clone, tmp_path, "tripl", variables)
+
+
+MR_MODE = "pipelines=merge_requests gate=true strict=false"
+
+
+def test_gitlab_branches_mode_never_opens_a_merge_request_pipeline() -> None:
+    # Without workflow:rules, a job that matches merge_request_event opens a
+    # merge request pipeline holding only it, and GitLab then checks only that
+    # pipeline before a merge: the project's own tests would stop blocking.
+    job = GITLAB.read_text(encoding="utf-8").split("\n---\n")[1]
+    rules = re.findall(r"^    - if: (.+)$", job, re.M)
+    guarded = [rule for rule in rules if "inputs.pipelines" in rule]
+    assert len(guarded) == len(rules) - 1  # all but the missing-key rule
+    branches = [rule for rule in guarded if '== "branches"' in rule]
+    assert branches and not any("merge_request" in rule for rule in branches)
+    assert re.search(r"default: branches$", GITLAB.read_text(encoding="utf-8"), re.M)
 
 
 @needs_git
@@ -219,6 +235,7 @@ def test_gitlab_merge_request_is_gated_on_its_base_with_the_baseline(
         CI_MERGE_REQUEST_IID="7",
         CI_MERGE_REQUEST_DIFF_BASE_SHA=base,
         TRIPL_CHECK_BASE_URL="https://tripl.example.com",
+        TRIPL_CHECK_MODE=MR_MODE,
     )
     assert ran.code == 0, ran.log
     assert ran.argv == [
@@ -248,6 +265,7 @@ def test_gitlab_merged_results_pipeline_uses_the_target_branch_commit(
         CI_MERGE_REQUEST_IID="7",
         CI_MERGE_REQUEST_TARGET_BRANCH_SHA=target,
         CI_MERGE_REQUEST_DIFF_BASE_SHA="0" * 40,
+        TRIPL_CHECK_MODE=MR_MODE,
     )
     assert ran.code == 0, ran.log
     assert ran.after("--new-from-rev") == target
@@ -271,7 +289,6 @@ def test_gitlab_branch_pipelines_gate_on_the_merge_base(origin: Path, tmp_path: 
         clone,
         tmp_path,
         CI_COMMIT_BRANCH="feature",
-        TRIPL_CHECK_MODE="pipelines=branches gate=true strict=false",
     )
     assert ran.code == 0, ran.log
     assert ran.after("--new-from-rev") == _git(origin, "rev-parse", "main")
@@ -331,7 +348,7 @@ def _action(clone: Path, tmp_path: Path, **env: str) -> tuple[Ran, dict[str, str
         "MERGE_GROUP_BASE_SHA": "",
         "INPUT_VERSION": "1.2.3",
         "INPUT_BASE_URL": "",
-        "INPUT_API_KEY": "",
+        "INPUT_API_KEY": "key",
         "INPUT_PROJECT": "",
         "INPUT_CHECK_CONFIG": "",
         "INPUT_DIRECTORY": ".",
@@ -384,18 +401,47 @@ def test_action_pull_request_is_gated_on_the_merge_commits_first_parent(
 
 
 @needs_git
-def test_action_pull_request_head_checked_out_is_gated_on_the_base_tip(
+def test_action_pull_request_head_checked_out_is_gated_on_its_merge_base(
     origin: Path, merge_ref: str, tmp_path: Path
 ) -> None:
     # actions/checkout with ref: the pull request's head, not the merge commit.
-    base = _git(origin, "rev-parse", "main")
+    # main moved on after the branch: its tip is not what the branch changed.
+    fork_point = _git(origin, "rev-parse", "main")
+    (origin / "app" / "a.swift").write_text("a, edited on main\n", encoding="utf-8")
+    _git(origin, "commit", "-q", "-am", "main moves on")
+    tip = _git(origin, "rev-parse", "main")
     clone = _clone(origin, "feature", tmp_path / "clone")
     ran, _ = _action(
-        clone, tmp_path, EVENT_NAME="pull_request", GITHUB_SHA=merge_ref, PR_BASE_SHA=base
+        clone, tmp_path, EVENT_NAME="pull_request", GITHUB_SHA=merge_ref, PR_BASE_SHA=tip
     )
     assert ran.code == 0, ran.log
-    assert ran.after("--new-from-rev") == base
-    _git(clone, "cat-file", "-e", f"{base}^{{commit}}")
+    assert ran.after("--new-from-rev") == fork_point
+
+
+@needs_git
+def test_action_skips_a_pull_request_without_a_key(origin: Path, tmp_path: Path) -> None:
+    # A fork's pull request, or Dependabot's, gets no secrets: skipped, not red.
+    clone = _clone(origin, "feature", tmp_path / "clone")
+    ran, outputs = _action(clone, tmp_path, EVENT_NAME="pull_request", INPUT_API_KEY="")
+    assert ran.code == 0
+    assert not ran.called
+    assert "not checked" in ran.log
+    assert outputs == {}
+    # Anywhere else a missing key is the CLI's to refuse (exit 2).
+    ran, _ = _action(clone, tmp_path, EVENT_NAME="push", INPUT_API_KEY="")
+    assert ran.called
+
+
+@needs_git
+def test_action_says_why_when_the_base_cannot_be_fetched(
+    origin: Path, merge_ref: str, tmp_path: Path
+) -> None:
+    clone = _clone(origin, merge_ref, tmp_path / "clone")
+    _git(clone, "remote", "set-url", "origin", (tmp_path / "gone").as_uri())
+    ran, _ = _action(clone, tmp_path, EVENT_NAME="pull_request", GITHUB_SHA=merge_ref)
+    assert ran.code == 2
+    assert not ran.called
+    assert "fetch-depth: 0" in ran.log
 
 
 @needs_git
