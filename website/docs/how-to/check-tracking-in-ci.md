@@ -274,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: tripl-io/tripl/ci/github@cli-vX.Y.Z
+      - uses: tripl-io/tripl-check-action@vX.Y.Z
         with:
           base-url: https://tripl.example.com
           api-key: ${{ secrets.TRIPL_READ_ONLY_KEY }}
@@ -296,7 +296,11 @@ the upload, for a repository without code scanning) and `category` (the code
 scanning category: `tripl-check`, or `tripl-check/<directory>` so that one
 step per app keeps each app's alerts). Its `exit-code` output
 is what `tripl check` exited with. For a tag that can never move, pin the
-commit instead: `tripl-io/tripl/ci/github@<commit SHA> # cli-vX.Y.Z`.
+commit instead: `tripl-io/tripl-check-action@<commit SHA> # vX.Y.Z`.
+[tripl-io/tripl-check-action](https://github.com/tripl-io/tripl-check-action)
+mirrors `ci/github/action.yml` from each CLI release, tagged `vX.Y.Z` (and
+`vX.Y`, which follows the patch releases); `tripl-io/tripl/ci/github@cli-vX.Y.Z`
+runs the same file from this repository.
 
 Without the action, the same check as plain steps. A pull request from a
 fork or from Dependabot gets no secrets, so the step runs only when the key
