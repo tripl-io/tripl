@@ -719,11 +719,18 @@ scan jobs remain available. Distribution drift in the `stable` or `minor` band
 has a shorter horizon than significant drift; set the shorter horizon no higher
 than the general one.
 
+The same task deletes scan previews and dry runs, the answers the scan form
+asks the worker for and reads once (a preview, a JSON key discovery, a dry
+run, and the same jobs started through the API). They go after
+`SCAN_PREVIEW_RETENTION_DAYS`, measured from completion. A preview or dry run
+still unfinished after that long is one whose worker died, and it goes too.
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SCAN_JOB_RETENTION_DAYS` | `90` | Age limit for completed scan jobs, measured from `completed_at`. |
 | `DISTRIBUTION_DRIFT_RETENTION_DAYS` | `90` | Age limit for significant distribution drift. |
 | `DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS` | `30` | Age limit for stable and minor distribution drift. |
+| `SCAN_PREVIEW_RETENTION_DAYS` | `7` | Age limit for scan previews and dry runs, measured from `completed_at`. |
 
 ---
 

@@ -36,6 +36,12 @@ import httpx
 
 from tripl_cli.client import create_http_client
 from tripl_cli.config import Config, require_api_key, require_base_url
+from tripl_cli.errors import (
+    TriplAPIError,
+    TriplConnectionError,
+    TriplUnavailableError,
+    unavailable,
+)
 
 # How many reads may be in flight at once. doctor's drift scan is one request
 # per event type, and a self-hosted tripl is commonly one uvicorn worker in
@@ -75,6 +81,29 @@ def run_async[T](
             return await body(client)
 
     return asyncio.run(_main())
+
+
+def run_gate[T](
+    config: Config,
+    body: Callable[[httpx.AsyncClient], Awaitable[T]],
+    *,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+) -> T:
+    """``run_async`` for the commands a CI pipeline gates on: check, codegen, export.
+
+    An instance that was unavailable is ``EXIT_UNAVAILABLE`` here rather than 1,
+    so "nothing was decided" can be told from a finding by the exit code alone
+    — on a failed request these commands write no document to tell it by. Every
+    other failure passes through untouched.
+    """
+    try:
+        return run_async(config, body, timeout=timeout)
+    except (TriplConnectionError, TriplAPIError) as exc:
+        if not unavailable(exc):
+            raise
+        raise TriplUnavailableError(
+            f"{exc} - the instance was unavailable, so nothing was checked (exit 4)."
+        ) from exc
 
 
 def run_unauthenticated[T](

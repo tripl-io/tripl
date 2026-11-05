@@ -763,7 +763,7 @@ def test_collect_metrics_records_coverage_and_shadow_candidates(
 
 
 @pytest.mark.asyncio
-async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
+async def test_shadow_upsert_keeps_status_and_moves_first_seen_back(client: AsyncClient):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -777,7 +777,7 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
 
         project_id = uuid.uuid4()
         scan_id = uuid.uuid4()
-        first_rows = [
+        first_rows: list[dict[str, object]] = [
             {
                 "id": uuid.uuid4(),
                 "project_id": project_id,
@@ -788,6 +788,7 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
                 "first_seen_at": NOW - timedelta(days=3),
                 "last_seen_at": NOW - timedelta(days=1),
                 "status": SHADOW_STATUS_NEW,
+                "sample_properties": [{"screen": "home"}],
             }
         ]
         _upsert_shadow_event_candidates(sync_session, rows=first_rows)
@@ -797,8 +798,11 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
         candidate.status = SHADOW_STATUS_DISMISSED
         sync_session.commit()
 
-        # Re-collection: count refreshes, last_seen never rewinds, status survives.
-        second_rows = [
+        # Re-collection of older history (the newest-first demo fill ends on its
+        # oldest window): count and samples stay the newer window's, last_seen
+        # never rewinds, first_seen moves back to the earlier sighting, status
+        # survives.
+        second_rows: list[dict[str, object]] = [
             {
                 "id": uuid.uuid4(),
                 "project_id": project_id,
@@ -809,6 +813,7 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
                 "first_seen_at": NOW - timedelta(days=10),
                 "last_seen_at": NOW - timedelta(days=5),
                 "status": SHADOW_STATUS_NEW,
+                "sample_properties": [{"screen": "cart"}],
             }
         ]
         _upsert_shadow_event_candidates(sync_session, rows=second_rows)
@@ -816,10 +821,41 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
 
         refreshed = sync_session.execute(select(ShadowEventCandidate)).scalar_one()
         assert refreshed.status == SHADOW_STATUS_DISMISSED
-        assert refreshed.observed_count == 7
+        assert refreshed.observed_count == 10
+        assert refreshed.sample_properties == [{"screen": "home"}]
         # Stored without tz on sqlite; compare naive.
         assert refreshed.last_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=1)
-        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=3)
+        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=10)
+
+        # A chunk of that older run adds nothing onto the newer window's count.
+        _upsert_shadow_event_candidates(
+            sync_session,
+            rows=[{**second_rows[0], "id": uuid.uuid4(), "observed_count": 4}],
+            accumulate_names={"shadow | x"},
+        )
+        sync_session.commit()
+        sync_session.expire_all()
+        assert sync_session.execute(select(ShadowEventCandidate)).scalar_one().observed_count == 10
+
+        # A newer window replaces count and samples, and never moves first_seen
+        # forward.
+        third_rows: list[dict[str, object]] = [
+            {
+                **second_rows[0],
+                "id": uuid.uuid4(),
+                "first_seen_at": NOW - timedelta(hours=2),
+                "last_seen_at": NOW - timedelta(hours=1),
+            }
+        ]
+        _upsert_shadow_event_candidates(sync_session, rows=third_rows)
+        sync_session.commit()
+        sync_session.expire_all()
+
+        refreshed = sync_session.execute(select(ShadowEventCandidate)).scalar_one()
+        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=10)
+        assert refreshed.last_seen_at.replace(tzinfo=UTC) == NOW - timedelta(hours=1)
+        assert refreshed.observed_count == 7
+        assert refreshed.sample_properties == [{"screen": "cart"}]
         sync_session.close()
     finally:
         engine.dispose()

@@ -13,7 +13,28 @@ from pathlib import Path
 
 import pytest
 
+from tripl_cli.check import inventory as inventory_module
+from tripl_cli.check.baseline import Entry, baseline_key, match
+from tripl_cli.check.gate import apply_gate
+from tripl_cli.check.model import (
+    BASELINE_CHECK,
+    GATE_REV,
+    MODE_STATIC,
+    BaselineInfo,
+    CheckFinding,
+    CheckItem,
+    CheckReport,
+    CheckResult,
+    GateInfo,
+    Marker,
+    MarkerState,
+    Origin,
+    PlanBranchComparison,
+    Suppression,
+)
+from tripl_cli.check.render import render_text
 from tripl_cli.cli import main
+from tripl_cli.model import Instance, Run
 
 from .conftest import (
     FakeInstance,
@@ -500,10 +521,40 @@ def test_upgrade_dry_run_sample(
     )
 
 
+_CHECK_LIST_CONFIG = """\
+project: prod
+sources: ["app/**"]
+event_types:
+  event:
+    calls: [{function: "analytics.logEvent", positional: [name, properties]}]
+"""
+# One call of each kind `check --list` explains, ASCII through and through, so
+# any non-ASCII byte in its output is the tool's own text.
+_CHECK_LIST_SOURCE = """\
+object Events { object Name { const val Open = "open" }; const val PROMO = "promo_%s_shown" }
+class Screen {
+    fun logEvent(event: String, params: Bundle) { analytics.logEvent(event, params) }
+    fun onAction(action: UiAction) { analytics.logEvent(action.event) }
+    fun refresh(flag: Boolean) {
+        val log = if (flag) Events.Name.Open else "closed"
+        analytics.logEvent(log, "not a dictionary", extra)
+    }
+    fun promo(id: String) { analytics.logEvent(Events.PROMO.format(id), mapOf("id" to id)) }
+    fun show() {
+        analytics.logEvent()
+        logEvent("home_shown", bundle)
+        wrap(Events.Name.Open)
+    }
+}
+"""
+
+
 def test_every_sample_is_ascii(
     tripl_api: FakeInstance,
     configured_env: None,
     install_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """No unicode anywhere in the new commands' human output."""
@@ -511,6 +562,20 @@ def test_every_sample_is_ascii(
     install_dir.mkdir(parents=True)
     (install_dir / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
     (install_dir / ".env").write_text("TRIPL_VERSION=1.4.0\n", encoding="utf-8")
+    checkout = tmp_path / "checkout"
+    (checkout / ".tripl").mkdir(parents=True)
+    (checkout / "app").mkdir()
+    (checkout / ".tripl" / "check.yml").write_text(_CHECK_LIST_CONFIG, encoding="utf-8")
+    (checkout / "app" / "Screen.kt").write_text(_CHECK_LIST_SOURCE, encoding="utf-8")
+    # `check --list` with no check config, from a checkout with more source
+    # files than the (lowered) cap: the discovery text and its note.
+    discovery = tmp_path / "discovery"
+    (discovery / ".git").mkdir(parents=True)
+    (discovery / "web").mkdir()
+    for name in ("a.ts", "b.ts"):
+        (discovery / "web" / name).write_text('analytics.track("Opened");\n', encoding="utf-8")
+    monkeypatch.setattr(inventory_module, "MAX_DISCOVERY_FILES", 1)
+    monkeypatch.chdir(discovery)
     for argv in (
         ["scans", "list"],
         ["scans", "jobs", "scan-1", "--project", "prod"],
@@ -534,7 +599,240 @@ def test_every_sample_is_ascii(
             "--dry-run",
         ],
         ["upgrade", "--to", "1.5.0", "--dir", str(install_dir), "--dry-run"],
+        ["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")],
+        ["check", "--list"],
     ):
         main(argv)
         out = capsys.readouterr().out
         assert out.isascii(), f"{argv} emitted non-ASCII output"
+    # Not vacuous for the listing: its fixture reaches every section, and the
+    # section of calls that look like tracking has rows, not just its heading.
+    assert main(["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")]) == 0
+    listing = capsys.readouterr().out
+    for section in ("Why (call sites", "Functions that forward", "Calls that look like tracking"):
+        assert section in listing
+    assert "  1  wrap      constant  app/Screen.kt:13:9  wrap(Events.Name.Open)\n" in listing
+    # Nor for discovery: it stopped at the cap, and said so.
+    assert main(["check", "--list"]) == 0
+    listing = capsys.readouterr().out
+    for note in ("No check config found: ", "Discovery stopped at 1 source file; "):
+        assert note in listing
+
+
+def test_check_text_sample_with_suppression() -> None:
+    """A suppressed finding is counted, not listed; marker problems follow the tally."""
+
+    def result(path: str, line: int, name: str, waiver: Suppression | None) -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        finding = CheckFinding(
+            "unknown_event", "error", f"no event '{name}' in the plan", suppression=waiver
+        )
+        return CheckResult(item=item, status="error", findings=(finding,))
+
+    waiver = Suppression("app/src/Debug.kt", 6, 8, (("unknown_event", None),), "debug menu only")
+    used = Marker(
+        "app/src/Debug.kt",
+        6,
+        8,
+        "tripl-check-ignore[unknown_event] -- debug menu only",
+        waiver.targets,
+        waiver.reason,
+    )
+    reasonless = Marker(
+        "app/src/Debug.kt",
+        9,
+        8,
+        "tripl-check-ignore[unknown_event]",
+        waiver.targets,
+        None,
+        "no_reason",
+    )
+    unused = Marker(
+        "app/src/Old.kt",
+        3,
+        4,
+        "tripl-check-ignore[unknown_event] -- fixed",
+        waiver.targets,
+        "fixed",
+    )
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=1,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=(
+            result("app/src/Checkout.kt", 42, "checkout_startd", None),
+            result("app/src/Debug.kt", 7, "debug_tap", waiver),
+            result("app/src/Debug.kt", 10, "debug_long_press", None),
+        ),
+        files_scanned=3,
+        markers=(
+            MarkerState(used, True),
+            MarkerState(reasonless, False),
+            MarkerState(unused, False),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "app/src/Debug.kt:10:9  error  event  debug_long_press\n"
+        "    error  unknown_event: no event 'debug_long_press' in the plan\n"
+        "\n"
+        "3 call sites in 3 files: 0 ok, 0 warnings, 3 errors; 1 finding suppressed.\n"
+        'Suppression ignored: app/src/Debug.kt:9 tripl-check-ignore needs "-- <reason>".\n'
+        "Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding."
+    )
+    assert report.exit_code == 1
+
+
+def test_check_text_sample_with_a_gate() -> None:
+    """Under a gate the listing shows what the change brought in; the rest is counted."""
+
+    def result(path: str, line: int, name: str, status: str = "error") -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        code = "unknown_event" if status == "error" else "unknown_field"
+        finding = CheckFinding(code, status, f"no event '{name}' in the plan")
+        return CheckResult(item=item, status=status, findings=(finding,))
+
+    reasonless = Marker(
+        "app/src/Debug.kt",
+        9,
+        8,
+        "tripl-check-ignore[unknown_event]",
+        (("unknown_event", None),),
+        None,
+        "no_reason",
+    )
+    unused = Marker(
+        "app/src/Checkout.kt",
+        3,
+        4,
+        "tripl-check-ignore[unknown_event] -- fixed",
+        (("unknown_event", None),),
+        "fixed",
+    )
+    results = (
+        result("app/src/Checkout.kt", 42, "checkout_startd"),
+        result("app/src/Home.kt", 7, "home_shown"),
+        result("app/src/Home.kt", 9, "home_left", "warning"),
+        result("app/src/Cart.kt", 12, "cart_opened"),
+    )
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=3,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=apply_gate(results, (True, False, False, False), {3: (True,)}),
+        branch_id="b-1",
+        branch_name="checkout-v2",
+        files_scanned=3,
+        markers=(MarkerState(reasonless, False), MarkerState(unused, False)),
+        gate=GateInfo(
+            source=GATE_REV,
+            files=5,
+            paths=frozenset({"app/src/Checkout.kt"}),
+            rev="1a2b3c4d5e6f7a8b",
+            base="1a2b3c4d5e6f7a8b9c0d",
+            plan_branch=PlanBranchComparison(compared=2, caused=1),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "app/src/Cart.kt:12:9  error  event  cart_opened\n"
+        "    error  unknown_event: no event 'cart_opened' in the plan\n"
+        "\n"
+        "4 call sites in 3 files: 0 ok, 1 warning, 3 errors.\n"
+        "Gate: changes since 1a2b3c4d5e6f (5 files, 1 call site new or changed). "
+        "2 call sites fail the run; 1 error and 1 warning are not new in this change.\n"
+        "Plan branch checkout-v2: 1 finding caused by the branch "
+        "(2 call sites also checked against main).\n"
+        "Unused suppression: app/src/Checkout.kt:3 tripl-check-ignore[unknown_event] "
+        "matched no finding.\n"
+        "Suppressions outside this change: 1 ignored (listed in --json and SARIF)."
+    )
+    assert report.exit_code == 1
+
+
+def test_check_text_sample_with_a_baseline() -> None:
+    """Under a baseline the listing shows what it does not hold; the rest is counted."""
+
+    def result(path: str, line: int, name: str, status: str = "error") -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        code = "unknown_event" if status == "error" else "unknown_field"
+        finding = CheckFinding(code, status, f"no event '{name}' in the plan")
+        return CheckResult(item=item, status=status, findings=(finding,))
+
+    results = (
+        result("app/src/Checkout.kt", 42, "checkout_startd"),
+        result("app/src/Home.kt", 7, "home_shown"),
+        result("app/src/Home.kt", 9, "home_left", "warning"),
+    )
+    entries = (
+        Entry(baseline_key(results[1].item), "unknown_event", None, "error", 1),
+        Entry(baseline_key(results[2].item), "unknown_field", None, "warning", 1),
+        Entry(baseline_key(results[0].item), "unknown_field", None, "warning", 3),
+    )
+    matching = match(results, entries)
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=1,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=matching.results,
+        files_scanned=2,
+        baseline=BaselineInfo(
+            path=".tripl/check-baseline.json",
+            action=BASELINE_CHECK,
+            entries=3,
+            findings=5,
+            stale=matching.stale(entries),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "\n"
+        "3 call sites in 2 files: 0 ok, 1 warning, 2 errors.\n"
+        "Baseline: .tripl/check-baseline.json (5 findings in 3 entries). "
+        "1 call site fails the run; 1 error and 1 warning are in the baseline.\n"
+        "Baseline: 3 findings it holds were not seen in this run; "
+        "--prune-baseline drops them."
+    )
+    assert report.exit_code == 1

@@ -4,29 +4,66 @@ The ``--json`` document is built in ``tripl_cli.report`` with every other one.
 SARIF lives here because it is not a tripl document — it is OASIS's format,
 read by GitHub code scanning and every other SARIF viewer — and so carries no
 tripl envelope.
+
+A finding a ``tripl-check-ignore`` marker waives is counted in the listing, not
+shown, and is a SARIF result with an ``inSource`` suppression. A marker that
+suppresses nothing, or matched no finding, is listed after the tally and is a
+SARIF result of its own.
+
+Under a gate (``--new-from-rev``, ``--new-from-patch``) the listing shows only
+what the change brought in and what fails the run; the rest is counted on the
+``Gate:`` line, and a marker problem is listed only in a file the change
+touched. SARIF keeps every result, each with ``properties.inChange``, and
+carries the gate in the run's properties.
+
+Under a baseline (``--baseline``, ``--write-baseline``) a result the baseline
+holds every listed finding of, and that does not fail the run, is counted on
+the ``Baseline:`` line instead of listed; a listed finding the baseline holds
+says so. SARIF marks each result ``properties.baselined`` and carries the
+baseline in the run's properties.
 """
 
 from __future__ import annotations
 
-import hashlib
+from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
 from tripl_cli import __version__
+from tripl_cli.check.baseline import baseline_document
+from tripl_cli.check.fingerprint import (
+    FINGERPRINT_KEY,
+    finding_fingerprints,
+    marker_fingerprints,
+)
+from tripl_cli.check.gate import gate_document
 from tripl_cli.check.model import (
+    BASELINE_PRUNE,
+    BASELINE_WRITE,
+    CODE_INVALID_SUPPRESSION,
+    CODE_UNUSED_SUPPRESSION,
+    GATE_REV,
     MODE_STATIC,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
+    SKIP_TOO_LARGE,
+    SKIP_UNREADABLE,
     STATUS_DYNAMIC,
+    STATUS_ERROR,
     STATUS_OK,
+    STATUS_WARNING,
     STDIN_LABEL,
     CheckFinding,
     CheckReport,
     CheckResult,
+    MarkerState,
     Origin,
+    SkippedFile,
+    severe,
 )
+from tripl_cli.check.suppress import PROBLEM_TEXT, label
 from tripl_cli.check.validate import summary
 from tripl_cli.model import JsonDict
 from tripl_cli.render import plural
@@ -52,6 +89,11 @@ RULE_TEXT: dict[str, str] = {
     "policy_violation": "The call breaks a plan rule the server adds (an organization policy).",
     "oversize_value": "A value exceeded the validator's size limits and was sent as null.",
     "no_verdict": "The validator returned no verdict for this item.",
+    CODE_INVALID_SUPPRESSION: (
+        "A tripl-check-ignore marker is malformed (no code, no reason, or no_verdict) "
+        "and suppresses nothing."
+    ),
+    CODE_UNUSED_SUPPRESSION: "A tripl-check-ignore marker matched no finding in this run.",
 }
 
 _SARIF_LEVEL = {SEVERITY_ERROR: "error", SEVERITY_WARNING: "warning", SEVERITY_INFO: "note"}
@@ -75,6 +117,13 @@ def describe(result: CheckResult) -> str:
     return f"{item.event_type or '-'}  {label}"
 
 
+def finding_message(result: CheckResult, finding: CheckFinding) -> str:
+    """One finding as one line of prose: what is wrong, then which call it is about."""
+    field = f" (field {finding.field})" if finding.field else ""
+    text = finding.message or RULE_TEXT.get(finding.code, finding.code)
+    return f"{text}{field} - {describe(result)}"
+
+
 def location(origin: Origin) -> str:
     if origin.column is not None:
         return f"{origin.path}:{origin.line}:{origin.column}"
@@ -83,17 +132,45 @@ def location(origin: Origin) -> str:
 
 
 def render_text(report: CheckReport) -> str:
-    """Every result that is not a clean pass, then the tally. Ok items are counted, not listed."""
+    """Every result that is not a clean pass, then the tally. Ok items are counted, not listed.
+
+    A suppressed finding is counted, not listed, and so is a result once every
+    finding that would list it is suppressed (unless it still fails the run).
+    Under a gate, so is a result the change did not bring in that does not
+    fail the run: the ``Gate:`` line counts those by status. Under a baseline,
+    so is one that does not fail the run and whose listed findings the
+    baseline all holds: the ``Baseline:`` line counts those.
+    """
     lines: list[str] = []
+    held: dict[str, int] = {STATUS_ERROR: 0, STATUS_WARNING: 0}
+    known: dict[str, int] = {STATUS_ERROR: 0, STATUS_WARNING: 0}
     for result in report.results:
         if result.status == STATUS_OK:
             continue
         if result.status == STATUS_DYNAMIC and not report.strict:
             continue
-        lines.append(f"{location(result.item.origin)}  {result.status}  {describe(result)}")
-        for finding in result.findings:
+        shown = [finding for finding in result.findings if finding.suppression is None]
+        status = result.status
+        if len(shown) < len(result.findings):
+            listed = [finding for finding in shown if _listed(finding, report.strict)]
+            if not listed and not report.fails(result):
+                continue
+            if listed:
+                # The verdict of what is left on show, not of what was waived.
+                errors = any(finding.severity == SEVERITY_ERROR for finding in listed)
+                status = STATUS_ERROR if errors else STATUS_WARNING
+        bucket = STATUS_ERROR if status == STATUS_ERROR else STATUS_WARNING
+        if report.gate is not None and result.in_change is False and not report.fails(result):
+            held[bucket] += 1
+            continue
+        if report.baseline is not None and _held(result, report):
+            known[bucket] += 1
+            continue
+        lines.append(f"{location(result.item.origin)}  {status}  {describe(result)}")
+        for finding in shown:
             field = f" [{finding.field}]" if finding.field else ""
-            lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}")
+            mark = " (in the baseline)" if finding.baselined else ""
+            lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}{mark}")
     counts = summary(report.results)
     what = "call site" if report.mode == MODE_STATIC else "event"
     scope = f" in {plural(report.files_scanned, 'file')}" if report.mode == MODE_STATIC else ""
@@ -105,10 +182,201 @@ def render_text(report: CheckReport) -> str:
         tally += f", {counts['dynamic']} only known at runtime"
         if not report.strict:
             tally += " (listed with --strict)"
+    if report.suppressed:
+        tally += f"; {plural(report.suppressed, 'finding')} suppressed"
     if lines:
         lines.append("")
     lines.append(tally + ".")
+    if report.gate is not None:
+        lines.extend(gate_lines(report, held))
+    if report.baseline is not None:
+        lines.extend(baseline_lines(report, known))
+    lines.extend(_marker_lines(report))
+    if report.skipped:
+        lines.append(render_skipped(report.skipped))
     return "\n".join(lines)
+
+
+def gate_lines(report: CheckReport, held: dict[str, int]) -> list[str]:
+    """The ``Gate:`` line, the plan branch's and the unreconstructable files', for a gated run.
+
+    ``held`` counts the results the gate left out of the listing, by status.
+    """
+    gate = report.gate
+    assert gate is not None
+    if gate.source == GATE_REV:
+        since = f"changes since {(gate.base or gate.rev or '')[:12]}"
+    elif gate.patch == "-":
+        since = "the change in the patch on stdin"
+    else:
+        since = f"the change in {gate.patch}"
+    changed = sum(1 for result in report.results if result.in_change)
+    what = "call site" if report.mode == MODE_STATIC else "event"
+    failing = sum(1 for result in report.results if report.fails(result))
+    text = (
+        f"Gate: {since} ({plural(gate.files, 'file')}, {plural(changed, what)} new or "
+        f"changed). {plural(failing, what)} {'fails' if failing == 1 else 'fail'} the run"
+    )
+    kept = [
+        plural(held[status], noun)
+        for status, noun in ((STATUS_ERROR, "error"), (STATUS_WARNING, "warning"))
+        if held[status]
+    ]
+    if kept:
+        verb = "is" if sum(held.values()) == 1 else "are"
+        text += f"; {' and '.join(kept)} {verb} not new in this change"
+    lines = [text + "."]
+    branch = gate.plan_branch
+    if branch is not None:
+        name = report.branch_name or report.branch_id
+        lines.append(
+            f"Plan branch {name}: {plural(branch.caused, 'finding')} caused by the branch "
+            f"({plural(branch.compared, what)} also checked against main)."
+        )
+    if gate.unmapped:
+        lines.append(
+            f"Gate: the diff names {_first(gate.unmapped)}, which this checkout does not have, "
+            "so every call counts as changed."
+        )
+    if gate.untracked:
+        lines.append(
+            f"Gate: git does not track {_first(gate.untracked)}, so every call there counts as new."
+        )
+    if gate.unreconstructable:
+        lines.append(
+            f"Gate: the diff cannot rebuild {_first(gate.unreconstructable)} as it was, so "
+            "every call there counts as changed."
+        )
+    return lines
+
+
+def _held(result: CheckResult, report: CheckReport) -> bool:
+    """Whether the baseline holds ``result``: it passes, and the baseline holds what lists it."""
+    if report.fails(result):
+        return False
+    listed = [
+        finding
+        for finding in result.findings
+        if finding.suppression is None and _listed(finding, report.strict)
+    ]
+    return bool(listed) and all(finding.baselined for finding in listed)
+
+
+def baseline_lines(report: CheckReport, known: dict[str, int]) -> list[str]:
+    """The ``Baseline:`` lines: the file, what fails, what it holds, what it no longer sees.
+
+    ``known`` counts the results the baseline left out of the listing, by status.
+    """
+    baseline = report.baseline
+    assert baseline is not None
+    what = "call site" if report.mode == MODE_STATIC else "event"
+    failing = sum(1 for result in report.results if report.fails(result))
+    held = f"{plural(baseline.findings, 'finding')} in {plural(baseline.entries, 'entry')}"
+    if baseline.action == BASELINE_WRITE:
+        text = f"Baseline: wrote {baseline.path} ({held})."
+    else:
+        text = f"Baseline: {baseline.path} ({held})."
+    text += f" {plural(failing, what)} {'fails' if failing == 1 else 'fail'} the run"
+    kept = [
+        plural(known[status], noun)
+        for status, noun in ((STATUS_ERROR, "error"), (STATUS_WARNING, "warning"))
+        if known[status]
+    ]
+    if kept:
+        verb = "is" if sum(known.values()) == 1 else "are"
+        text += f"; {' and '.join(kept)} {verb} in the baseline"
+    lines = [text + "."]
+    if baseline.action == BASELINE_PRUNE:
+        if baseline.not_pruned is not None:
+            lines.append(f"Baseline: {baseline.path} not pruned: {baseline.not_pruned}.")
+        elif baseline.pruned:
+            lines.append(
+                f"Baseline: pruned {plural(baseline.pruned, 'finding')} this run no longer "
+                f"has from {baseline.path}."
+            )
+        else:
+            lines.append(f"Baseline: nothing to prune in {baseline.path}.")
+    if baseline.stale and not (baseline.action == BASELINE_PRUNE and baseline.not_pruned is None):
+        were = "was" if baseline.stale == 1 else "were"
+        lines.append(
+            f"Baseline: {plural(baseline.stale, 'finding')} it holds {were} not seen in this "
+            f"run; --prune-baseline drops {'it' if baseline.stale == 1 else 'them'}."
+        )
+    return lines
+
+
+def _first(paths: Sequence[str]) -> str:
+    """The first few of ``paths``, and how many more there are."""
+    more = len(paths) - _SKIPPED_SHOWN
+    return ", ".join(paths[:_SKIPPED_SHOWN]) + (f", and {more} more" if more > 0 else "")
+
+
+def _marker_lines(report: CheckReport) -> list[str]:
+    """A line per marker problem; under a gate, only those in files the change touched."""
+    shown = [state for state in report.markers if state.code is not None]
+    gate = report.gate
+    if gate is None:
+        return [marker_line(state) for state in shown]
+    inside = [state for state in shown if state.marker.path in gate.paths]
+    outside = [state for state in shown if state.marker.path not in gate.paths]
+    lines = [marker_line(state) for state in inside]
+    if outside:
+        ignored = sum(1 for state in outside if state.code == CODE_INVALID_SUPPRESSION)
+        parts = [
+            f"{ignored} ignored" if ignored else "",
+            f"{len(outside) - ignored} unused" if len(outside) > ignored else "",
+        ]
+        lines.append(
+            f"Suppressions outside this change: {', '.join(part for part in parts if part)} "
+            "(listed in --json and SARIF)."
+        )
+    return lines
+
+
+def _listed(finding: CheckFinding, strict: bool) -> bool:
+    """Whether ``finding`` alone lists its result: an error or a warning, info under strict."""
+    return finding.severity == SEVERITY_WARNING or severe(finding, strict)
+
+
+def marker_message(state: MarkerState) -> str:
+    """What is wrong with a marker the run reports, without where it is."""
+    marker = state.marker
+    if marker.problem is not None:
+        return PROBLEM_TEXT.get(marker.problem, marker.problem) + ", so it suppresses nothing"
+    return f"{label(marker)} matched no finding"
+
+
+def marker_line(state: MarkerState) -> str:
+    """The listing's line for a marker that suppresses nothing, or that nothing used."""
+    marker = state.marker
+    where = f"{marker.path}:{marker.line}"
+    if marker.problem is not None:
+        text = PROBLEM_TEXT.get(marker.problem, marker.problem)
+        return f"Suppression ignored: {where} {text}."
+    return f"Unused suppression: {where} {label(marker)} matched no finding."
+
+
+def render_skipped(skipped: Sequence[SkippedFile]) -> str:
+    """The ``Not read:`` line: the configured files a scan did not read, the first few named."""
+    shown = ", ".join(
+        f"{skip.path} ({_SKIP_TEXT.get(skip.reason, skip.reason)})"
+        for skip in skipped[:_SKIPPED_SHOWN]
+    )
+    more = len(skipped) - _SKIPPED_SHOWN
+    tail = f", and {more} more" if more > 0 else ""
+    return f"Not read: {plural(len(skipped), 'configured file')}: {shown}{tail}."
+
+
+def nothing_matched(root: Path, files: int) -> str:
+    """Why a static scan matched no call, as a clause: no file to read, or no call in them."""
+    if files == 0:
+        return f"no readable source file under {root} matches `sources:`"
+    return f"none of the {plural(files, 'file')} scanned has a call the call specs match"
+
+
+_SKIP_TEXT = {SKIP_TOO_LARGE: "too large", SKIP_UNREADABLE: "unreadable"}
+# The listing names a few; `--json` carries every one.
+_SKIPPED_SHOWN = 5
 
 
 # --- SARIF 2.1.0 -------------------------------------------------------------------
@@ -116,11 +384,20 @@ def sarif_document(report: CheckReport, *, root: Path | None) -> JsonDict:
     """A complete SARIF 2.1.0 log with one run, one result per finding."""
     codes: list[str] = []
     results: list[JsonDict] = []
-    for result in report.results:
-        for finding in result.findings:
+    for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True):
+        for finding, fingerprint in zip(result.findings, fingerprints, strict=True):
             if finding.code not in codes:
                 codes.append(finding.code)
-            results.append(_sarif_result(result, finding, codes.index(finding.code), report))
+            results.append(
+                _sarif_result(result, finding, codes.index(finding.code), report, fingerprint)
+            )
+    for state, fingerprint in zip(report.markers, marker_fingerprints(report), strict=True):
+        code = state.code
+        if code is None:
+            continue
+        if code not in codes:
+            codes.append(code)
+        results.append(_sarif_marker(state, code, codes.index(code), report, fingerprint))
     run: JsonDict = {
         "tool": {
             "driver": {
@@ -141,6 +418,12 @@ def sarif_document(report: CheckReport, *, root: Path | None) -> JsonDict:
             "summary": summary(report.results),
         },
     }
+    gate = gate_document(report)
+    if gate is not None:
+        run["properties"]["gate"] = gate
+    baseline = baseline_document(report)
+    if baseline is not None:
+        run["properties"]["baseline"] = baseline
     if root is not None and report.mode == MODE_STATIC:
         run["originalUriBaseIds"] = {SARIF_ROOT_BASE: {"uri": root.resolve().as_uri() + "/"}}
     return {"$schema": SARIF_SCHEMA, "version": SARIF_VERSION, "runs": [run]}
@@ -154,7 +437,7 @@ def _sarif_rule(code: str) -> JsonDict:
         "shortDescription": {"text": text},
         "fullDescription": {"text": text},
         "helpUri": f"{INFORMATION_URI}#tripl-check",
-        "defaultConfiguration": {"level": "error" if code in _ERROR_CODES else "warning"},
+        "defaultConfiguration": {"level": _RULE_LEVEL.get(code, "warning")},
     }
 
 
@@ -167,10 +450,19 @@ _ERROR_CODES = frozenset(
         "no_verdict",
     }
 )
+_RULE_LEVEL = {
+    **dict.fromkeys(_ERROR_CODES, "error"),
+    CODE_INVALID_SUPPRESSION: "warning",
+    CODE_UNUSED_SUPPRESSION: "note",
+}
 
 
 def _sarif_result(
-    result: CheckResult, finding: CheckFinding, rule_index: int, report: CheckReport
+    result: CheckResult,
+    finding: CheckFinding,
+    rule_index: int,
+    report: CheckReport,
+    fingerprint: str,
 ) -> JsonDict:
     origin = result.item.origin
     region: JsonDict = {"startLine": max(origin.line, 1)}
@@ -180,31 +472,71 @@ def _sarif_result(
         region["endLine"] = origin.end_line
     if origin.end_column is not None:
         region["endColumn"] = origin.end_column
-    subject = describe(result)
-    field = f" (field {finding.field})" if finding.field else ""
-    message = f"{finding.message or RULE_TEXT.get(finding.code, finding.code)}{field} - {subject}"
-    fingerprint = hashlib.sha256(
-        "\0".join(
-            (
-                finding.code,
-                origin.path,
-                origin.snippet,
-                result.item.event_type or "",
-                result.item.name or "",
-                finding.field or "",
-                str(origin.line),
-            )
-        ).encode()
-    ).hexdigest()
-    return {
+    sarif: JsonDict = {
         "ruleId": finding.code,
         "ruleIndex": rule_index,
         "level": _SARIF_LEVEL.get(finding.severity, "error"),
-        "message": {"text": message},
+        "message": {"text": finding_message(result, finding)},
         "locations": [_sarif_location(origin, region, report)],
-        "partialFingerprints": {"triplCheck/v1": fingerprint},
+        "partialFingerprints": {FINGERPRINT_KEY: fingerprint},
         "properties": _properties(result),
     }
+    if report.gate is not None:
+        # Whether the change brought the finding in; never SARIF's
+        # baselineState, which compares two runs, and this is one.
+        sarif["properties"]["inChange"] = bool(finding.in_change)
+        if finding.cause is not None:
+            sarif["properties"]["cause"] = finding.cause
+    if report.baseline is not None:
+        # Whether the baseline file holds the finding; again never
+        # baselineState, which compares with a previous run's log.
+        sarif["properties"]["baselined"] = bool(finding.baselined)
+    waived = finding.suppression
+    if waived is not None:
+        # SARIF's own way to say "reviewed and accepted": a viewer shows the
+        # result as suppressed, with the marker's reason and where it is.
+        at = Origin(waived.path, waived.line, waived.column)
+        sarif["suppressions"] = [
+            {
+                "kind": "inSource",
+                "status": "accepted",
+                "justification": waived.reason,
+                "location": _sarif_location(at, _marker_region(at), report),
+            }
+        ]
+    return sarif
+
+
+def _sarif_marker(
+    state: MarkerState, code: str, rule_index: int, report: CheckReport, fingerprint: str
+) -> JsonDict:
+    marker = state.marker
+    at = Origin(marker.path, marker.line, marker.column)
+    return {
+        "ruleId": code,
+        "ruleIndex": rule_index,
+        "level": _RULE_LEVEL[code],
+        "message": {"text": marker_message(state)},
+        "locations": [_sarif_location(at, _marker_region(at), report)],
+        "partialFingerprints": {FINGERPRINT_KEY: fingerprint},
+        "properties": _marker_properties(state, report),
+    }
+
+
+def _marker_properties(state: MarkerState, report: CheckReport) -> JsonDict:
+    marker = state.marker
+    properties: JsonDict = {"marker": marker.text, "problem": marker.problem}
+    if report.gate is not None:
+        # In the change when its file is: what the listing shows under a gate.
+        properties["inChange"] = marker.path in report.gate.paths
+    return properties
+
+
+def _marker_region(at: Origin) -> JsonDict:
+    region: JsonDict = {"startLine": max(at.line, 1)}
+    if at.column is not None:
+        region["startColumn"] = at.column
+    return region
 
 
 def artifact_uri(path: str) -> str:
@@ -216,7 +548,11 @@ def artifact_uri(path: str) -> str:
     posix = path.replace("\\", "/")
     if PurePosixPath(posix).is_absolute() or Path(path).is_absolute():
         return Path(path).absolute().as_uri()
-    return "/".join(quote(segment, safe="") for segment in posix.split("/"))
+    # surrogateescape: a file name that is not UTF-8 arrives from os.walk as
+    # lone surrogates, and its original bytes are what the URI must encode.
+    return "/".join(
+        quote(segment.encode("utf-8", "surrogateescape"), safe="") for segment in posix.split("/")
+    )
 
 
 def _sarif_location(origin: Origin, region: JsonDict, report: CheckReport) -> JsonDict:

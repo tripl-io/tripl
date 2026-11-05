@@ -828,6 +828,94 @@ def test_every_finding_code_is_documented() -> None:
     )
 
 
+def test_every_check_list_reason_code_is_documented() -> None:
+    """``tripl check --list``'s reason codes are a published vocabulary too; hold both pages to it.
+
+    The guide says what to do about each reason, and the reference's document
+    section is where a script reading ``reason`` looks a code up. A code that
+    ships in neither is a value the user can only guess at, the same failure
+    as an undocumented finding code. So each code needs its own row in each
+    page's reasons table: both sections name codes elsewhere too (``function``
+    as a TypeScript keyword, ``expression`` as a value's key), and a mention
+    says nothing of what the code means.
+    """
+    from tripl_cli.check.model import REASON_CODES
+
+    assert REASON_CODES, "no reason codes at all; check.model.REASON_CODES is broken"
+    guide = (REPO_ROOT / "website" / "docs" / "integrate" / "tripl-check.md").read_text(
+        encoding="utf-8"
+    )
+    guide_heading = "## List what the scan reads {#list}"
+    assert guide_heading in guide, f"tripl-check.md has no {guide_heading!r} section"
+    guide_start = guide.index(guide_heading) + len(guide_heading)
+    # Up to the next `## `: the section with its subsections, not the page,
+    # where `function` is also a call-spec key.
+    guide_end = guide.find("\n## ", guide_start)
+    guide_section = guide[guide_start : guide_end if guide_end != -1 else len(guide)]
+    reference = DOCS_PATH.read_text(encoding="utf-8")
+    heading = "### `check --list` document"
+    assert heading in reference, f"cli.md has no {heading!r} section"
+    start = reference.index(heading) + len(heading)
+    # Up to the next heading of either level: the section alone, not the page.
+    ends = (reference.find("\n## ", start), reference.find("\n### ", start))
+    section = reference[start : min([end for end in ends if end != -1] or [len(reference)])]
+    # Each section's reasons table alone: the `|` block from its header row on,
+    # not the section's other tables (cli.md's value table has an `expression` row).
+    tables: dict[str, list[str]] = {}
+    for page, text, header in (
+        (
+            f"integrate/tripl-check.md {guide_heading}",
+            guide_section,
+            "| Reason | What it is | What to do |",
+        ),
+        (f"run/cli.md {heading}", section, "| Code | Meaning |"),
+    ):
+        lines = text.splitlines()
+        assert header in lines, f"{page} has no reasons table headed {header!r}"
+        rows: list[str] = []
+        for line in lines[lines.index(header) :]:
+            if not line.startswith("|"):
+                break
+            rows.append(line)
+        tables[page] = rows
+    undocumented = [
+        f"{page}: {code}"
+        for page, rows in tables.items()
+        for code in REASON_CODES
+        if not any(re.match(rf"\| `{re.escape(code)}` \|", row) for row in rows)
+    ]
+    assert not undocumented, (
+        f"check --list reason codes with no row in the docs' reasons table: {undocumented}"
+    )
+
+
+def test_the_documented_check_list_limits_are_the_ones_in_the_code() -> None:
+    """The 40-vs-200 trap, applied to the five numbers ``--list`` publishes.
+
+    How far discovery walks, where an expression and an example are cut, and
+    how many choices and groups the text shows: each is a promise a reader
+    plans around, so the page is held to the constants.
+    """
+    from tripl_cli.check.inventory import EXAMPLE_MAX, MAX_DISCOVERY_FILES
+    from tripl_cli.check.listing import CHOICES_SHOWN, UNMATCHED_SHOWN
+    from tripl_cli.check.values import EXPRESSION_MAX
+
+    # Whitespace-normalised: a phrase may wrap at any space in the page.
+    text = " ".join(DOCS_PATH.read_text(encoding="utf-8").split())
+    missing = [
+        phrase
+        for phrase in (
+            f"at most {MAX_DISCOVERY_FILES} source files (`MAX_DISCOVERY_FILES`)",
+            f"An expression is cut at {EXPRESSION_MAX} characters (`EXPRESSION_MAX`)",
+            f"tracking at {EXAMPLE_MAX} (`EXAMPLE_MAX`)",
+            f"(at most {CHOICES_SHOWN} are shown)",
+            f"the {UNMATCHED_SHOWN} other most frequent groups",
+        )
+        if phrase not in text
+    ]
+    assert not missing, f"cli.md states check --list numbers the code does not: {missing}"
+
+
 def test_the_documented_job_window_is_the_one_actually_requested() -> None:
     """The docs stated 40 while the code asked for 200, for exactly one review cycle.
 
@@ -1337,6 +1425,30 @@ def test_the_packaged_compose_matches_the_repo_compose() -> None:
         "update MCP_BUILD_BLOCK and re-copy the packaged asset"
     )
     assert packaged("compose.yaml") == expected.replace(MCP_BUILD_BLOCK, "")
+
+
+@pytest.mark.parametrize("name", ["compose.yaml", "compose.dev.yaml"])
+def test_every_compose_service_rotates_its_logs(name: str) -> None:
+    """A service without `logging: *logging` keeps its stdout for as long as it lives.
+
+    Docker's default json-file driver never trims a container's log, and the
+    services an upgrade does not recreate (postgres, rabbitmq, redis) hold
+    theirs for the life of the host. One anchor rotates them all; this catches
+    the next service added without it. A text check, not a YAML parse: the CLI
+    ships no YAML library, and the anchor's spelling is the contract.
+    """
+    compose = (REPO_ROOT / name).read_text(encoding="utf-8")
+    assert re.search(r"^x-logging: &logging\n", compose, re.MULTILINE), (
+        f"{name} lost its x-logging anchor"
+    )
+    services_block = compose.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    # Each service is a two-space key; its body runs to the next one.
+    bodies = re.split(r"^  ([a-z][a-z0-9-]*):\n", services_block, flags=re.MULTILINE)[1:]
+    services = dict(zip(bodies[::2], bodies[1::2], strict=True))
+    assert services, f"no services found in {name}; the file's shape must have changed"
+    rotated = "\n    logging: *logging\n"
+    unrotated = sorted(service for service, body in services.items() if rotated not in f"\n{body}")
+    assert not unrotated, f"{name}: {unrotated} keep their logs forever; add `logging: *logging`"
 
 
 def test_env_example_documents_every_variable_compose_forwards() -> None:

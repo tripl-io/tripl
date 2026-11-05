@@ -1750,9 +1750,13 @@ async def get_release_regressions(
 ) -> ReleaseRegressionsResponse:
     """Events that changed in the latest active release, per scope.
 
-    Backed by the ReleaseRegression rows the scan recomputes each run (they
-    always describe the current latest release). Empty when the scan has no
-    version column.
+    Backed by the ReleaseRegression rows the scan recomputes each run. They
+    describe the current latest release, except during a hand-over: while that
+    release ramps with nothing found they are its predecessor's comparison, and
+    the verdict says so (``handed_over``). ``latest_version`` is the newest
+    active release either way, taken from the verdicts' ``latest_active_version``
+    and never from the rows, so it names the release the By-version chart
+    names. Empty when the scan has no version column.
 
     ``comparability`` carries the verdict of the same pass, so an empty
     ``items`` can be read as either "nothing regressed" or "the release cannot
@@ -1788,14 +1792,22 @@ async def get_release_regressions(
             reason=verdict.reason,
             version=verdict.version,
             previous_version=verdict.previous_version,
+            latest_active_version=verdict.latest_active_version,
+            latest_release_share=verdict.latest_release_share,
+            handed_over=verdict.handed_over,
             emerging_share=verdict.emerging_share,
             max_emerging_share=verdict.max_emerging_share,
         )
         for verdict in verdicts
     ]
     # The verdict knows the release pair even when no row was emitted, which is
-    # exactly the case a suppressed comparison has to name.
-    judged_versions = {v.version for v in verdicts if v.version is not None}
+    # exactly the case a suppressed comparison has to name. Its
+    # ``latest_active_version`` comes first: during a hand-over ``version`` is
+    # the predecessor, and naming it latest contradicted the By-version chart.
+    # ``version`` is the fallback for a row written before the column existed.
+    judged_versions = {
+        latest for v in verdicts if (latest := v.latest_active_version or v.version) is not None
+    }
     if not regressions:
         candidates = judged_versions
         return ReleaseRegressionsResponse(

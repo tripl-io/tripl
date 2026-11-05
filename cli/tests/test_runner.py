@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from tripl_cli import runner
 from tripl_cli.client import TriplClient
 from tripl_cli.config import Config
 from tripl_cli.errors import TriplAPIError, TriplConfigError
+from tripl_cli.install.shell import Command, subprocess_runner
 
 
 def make_config(*, api_key: str | None = API_KEY, base_url: str | None = BASE_URL) -> Config:
@@ -151,3 +153,25 @@ async def test_gather_bounded_preserves_input_order() -> None:
         return index
 
     assert await runner.gather_bounded([work(i) for i in range(10)], limit=6) == list(range(10))
+
+
+# --- the subprocess seam (install/shell.py) ------------------------------------------------
+def test_a_command_with_an_encoding_decodes_bytes_and_keeps_line_ends() -> None:
+    """What the git gate relies on: CRLF stays CRLF, and a bad byte is replaced, not raised."""
+    script = "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\xff\\n')"
+    result = subprocess_runner(Command((sys.executable, "-c", script), encoding="utf-8"), True)
+    assert result.ok and not result.timed_out
+    assert result.stdout == "a\r\nb�\n"
+
+
+def test_a_command_past_its_timeout_is_ended_and_says_so() -> None:
+    command = Command((sys.executable, "-c", "import time; time.sleep(30)"), timeout=0.2)
+    result = subprocess_runner(command, True)
+    assert result.timed_out
+    assert result.returncode == -1
+    assert not result.ok
+
+
+def test_a_command_with_no_encoding_or_timeout_runs_as_before() -> None:
+    result = subprocess_runner(Command((sys.executable, "-c", "print('x')")), True)
+    assert (result.returncode, result.stdout.strip(), result.timed_out) == (0, "x", False)

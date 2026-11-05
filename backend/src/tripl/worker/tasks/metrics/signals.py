@@ -613,8 +613,15 @@ def _get_active_release_regression_candidates(
 ) -> dict[tuple[str, str], DriftAlertCandidate]:
     """Turn the scan's current ReleaseRegression rows into alert candidates.
 
-    The recalculation step keeps only the latest release's regressions, so every
-    row here is current. Version context rides on the shared drift fields
+    The recalculation step keeps only the current comparison's regressions, so
+    every row here is current. That comparison is the latest release's, except
+    during a hand-over: while the newest release ramps with nothing found, the
+    rows are its predecessor's (``ReleaseComparability.handed_over``), and they
+    alert as such, attributed to the predecessor by ``version``. That is
+    intended — the regression the bulk of users still run is live, and the
+    newest release has not been seen to fix it — and a row carries the release
+    it measured, so the message never blames the newest one. Version context
+    rides on the shared drift fields
     (version -> drift_field, kind -> drift_type, previous release -> sample_value)
     so it flows through the existing delivery-item and message machinery.
     Naturally inert: no rows exist when the scan has no version column.

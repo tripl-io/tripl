@@ -7,7 +7,7 @@
 #
 #   vX.Y.Z      release.yml      CI gate, then ghcr.io/<owner>/tripl and -mcp
 #                                tagged X.Y.Z / X.Y / latest, and a GitHub Release
-#   cli-vX.Y.Z  publish-cli.yml  `tripl` to PyPI
+#   cli-vX.Y.Z  publish-cli.yml  `tripl` to PyPI, and ghcr.io/<owner>/tripl-cli
 #   mcp-vX.Y.Z  publish-mcp.yml  `tripl-mcp` to PyPI
 #
 # Releases are made from main, level with origin/main. main, vX.Y.Z and
@@ -80,6 +80,10 @@ DOCS_OPENAPI="website/openapi/tripl.openapi.json"
 # Each project's own uv.lock records its version; CI and the publish workflows
 # run `uv ... --locked`, which fails when the lock no longer matches.
 LOCK_DIRS=(backend cli mcp-server)
+# The CI templates run the CLI release of the tag they are fetched from: each
+# holds its default version on one line that ends with this marker.
+CI_TEMPLATES=(ci/gitlab/tripl-check.yml ci/github/action.yml)
+CI_VERSION_MARKER=' # tripl version: bin/release.sh sets it'
 
 # --- current version (the [project].version line in backend/pyproject.toml) ---
 current="$(grep -E '^version = "' "$PYPROJECT" | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')"
@@ -153,6 +157,7 @@ done
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "[dry-run] would set version $current -> $new in $PYPROJECT, $PKG_JSON, $CLI_PYPROJECT, $MCP_PYPROJECT, $OPENAPI and $DOCS_OPENAPI"
+  echo "[dry-run] would set the default version to $new in ${CI_TEMPLATES[*]}"
   echo "[dry-run] would set $cli_range in $MCP_PYPROJECT and refresh uv.lock in: ${LOCK_DIRS[*]}"
   echo "[dry-run] would commit 'chore(release): $tag' and push $BRANCH, $tag and $cli_tag to origin together"
   echo "[dry-run] would push $mcp_tag once tripl $new is on PyPI"
@@ -174,6 +179,11 @@ apply_versions() {
   sed -i -E 's/"tripl>=[^"]+"/"'"$cli_range"'"/' "$MCP_PYPROJECT"
   grep -qF "\"$cli_range\"" "$MCP_PYPROJECT" \
     || { echo "ERROR: could not set $cli_range in $MCP_PYPROJECT" >&2; exit 1; }
+  for file in "${CI_TEMPLATES[@]}"; do
+    sed -i -E 's|"[0-9]+\.[0-9]+\.[0-9]+"('"$CI_VERSION_MARKER"')$|"'"$new"'"\1|' "$file"
+    grep -qF "\"$new\"$CI_VERSION_MARKER" "$file" \
+      || { echo "ERROR: could not set the default version in $file" >&2; exit 1; }
+  done
   # Written as bin/sync-api-types.sh writes them: the snapshot with sorted
   # keys, the docs copy in the order it has; both with a trailing newline.
   python3 - "$new" "$OPENAPI" "$DOCS_OPENAPI" <<'PY'
@@ -213,7 +223,7 @@ trap undo EXIT
 # MCP server may lag behind it (a release cut before they shared its version).
 apply_versions
 if ! git diff --quiet; then
-  git add "$PYPROJECT" "$PKG_JSON" "$CLI_PYPROJECT" "$MCP_PYPROJECT" "$OPENAPI" "$DOCS_OPENAPI"
+  git add "$PYPROJECT" "$PKG_JSON" "$CLI_PYPROJECT" "$MCP_PYPROJECT" "$OPENAPI" "$DOCS_OPENAPI" "${CI_TEMPLATES[@]}"
   for dir in "${LOCK_DIRS[@]}"; do git add "$dir/uv.lock"; done
   git commit -m "chore(release): $tag"
 else
@@ -249,7 +259,7 @@ cat <<EOF
 
 Released $new.
   • $tag: release.yml is building ghcr.io/tripl-io/tripl:$new and tripl-mcp:$new (and :latest)
-  • $cli_tag: publish-cli.yml is publishing tripl $new to PyPI
+  • $cli_tag: publish-cli.yml is publishing tripl $new to PyPI and ghcr.io/tripl-io/tripl-cli:$new
 $mcp_line
   • Watch them:  gh run list --limit 5   (or the GitHub Actions tab)
   • Deploy:    export TRIPL_VERSION=$new && docker compose pull && docker compose up -d

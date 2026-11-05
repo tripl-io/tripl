@@ -16,7 +16,8 @@ from tripl.config import settings
 from tripl.core.analyzers.anomaly_detector import AnomalyDetectionSettings
 
 #: How much warehouse history a new demo replays by default: three full weekly
-#: cycles (the hour-of-week baseline needs 21 days) plus two days to score.
+#: cycles (the hour-of-week baseline needs 21 days) plus two days to score,
+#: then back to midnight (:func:`history_start`).
 #: ``settings.demo_history_days`` (``DEMO_HISTORY_DAYS``) is what is read.
 DEMO_HISTORY_DAYS = 23
 
@@ -49,6 +50,32 @@ def history_days() -> int:
     return settings.demo_history_days
 
 
+#: A history longer than this many days (any history the first build does not
+#: replay whole) starts at midnight UTC.
+WHOLE_DAYS_AFTER = 2
+
+
 def history_start(now: datetime) -> datetime:
-    """The first hour the provisioning replay covers."""
-    return now.replace(minute=0, second=0, microsecond=0) - timedelta(days=history_days())
+    """The first hour the provisioning replay covers.
+
+    :func:`history_days` back from the seed hour, and then, for a history of
+    more than :data:`WHOLE_DAYS_AFTER` days, back to that day's midnight UTC: a
+    full history holds 23 to 24 days. The detector scores no bucket of a series'
+    first ``min_history_buckets`` hours (seven), and for seven build hours of
+    every week a history starting at the hour had a weekly promo send among
+    them: that send got no anomaly and no *expected* verdict, and the three
+    weekly verdicts the planned-window suggestion needs were two. From midnight, the first seven
+    hours are always a night, and every send of the first three weeks is
+    scored.
+
+    Never earlier than the warehouse's retention reaches back, where the
+    collection would clamp it anyway (``DEMO_HISTORY_DAYS`` equal to
+    ``DEMO_WAREHOUSE_RETENTION_DAYS``).
+    """
+    hour = now.replace(minute=0, second=0, microsecond=0)
+    days = history_days()
+    start = hour - timedelta(days=days)
+    if days <= WHOLE_DAYS_AFTER:
+        return start
+    horizon = hour - timedelta(days=settings.demo_warehouse_retention_days)
+    return max(start.replace(hour=0), horizon)

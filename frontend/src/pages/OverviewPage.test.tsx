@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { ActivityPanel } from '@/components/activity-panel'
+import { ActiveProjectContext } from '@/components/active-project-context'
 import { setOnboardingDismissed } from '@/lib/onboardingDismissal'
 import OverviewPage from './OverviewPage'
 import { formatNumber } from '@/lib/format'
+import type { Project } from '@/types'
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -67,6 +69,8 @@ interface MockOpts {
   topEvents?: Array<{ event_id: string; name: string; total_count: number; window_total_count?: number }>
   /** Never settles the volume request, so the card stays in its pending state. */
   holdVolume?: boolean
+  /** Fields merged over PROJECT on `GET /projects/demo` (a demo's fill state). */
+  project?: Record<string, unknown>
 }
 
 function mockFetch(opts?: MockOpts) {
@@ -119,7 +123,11 @@ function mockFetch(opts?: MockOpts) {
       })
     }
     if (url.endsWith('/projects/demo')) {
-      return jsonResponse({ ...PROJECT, summary: { ...PROJECT.summary, ...opts?.summary } })
+      return jsonResponse({
+        ...PROJECT,
+        ...opts?.project,
+        summary: { ...PROJECT.summary, ...opts?.summary },
+      })
     }
     throw new Error(`Unhandled fetch: ${url}`)
   })
@@ -146,17 +154,20 @@ const AUTH_VALUE: AuthContextValue = {
   refresh: () => {},
 }
 
-function renderOverview(path = '/p/demo/overview') {
+function renderOverview(path = '/p/demo/overview', activeProject?: Project) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={AUTH_VALUE}>
         <ThemeProvider>
-          <MemoryRouter initialEntries={[path]}>
-            <Routes>
-              <Route path="/p/:slug/overview" element={<OverviewPage />} />
-            </Routes>
-          </MemoryRouter>
+          {/* The shell's project, as the Layout provides it. */}
+          <ActiveProjectContext.Provider value={activeProject}>
+            <MemoryRouter initialEntries={[path]}>
+              <Routes>
+                <Route path="/p/:slug/overview" element={<OverviewPage />} />
+              </Routes>
+            </MemoryRouter>
+          </ActiveProjectContext.Provider>
         </ThemeProvider>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -210,6 +221,29 @@ describe('OverviewPage', () => {
     // The headline is the last 24 hours (10 + 25), not the newest bucket.
     expect(await screen.findByText('35')).toBeInTheDocument()
     expect(screen.getByText('last 24h')).toBeInTheDocument()
+  })
+
+  it('says in the volume card that a demo is still filling in its history', async () => {
+    // The card's 7 days open as two while the fill runs; the compact notice
+    // says the rest is on its way, inside the card rather than at the top.
+    const filling = { is_demo: true, demo_history_status: 'filling', demo_history_progress: 40 }
+    mockFetch({ project: filling })
+    renderOverview('/p/demo/overview', { ...PROJECT, ...filling } as unknown as Project)
+
+    const volume = await screen.findByRole('region', { name: 'Volume · Snowplow Pageviews (iOS) · 7d' })
+    await waitFor(() =>
+      expect(volume.querySelector('[data-slot="demo-history-fill-notice"]')).toHaveTextContent(
+        'History is still loading — 40%.',
+      ),
+    )
+  })
+
+  it('shows no fill notice outside a filling demo', async () => {
+    mockFetch()
+    renderOverview('/p/demo/overview', PROJECT as unknown as Project)
+
+    await screen.findByRole('region', { name: 'Volume · Snowplow Pageviews (iOS) · 7d' })
+    expect(document.querySelector('[data-slot="demo-history-fill-notice"]')).toBeNull()
   })
 
   it('heads the volume card with the last 24h against the day before, on a dated axis', async () => {

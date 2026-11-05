@@ -42,6 +42,10 @@ MAX_TIMEOUT_SECONDS = 600.0
 # owns its own main(), so a mutable global here would be a regression rather
 # than consistency — the config is threaded through as an argument.
 Handler = Callable[[argparse.Namespace, Config], int]
+# What a command that leaves files for a later CI step (check's --report) sets
+# as ``abandon``: called with the parsed arguments when the run fails before
+# the handler starts, so an earlier run's files never pass for this one's.
+Abandon = Callable[[argparse.Namespace], None]
 
 
 def register_all(

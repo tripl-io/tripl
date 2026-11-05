@@ -2,8 +2,9 @@
 
 A preset is written in exactly the vocabulary a user's own ``calls:`` entry
 uses and goes through the same validator, so a preset can never do something a
-hand-written spec could not — and ``tripl check`` can print any of them as the
-starting point for a custom one.
+hand-written spec could not — and ``tripl check --print-preset NAME`` prints any
+of them, as YAML to paste under ``calls:``, as the starting point for a custom
+one (``preset_yaml``).
 
 Callee patterns match the NORMALISED callee: whitespace, ``?``/``!`` and the
 contents of intermediate calls are dropped, so ``Amplitude.instance().logEvent``
@@ -18,7 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from tripl_cli.check.config import CallSpec, parse_call
+from tripl_cli.check import yamlish
+from tripl_cli.check.config import PRESET_STYLES, CallSpec, parse_call
 from tripl_cli.errors import TriplConfigError
 
 _ANY_RECEIVER = r"(?:[\w$.]*\.)?"
@@ -176,3 +178,26 @@ def preset_specs(name: str, where: str) -> tuple[CallSpec, ...]:
             f"{where}: unknown preset {name!r}; the presets are {', '.join(sorted(PRESETS))}."
         )
     return tuple(parse_call(spec, f"preset {name}[{number}]") for number, spec in enumerate(raw))
+
+
+def preset_yaml(name: str) -> str:
+    """Preset ``name``'s call specs as YAML to paste under an event type's ``calls:``.
+
+    A comment line says so, then one sequence item per spec, written in the
+    subset ``yamlish`` reads: the text parses back to ``PRESETS[name]``.
+    When the event type's ``codegen:`` block sets no style, ``tripl codegen``
+    takes the one its first preset gives (``PRESET_STYLES``). The pasted specs
+    do not carry it, so a second comment line names the style to set there
+    when this preset is that first one.
+    """
+    header = [
+        f"# preset {name}: paste these under an event type's calls: in place of "
+        f"preset: {name}, then edit them."
+    ]
+    style = PRESET_STYLES.get(name)
+    if style is not None:
+        header.append(
+            "# If this is the event type's first preset and its codegen: block has no "
+            f"style:, set style: {style} in it; codegen took that style from this preset."
+        )
+    return "\n".join([*header, yamlish.dump_sequence(PRESETS[name])])

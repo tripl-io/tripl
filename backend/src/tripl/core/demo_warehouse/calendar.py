@@ -41,6 +41,9 @@ ROLLOUT_MIDPOINT_HOURS = 60.0
 ROLLOUT_SCALE_HOURS = 14.0
 #: Users who never update promptly; they stay one version behind the previous.
 LAGGARD_SHARE = 0.05
+#: Users who update a release late: they stay on the previous version until the
+#: next release ships, then move to the one it superseded.
+LATE_SHARE = 0.05
 #: Testers run the next version for this long before release, at this share.
 BETA_PERIOD = timedelta(days=5)
 BETA_SHARE = 0.004
@@ -76,27 +79,36 @@ def version_label(index: int) -> str:
 
 
 def _adoption(index: int, at: datetime) -> float:
-    """Share of users on release ``index`` or newer (laggards excluded)."""
+    """Share of users on release ``index`` or newer (laggards and late updaters excluded)."""
     age_hours = (at - release_start(index)) / HOUR
     if age_hours < 0:
         return 0.0
     logistic = 1.0 / (1.0 + math.exp(-(age_hours - ROLLOUT_MIDPOINT_HOURS) / ROLLOUT_SCALE_HOURS))
-    return (1.0 - LAGGARD_SHARE) * logistic
+    return (1.0 - LAGGARD_SHARE - LATE_SHARE) * logistic
 
 
 def version_shares(at: datetime) -> tuple[tuple[str, float], ...]:
     """The app versions in use at ``at`` and their shares (summing to 1).
 
-    The newest release, the previous one, the laggards' version two behind,
-    and, during the beta period, the next release at a tester's share.
+    The newest release, the previous one (everyone yet to update, the late
+    updaters among them), the laggards' version two behind, and, during the
+    beta period, the next release at a tester's share.
+
+    No version comes back: each holds at least :data:`LATE_SHARE` from its
+    release until, two releases on, its laggards move up. Before the late
+    updaters, the version two behind had all but emptied by the time the next
+    release handed it the laggards, and it re-crossed the activation share
+    then, a week or more after anyone last used it. Read from a slice whose
+    first hours held none of its rows, that crossing is a release shipping
+    inside the slice, and the version got a second chart marker
+    (``releases_to_annotate``).
     """
     newest = release_index(at)
     adopted_newest = _adoption(newest, at)
-    adopted_previous = _adoption(newest - 1, at)
     shares: list[tuple[str, float]] = [
         (version_label(newest), adopted_newest),
-        (version_label(newest - 1), adopted_previous - adopted_newest),
-        (version_label(newest - 2), 1.0 - adopted_previous),
+        (version_label(newest - 1), 1.0 - LAGGARD_SHARE - adopted_newest),
+        (version_label(newest - 2), LAGGARD_SHARE),
     ]
     if release_start(newest + 1) - at <= BETA_PERIOD:
         # Testers come out of the newest version's users.
@@ -167,6 +179,13 @@ INCIDENT_START = timedelta(hours=13)
 #: therefore strong for its hours (z well above 5) yet small over a day: the
 #: big spikes go to mid-volume events, and the home screen's web campaign
 #: stays near +8 % of the day.
+#:
+#: No incident touches :data:`PROMO_EVENT`. The trend-shift check compares the
+#: trend with the same hour a week earlier, so a drop on a promo Tuesday dents
+#: the trend the next Tuesday is compared with: that week's trend reads as a
+#: shift up, and its one trend row swallows the send's own spike rows. The send
+#: then has no anomaly to mark *expected*, and the promo's run of weekly
+#: verdicts, which the planned-window suggestion needs, breaks.
 _INCIDENT_KINDS: tuple[tuple[str, str, tuple[str, ...], int, float, str | None], ...] = (
     # A traffic burst (a feature on the store front page), mostly on iOS.
     ("spike", "event", ("Search Performed", "Meal Planner View", "Recipe Saved"), 2, 3.0, "ios"),
@@ -174,15 +193,18 @@ _INCIDENT_KINDS: tuple[tuple[str, str, tuple[str, ...], int, float, str | None],
     (
         "drop",
         "event",
-        ("Recipe Detail View", "Search Results View", "Paywall View"),
+        ("Recipe Detail View", "Search Results View", "Shopping List View"),
         3,
         0.15,
         None,
     ),
     # A backend outage: errors multiply.
     ("error_burst", "event", ("API Error",), 2, 5.0, None),
-    # A degraded backend: a whole event type falls to 35 %.
-    ("type_dip", "event_type", ("search", "meal_plan", "content"), 3, 0.35, None),
+    # A degraded backend: a whole event type falls to 25 %. Its third hour is
+    # judged against a trailing day its first two already lowered, and the
+    # smallest type (meal_plan) at 35 % read about z -2.9 there: a demo built
+    # that hour alerted on an incident its scoring pass never flagged.
+    ("type_dip", "event_type", ("search", "meal_plan", "content"), 3, 0.25, None),
     # A web campaign: the home screen gets four times its web traffic.
     ("platform_shift", "event", ("Home Screen View",), 3, 4.0, "web"),
 )

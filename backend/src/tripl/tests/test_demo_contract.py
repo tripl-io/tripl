@@ -430,7 +430,10 @@ async def test_demo_populates_every_advertised_surface(
     assert _items(await get(f"/distribution-drifts?scope_type=event_type&scope_ref={drifted_type}"))
     covered.add("distribution_drifts")
 
-    signals = _items(await get("/anomalies/signals"))
+    # The Anomalies page's list: every scope. The collapsed default holds the
+    # total and event types only, and a day whose incident is one event's
+    # (most are) may move neither.
+    signals = _items(await get("/anomalies/signals?expanded=true"))
     assert signals
     # Referential coherence: each active signal carries a scope and real numbers.
     assert all(s.get("scope_type") and s.get("bucket") for s in signals)

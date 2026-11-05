@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="tripl check" tests="3" failures="1" errors="0" skipped="0" time="1.234"><testsuite name="tripl check shop" tests="3" failures="1" errors="0" skipped="0" time="1.234"><testcase classname="apps/ios/Sources/Pay.swift" name="se pay_tapped label=pay (Analytics.shared.log)" file="apps/ios/Sources/Pay.swift" time="0"><failure type="unknown_event" message="no event - se  pay_tapped">apps/ios/Sources/Pay.swift:12:9
+error unknown_event: no event
+error value_not_allowed [label]: not allowed</failure></testcase><testcase classname="apps/ios/Sources/Pay.swift" name="se settings_opened label=pay (Analytics.shared.log)" file="apps/ios/Sources/Pay.swift" time="0"><system-out>apps/ios/Sources/Pay.swift:30:9
+warning deprecated_event: deprecated</system-out></testcase><testcase classname="apps/ios/Sources/Pay.swift" name="se pay_tapped label=pay (Analytics.shared.log) #2" file="apps/ios/Sources/Pay.swift" time="0"><system-out>apps/ios/Sources/Pay.swift:44:9
+info dynamic_value [x]: runtime</system-out></testcase></testsuite></testsuites>

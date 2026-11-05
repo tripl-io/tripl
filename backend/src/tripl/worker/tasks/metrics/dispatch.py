@@ -383,10 +383,11 @@ def _touch_correlation_state(
     maximum against and no second statement worth spending.
 
     A re-read that finds NOTHING is left alone. ``AlertCorrelationState`` is
-    never pruned (``_alerting_deliveries._load_orphan_group_rows`` says so and
-    budgets for it), so the only way to lose the holder between two statements of
-    one transaction is the project being deleted underneath the run and taking
-    the row with it by cascade. The guard is here because the collection this
+    never pruned outside a demo, and a demo's prune takes only a state quiet past
+    the retention horizon (``demo_runtime._prune_retention``) and no longer
+    seen, so the only way to lose the holder between two statements of one
+    transaction is the project being deleted underneath the run and taking the
+    row with it by cascade. The guard is here because the collection this
     function is a detail of is worth more than one incident's last-seen stamp.
     """
     dialect = session.bind.dialect.name if session.bind is not None else "postgresql"

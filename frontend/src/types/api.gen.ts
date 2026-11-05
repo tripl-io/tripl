@@ -16226,12 +16226,25 @@ export interface components {
          *     A caller that only reads ``items`` cannot tell a healthy release from one
          *     whose findings were withheld, and both were served as an empty list until
          *     this was carried through.
+         *
+         *     ``version``/``previous_version`` are the comparison the served rows come
+         *     from. ``latest_active_version`` is the newest active release, the same one
+         *     unless ``handed_over``: then the newest release is still ramping with
+         *     nothing found (``latest_release_share`` of traffic over its window) and the
+         *     pair is its predecessor's comparison, shown in its place until it has
+         *     enough data.
          */
         ReleaseComparabilityItem: {
             /** Comparable */
             comparable: boolean;
             /** Emerging Share */
             emerging_share: number;
+            /** Handed Over */
+            handed_over: boolean;
+            /** Latest Active Version */
+            latest_active_version?: string | null;
+            /** Latest Release Share */
+            latest_release_share?: number | null;
             /** Max Emerging Share */
             max_emerging_share: number;
             /** Previous Version */

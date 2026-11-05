@@ -38,7 +38,7 @@ STDIN = "-"
 _KEYS = frozenset({"event_type", "name", "fields", "properties", "ref"})
 
 
-def load(path: str) -> list[CheckItem]:
+def load(path: str, *, allow_empty: bool = False) -> list[CheckItem]:
     """Read ``path`` (or stdin for ``-``) into items; a malformed file is a usage error."""
     label = STDIN_LABEL if path == STDIN else path
     try:
@@ -47,13 +47,16 @@ def load(path: str) -> list[CheckItem]:
         raise TriplConfigError(f"--payloads: {path} does not exist.") from None
     except (OSError, UnicodeDecodeError) as exc:
         raise TriplConfigError(f"--payloads: cannot read {path}: {exc}") from None
-    return parse(text, label)
+    return parse(text, label, allow_empty=allow_empty)
 
 
-def parse(text: str, label: str) -> list[CheckItem]:
+def parse(text: str, label: str, *, allow_empty: bool = False) -> list[CheckItem]:
+    empty = f"--payloads: {label} holds no events (pass --allow-empty if that is expected)."
     stripped = text.strip()
     if not stripped:
-        raise TriplConfigError(f"--payloads: {label} holds no events.")
+        if allow_empty:
+            return []
+        raise TriplConfigError(empty)
     records: list[tuple[int, Any]] = []
     if stripped.startswith("["):
         try:
@@ -78,8 +81,8 @@ def parse(text: str, label: str) -> list[CheckItem]:
                         f"--payloads: {label} line {number} is not valid JSON: {exc.msg}."
                     ) from None
     items = [_item(record, label, number, positional) for number, record in records]
-    if not items:
-        raise TriplConfigError(f"--payloads: {label} holds no events.")
+    if not items and not allow_empty:
+        raise TriplConfigError(empty)
     return items
 
 

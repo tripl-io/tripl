@@ -65,6 +65,7 @@ from tripl.services.demo import DEMO_RECIPE_VERSION, noise, pipeline
 from tripl.services.demo.builders import alerts as alert_builder
 from tripl.services.demo.builders import warehouse as warehouse_builder
 from tripl.tests.conftest import TestSessionLocal
+from tripl.worker.utils.query_windows import resolve_lookback_window
 
 #: Generous next to the budgets (four minutes for the full history, twenty
 #: seconds for two days, on a small ARM host): runners differ, and a
@@ -94,8 +95,8 @@ def queued_deliveries(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
     client: AsyncClient, queued_deliveries: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The full story: three weekly promo sends, the release train, the 21-day
-    # scoring window. The conftest runs the history fill inline after the
+    # The full story: three weekly promo sends, the release train, the
+    # whole-history scoring pass. The conftest runs the history fill inline after the
     # first build, so the request returns the filled demo.
     monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
     started = time.perf_counter()
@@ -156,7 +157,7 @@ async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
         assert SCHEMA_DRIFT_EVENT in events
         # One detection pass for the whole build, and no platform series scored.
         # At most one detection pass per phase: the first build's over its two
-        # days, the history fill's over the last three weeks.
+        # days, the history fill's over the whole history.
         scoring = [
             summary
             for _, summary in jobs
@@ -290,6 +291,37 @@ async def test_the_undocumented_product_is_an_open_value_drift(
     assert any("prod_weekly" in (values or []) for values in observed)
 
 
+@pytest.mark.parametrize("hour", range(24))
+def test_every_build_hour_scans_the_undocumented_product_on_trials(hour: int) -> None:
+    """The test above's value drift, held at every build hour of a day, wall clock aside.
+
+    The drift detector reads ``product_id`` from the live collection's catalog
+    scan only: :data:`~.warehouse.SCAN_LOOKBACK_HOURS` ending at the build hour,
+    the ``resolve_lookback_window`` the collector applies. Asked here of the
+    engine directly, as the grouped scan asks it. 2026-10-19 is the day whose
+    builds at 14:00 and 15:00 UTC scanned no ``prod_weekly`` trial.
+    """
+    now = datetime(2026, 10, 19, hour, 20, tzinfo=UTC)
+    window = resolve_lookback_window(
+        time_column="event_time",
+        lookback_hours=warehouse_builder.SCAN_LOOKBACK_HOURS,
+        end=now.replace(minute=0),
+    )
+    assert window is not None
+    engine = DemoMemoryAdapter(now=now)
+    reg_names, _, _, breakdown = engine.get_full_breakdown(
+        EVENTS_SCAN_SQL,
+        ["event_name", "product_id"],
+        [],
+        time_column="event_time",
+        time_from=window[0],
+        time_to=window[1],
+    )
+    name_at, product_at = reg_names.index("event_name"), reg_names.index("product_id")
+    trial_products = {row[product_at] for row in breakdown if row[name_at] == VARIABLE_DRIFT_EVENT}
+    assert roster.UNDOCUMENTED_PRODUCT in trial_products
+
+
 def test_the_history_progress_reads_the_replay_jobs() -> None:
     now = datetime(2026, 10, 14, 9, tzinfo=UTC)
     windows = pipeline.history_windows(now)
@@ -347,11 +379,11 @@ def test_every_creation_hour_has_an_incident_to_alert_on(
         if bucket >= now - timedelta(hours=23) and bucket + timedelta(hours=1) <= now
     }
     assert alertable
-    # The one detection pass is the job that ends there, and it scores three
-    # weekly promo sends' worth of history.
+    # The one detection pass is the job that ends there, and it scores the
+    # whole history (the weekly promo's first send included).
     scored_from, scored_to = pipeline.scoring_window(now)
     assert scored_to - timedelta(hours=1) in alertable
-    assert scored_to - scored_from == pipeline.SCORING_SPAN
+    assert scored_from == noise.history_start(now) == noise.history_start(now).replace(hour=0)
     # The first build scores its two days up to the same instant.
     first_from, first_to = pipeline.scoring_window(now, pipeline.first_build_start(now))
     assert (first_from, first_to) == (pipeline.first_build_start(now), scored_to)

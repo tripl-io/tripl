@@ -73,8 +73,9 @@ def _releases_table() -> list[str]:
     lines = [
         f"A release every {interval_days} days at {release_at}, after a {beta_days}-day "
         f"beta at {calendar.BETA_SHARE * 100:g} % of traffic; half the users have "
-        f"updated {calendar.ROLLOUT_MIDPOINT_HOURS:g} hours after release, and "
-        f"{calendar.LAGGARD_SHARE * 100:g} % stay behind. Each release breaks one "
+        f"updated {calendar.ROLLOUT_MIDPOINT_HOURS:g} hours after release, "
+        f"{calendar.LATE_SHARE * 100:g} % update a release late and "
+        f"{calendar.LAGGARD_SHARE * 100:g} % stay two behind. Each release breaks one "
         "event, in this rotation:",
         "",
         "| Release | Event | What breaks |",

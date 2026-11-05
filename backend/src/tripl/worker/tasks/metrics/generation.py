@@ -296,6 +296,13 @@ def _row_value_for_variable(
     A binding therefore only ever answers when ``source_name`` cannot, which is
     what makes a binding that points at a different column safe: it is a
     fallback address, not a competing one.
+
+    A JSON extract arrives as JSON text (``'"search"'`` — Postgres casts the
+    extract with ``::text``, ClickHouse wraps it in ``toJSONString``), so it is
+    rendered through ``format_json_path_value``, the same rendering the breakdown
+    rows and the replay JSON sampler give the very same cell. Kept as raw text,
+    the one value landed in a context twice: ``search`` from the sampler and
+    ``"search"`` from this walk.
     """
     for token in VariableIndex.source_tokens_of(variable):
         reg_idx = reg_index.get(token)
@@ -307,7 +314,7 @@ def _row_value_for_variable(
         if json_idx is not None and json_idx < len(data_row):
             cell = data_row[json_idx]
             if cell is not None:
-                return token, str(cell)
+                return token, format_json_path_value(cell)
     return None
 
 

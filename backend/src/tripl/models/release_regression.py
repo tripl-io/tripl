@@ -95,6 +95,14 @@ class ReleaseComparability(UUIDMixin, Base):
     ``version``/``previous_version`` are nullable because the release pair is
     only known once two eligible releases were found; ``reason ==
     no_baseline`` leaves both NULL.
+
+    The pair is the comparison the stored regression rows came from, which is
+    not always the latest release's: while the newest release ramps with
+    nothing found, the pass hands over to its predecessor's comparison
+    (``handed_over``). ``latest_active_version`` always names the newest active
+    release, so "latest" is read from it and never from ``version``, and
+    ``latest_release_share`` is that release's share of traffic over its own
+    comparison window, what the hand-over label quotes.
     """
 
     __tablename__ = "release_comparabilities"
@@ -117,6 +125,9 @@ class ReleaseComparability(UUIDMixin, Base):
     reason: Mapped[str] = mapped_column(
         db_enum(ReleaseComparabilityReason, "release_comparability_reason")
     )
+    latest_active_version: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    latest_release_share: Mapped[float | None] = mapped_column(Float, nullable=True)
+    handed_over: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     emerging_share: Mapped[float] = mapped_column(Float)
     # The bound ``emerging_share`` was tested against, stored rather than read
     # from config at render time so the number an operator sees is the one the

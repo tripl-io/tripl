@@ -217,6 +217,36 @@ def test_codegen_reads_the_codegen_model_export(
     assert capsys.readouterr().out.startswith("tripl codegen - http://tripl.test")
 
 
+@pytest.mark.parametrize("command", [["codegen", "--check"], ["export", "--format", "jsonschema"]])
+def test_an_unavailable_instance_is_exit_4_not_drift(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str],
+) -> None:
+    tripl_api.handler(EXPORT_URL, lambda request: httpx.Response(503, json={"detail": "busy"}))
+    assert main(command) == 4
+    assert "nothing was checked (exit 4)" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", [["codegen", "--check"], ["export", "--format", "jsonschema"]])
+def test_a_redirect_loop_is_exit_1_because_a_retry_will_not_fix_it(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str],
+) -> None:
+    # A read follows redirects; a proxy that sends it back where it came from
+    # is a configuration to fix, not an outage to let pass.
+    tripl_api.handler(
+        EXPORT_URL, lambda request: httpx.Response(302, headers={"Location": str(request.url)})
+    )
+    assert main(command) == 1
+    assert "TooManyRedirects" in capsys.readouterr().err
+
+
 def test_codegen_resolves_a_branch_and_names_it_in_the_header(
     repo: Path,
     tripl_api: FakeInstance,

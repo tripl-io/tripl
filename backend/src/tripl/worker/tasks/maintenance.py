@@ -14,6 +14,9 @@
   unreachable" while 98 of the previous 100 deliveries sent — caught live
   2026-08-31) was otherwise lost until a human clicked Retry; the reaper
   re-enqueues such rows within the same dispatch-attempts budget.
+- prune scan previews and dry runs (``scan_preview_jobs``,
+  ``scan_dry_run_jobs``) after ``SCAN_PREVIEW_RETENTION_DAYS``: each is an
+  answer the scan form polls for once, and nothing deleted them before.
 - delete photo blobs no ``event_photos`` row references. Inline deletion alone
   leaks them: an event, project or branch delete removes photo rows by FK
   cascade without a storage call, and two concurrent ``delete_photo`` calls can
@@ -40,7 +43,9 @@ from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.event_photo import EventPhoto
 from tripl.models.organization import Organization
 from tripl.models.photo_storage_config import PhotoStorageConfig
+from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJob, ScanJobStatus
+from tripl.models.scan_preview_job import ScanPreviewJob
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services.active_org_scope import in_active_org
 from tripl.services.event_photo_service import PHOTO_KEY_PREFIX
@@ -98,7 +103,11 @@ def cleanup_schema_drifts() -> dict[str, object]:
     name="tripl.worker.tasks.maintenance.cleanup_scan_jobs",
 )
 def cleanup_scan_jobs() -> dict[str, object]:
-    """Prune old terminal scan history while preserving every active job."""
+    """Prune old terminal scan history while preserving every active job.
+
+    Scan previews and dry runs go in the same pass, on their own shorter
+    horizon (:func:`_prune_scan_previews`).
+    """
     cutoff = datetime.now(UTC) - timedelta(days=settings.scan_job_retention_days)
     session = _get_sync_session()
     try:
@@ -118,12 +127,50 @@ def cleanup_scan_jobs() -> dict[str, object]:
                 ),
             )
         )
+        previews_deleted, dry_runs_deleted = _prune_scan_previews(session)
         session.commit()
         deleted = int(getattr(result, "rowcount", 0) or 0)
-        logger.info("Pruned %d scan_jobs rows older than %s", deleted, cutoff.isoformat())
-        return {"deleted": deleted, "cutoff": cutoff.isoformat()}
+        logger.info(
+            "Pruned %d scan_jobs rows older than %s, %d scan previews, %d scan dry runs",
+            deleted,
+            cutoff.isoformat(),
+            previews_deleted,
+            dry_runs_deleted,
+        )
+        return {
+            "deleted": deleted,
+            "cutoff": cutoff.isoformat(),
+            "previews_deleted": previews_deleted,
+            "dry_runs_deleted": dry_runs_deleted,
+        }
     finally:
         session.close()
+
+
+def _prune_scan_previews(session: Session) -> tuple[int, int]:
+    """Delete scan previews and dry runs past ``SCAN_PREVIEW_RETENTION_DAYS``.
+
+    Both are one answer the scan form (or an API caller) polls for once: the
+    result lives in the row's ``result_summary`` and nothing reads it after the
+    poll that found it finished. Nothing deleted them before, so every Preview
+    click a visitor made stayed in the database for the life of the project.
+
+    Unlike the ``ScanJob`` cleanup above, an UNFINISHED row is pruned too once it has
+    not moved for the whole window. A preview runs one warehouse query bounded
+    by its timeout, so one still ``pending`` or ``running`` days later is a row
+    whose worker died, not a job in flight. Age is measured the same way as a
+    scan's: completion first, then the last update, then creation.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=settings.scan_preview_retention_days)
+    counts: list[int] = []
+    for model in (ScanPreviewJob, ScanDryRunJob):
+        result = session.execute(
+            delete(model).where(
+                func.coalesce(model.completed_at, model.updated_at, model.created_at) < cutoff
+            )
+        )
+        counts.append(int(getattr(result, "rowcount", 0) or 0))
+    return counts[0], counts[1]
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]

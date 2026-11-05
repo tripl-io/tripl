@@ -14,7 +14,8 @@ answered mechanically rather than by whoever reads this paragraph next.
 STABILITY, within one ``schema_version``:
 
     Key names are never removed or retyped; ``status`` and ``severity`` values,
-    check ``id``s and finding ``code``s are never renamed or repurposed. New
+    check ``id``s, finding ``code``s, and ``check --list``'s reason codes, value
+    kinds and signals are never renamed or repurposed. New
     keys, new check ids and new finding codes may appear in any release without
     a version bump — select by id, never by array index. ``title``, ``summary``
     and ``message`` are prose and may change in any release. ``generated_at``,
@@ -64,7 +65,9 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from tripl_cli.check.model import CheckReport
+    from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
+    from tripl_cli.check.model import CheckReport, Origin, Suppression
+    from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
     from tripl_cli.install.plan import FileWrite, InstallPlan, UpgradePlan
     from tripl_cli.install.shell import Command
@@ -359,11 +362,12 @@ def plan_read_document(read: PlanRead) -> JsonDict:
 
 
 def _local_envelope(command: str, generated_at: str, duration_ms: int) -> JsonDict:
-    """The envelope for the two commands that act on a DIRECTORY, not an instance.
+    """The envelope for the three commands that act on a DIRECTORY, not an instance.
 
     No ``instance`` block and no ``requests`` count, deliberately: ``install``
     and ``upgrade`` have no configured base URL and no API key — at install time
-    the first account does not exist, so no key can. Inventing an
+    the first account does not exist, so no key can — and ``check --list`` scans
+    a checkout and talks to no instance at all. Inventing an
     empty instance block would let a consumer believe those fields were merely
     unset. ``schema_version`` is shared with every other document; a consumer
     branches on ``command``.
@@ -551,8 +555,36 @@ def check_document(report: CheckReport) -> JsonDict:
     is the NDJSON line, or 1 for an event in a JSON array (``snippet`` then
     names its position). Finding ``code``s are the validator's plus the CLI's
     own ``dynamic_value`` (``--strict`` only), ``oversize_value`` (a value over
-    the validator's size limits, sent as null) and ``no_verdict``.
+    the validator's size limits, sent as null) and ``no_verdict``. A finding's
+    ``fingerprint`` is the line-free identity every machine format shares (see
+    ``check/fingerprint.py``). ``skipped`` lists the configured files the scan
+    did not read.
+
+    When the scan read a ``tripl-check-ignore`` marker, and only then, the
+    document says what the markers did: ``suppressions`` lists every one,
+    ``summary`` gains ``suppressed`` (findings) and ``failing`` (results), each
+    result ``fails``, and each finding ``suppression`` and ``fails``. ``status``
+    stays the plan's verdict; ``fails`` says whether it fails the run. With no
+    marker the document is exactly what it was before markers existed.
+
+    Under a gate (``--new-from-rev``, ``--new-from-patch``), and only then, the
+    top-level ``gate`` says what was compared (``check/gate.py``), ``summary``
+    gains ``failing``, each result ``fails`` and ``in_change`` (the change
+    made the item new or changed), and each finding ``in_change``, ``cause``
+    (``plan_branch`` for one the plan branch brought in) and ``fails``.
+    ``exit_code`` is the gated one.
+
+    Under a baseline (``--baseline``, ``--write-baseline``), and only then,
+    the top-level ``baseline`` says what the file held and this run matched
+    (``check/baseline.py``), ``summary`` gains ``failing``, each result
+    ``fails``, and each finding ``baselined`` and ``fails``.
     """
+    from tripl_cli.check.baseline import baseline_document
+    from tripl_cli.check.fingerprint import finding_fingerprints
+    from tripl_cli.check.gate import gate_document
+    from tripl_cli.check.model import finding_fails
+    from tripl_cli.check.validate import summary
+
     document = _run_envelope("check", report.run)
     document["project"] = report.project
     document["branch"] = (
@@ -562,22 +594,26 @@ def check_document(report: CheckReport) -> JsonDict:
     document["strict"] = report.strict
     document["config"] = report.config_path
     document["files_scanned"] = report.files_scanned
-    counts = {"checked": len(report.results), "ok": 0, "warnings": 0, "errors": 0, "dynamic": 0}
-    keys = {"ok": "ok", "warning": "warnings", "error": "errors", "dynamic": "dynamic"}
-    for result in report.results:
-        counts[keys.get(result.status, "errors")] += 1
+    document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in report.skipped]
+    marked = bool(report.markers)
+    gated = report.gate is not None
+    based = report.baseline is not None
+    weighed = marked or gated or based
+    counts = summary(report.results)
+    if marked:
+        counts["suppressed"] = report.suppressed
+    if weighed:
+        counts["failing"] = sum(1 for result in report.results if report.fails(result))
     document["summary"] = counts
     document["exit_code"] = report.exit_code
+    if gated:
+        document["gate"] = gate_document(report)
+    if based:
+        document["baseline"] = baseline_document(report)
     document["results"] = [
         {
             "status": result.status,
-            "location": {
-                "path": result.item.origin.path,
-                "line": result.item.origin.line,
-                "column": result.item.origin.column,
-                "end_line": result.item.origin.end_line,
-                "end_column": result.item.origin.end_column,
-            },
+            "location": _origin_document(result.item.origin),
             "snippet": result.item.origin.snippet,
             "event_type": result.item.event_type,
             "name": result.item.name,
@@ -595,13 +631,217 @@ def check_document(report: CheckReport) -> JsonDict:
                     "severity": finding.severity,
                     "field": finding.field,
                     "message": finding.message,
+                    "fingerprint": fingerprint,
+                    **(
+                        {"suppression": _suppression_document(finding.suppression)}
+                        if marked
+                        else {}
+                    ),
+                    **({"in_change": finding.in_change, "cause": finding.cause} if gated else {}),
+                    **({"baselined": finding.baselined} if based else {}),
+                    **({"fails": finding_fails(finding, report.strict)} if weighed else {}),
                 }
-                for finding in result.findings
+                for finding, fingerprint in zip(result.findings, fingerprints, strict=True)
+            ],
+            **({"fails": report.fails(result)} if weighed else {}),
+            **({"in_change": result.in_change} if gated else {}),
+        }
+        for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True)
+    ]
+    if marked:
+        document["suppressions"] = [
+            {
+                "location": {
+                    "path": state.marker.path,
+                    "line": state.marker.line,
+                    "column": state.marker.column,
+                },
+                "targets": [{"code": code, "field": field} for code, field in state.marker.targets],
+                "reason": state.marker.reason,
+                "used": state.used,
+                "problem": state.marker.problem,
+            }
+            for state in report.markers
+        ]
+    return document
+
+
+def _suppression_document(suppression: Suppression | None) -> JsonDict | None:
+    if suppression is None:
+        return None
+    return {
+        "reason": suppression.reason,
+        "location": {
+            "path": suppression.path,
+            "line": suppression.line,
+            "column": suppression.column,
+        },
+    }
+
+
+def _origin_document(origin: Origin) -> JsonDict:
+    return {
+        "path": origin.path,
+        "line": origin.line,
+        "column": origin.column,
+        "end_line": origin.end_line,
+        "end_column": origin.end_column,
+    }
+
+
+def check_list_document(
+    found: Inventory,
+    *,
+    generated_at: str,
+    duration_ms: int,
+    project: str | None,
+    config: str | None,
+) -> JsonDict:
+    """``tripl check --list --json``: what the scan read from every matched call, and why not.
+
+    Check's scan-only mode, so it has its own ``command`` and the local
+    envelope: it talks to no instance. ``config`` is null in discovery mode (no
+    check config: the repository was scanned for calls that look like
+    tracking, and ``truncated`` says the walk stopped at its file cap). Every
+    key is always present with a fixed type. ``reason`` codes
+    (``check.model.REASON_CODES``), value ``kind``s and ``signal``s are the
+    stable vocabulary; ``items`` are the ones ``tripl check`` would build,
+    within the validator's size limits, ``sent`` false for a call it reports
+    as dynamic and sends nothing for.
+    """
+    from tripl_cli.check.inventory import summarize
+    from tripl_cli.check.payloads import enforce_limits
+
+    summary = summarize(found)
+    document = _local_envelope("check --list", generated_at, duration_ms)
+    document["project"] = project
+    document["config"] = config
+    document["root"] = str(found.root)
+    document["truncated"] = found.truncated
+    document["files_scanned"] = found.files
+    document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in found.skipped]
+    document["summary"] = {
+        "calls": summary.calls,
+        "items": summary.items,
+        "fully_read": summary.fully_read,
+        "not_sent": summary.not_sent,
+        "dynamic": dict(summary.dynamic),
+        # The same (call, target) pairs as `dynamic`, by reason.
+        "reasons": {target: dict(codes) for target, codes in summary.reasons.items()},
+        "targets": {name: dict(counts) for name, counts in summary.targets.items()},
+        # Each field once, however many labels reached it (`field_map` can merge two).
+        "default_label_fields": {
+            name: list(dict.fromkeys(field for field, _ in pairs))
+            for name, pairs in summary.default_label_fields.items()
+        },
+    }
+    document["calls"] = [
+        {
+            "location": _origin_document(call.origin),
+            "snippet": call.origin.snippet,
+            "event_type": call.event_type,
+            "read": {
+                "name": _read_document(call.read.name),
+                "fields": {name: _read_document(value) for name, value in call.read.fields.items()},
+                "properties": _read_document(call.read.properties),
+                "unmapped": list(call.read.unmapped),
+                # An object argument the scan could not read, which is why
+                # none of its keys reached a target; null otherwise.
+                "object_argument": (
+                    None
+                    if call.read.unread_object is None
+                    else _value_document(call.read.unread_object)
+                ),
+            },
+            "dynamic": dict(call.dynamic),
+            "items": [
+                {
+                    "name": item.name,
+                    "fields": dict(item.fields),
+                    "properties": None if item.properties is None else dict(item.properties),
+                    "sent": item.sendable,
+                }
+                for item in map(enforce_limits, call.items)
             ],
         }
-        for result in report.results
+        for call in found.calls
     ]
+    document["forwarders"] = [_forwarder_document(forwarder) for forwarder in found.forwarders]
+    document["unmatched"] = [_unmatched_document(group) for group in found.unmatched]
     return document
+
+
+def _read_document(read: ReadValue | None) -> JsonDict | None:
+    """A matched call's top-level value, with its reason as refined from its function."""
+    if read is None:
+        return None
+    declared = read.declared
+    where = None if declared is None else {"function": declared.function, "line": declared.line}
+    return _value_document(read.value, reason=read.reason, declared=where)
+
+
+def _value_document(
+    value: Value, *, reason: str | None = None, declared: JsonDict | None = None
+) -> JsonDict:
+    """One value, every key present. An entry keeps the evaluator's own reason, never a function."""
+    dynamic = value.kind == "dynamic"
+    return {
+        # `template` is text with `${…}` holes for the interpolated parts.
+        "kind": "template" if value.kind == "text" and value.interpolated else value.kind,
+        "text": value.text if value.kind == "text" else None,
+        "choices": list(value.choices) if value.kind == "choices" else [],
+        "entries": (
+            {key: _value_document(entry) for key, entry in value.entries}
+            if value.kind == "entries"
+            else None
+        ),
+        "reason": (reason or value.reason or None) if dynamic else None,
+        "expression": (value.expression or None) if dynamic else None,
+        "declared": declared,
+    }
+
+
+def _forwarder_document(forwarder: Forwarder) -> JsonDict:
+    callers = forwarder.callers
+    first = callers.first_unmatched
+    return {
+        "function": forwarder.function,
+        "location": {"path": forwarder.location.path, "line": forwarder.location.line},
+        "parameters": [
+            {
+                "name": parameter.name,
+                "index": parameter.index,
+                "label": parameter.label,
+                "targets": list(parameter.targets),
+            }
+            for parameter in forwarder.parameters
+        ],
+        "calls": forwarder.calls,
+        # By name alone, the forwarder's own body left out: in its file and
+        # elsewhere, a call of another function of the same name counts too.
+        "callers": {
+            "same_file": callers.same_file,
+            "same_file_matched": callers.same_file_matched,
+            "other_files": callers.other_files,
+            "other_files_matched": callers.other_files_matched,
+            "first_unmatched": (
+                None
+                if first is None
+                else {"path": first.path, "line": first.line, "column": first.column}
+            ),
+        },
+    }
+
+
+def _unmatched_document(group: UnmatchedGroup) -> JsonDict:
+    return {
+        "method": group.method,
+        "receivers": dict(group.receivers),
+        "signal": group.signal,
+        "calls": group.calls,
+        "first": {"path": group.first.path, "line": group.first.line, "column": group.first.column},
+        "example": group.example,
+    }
 
 
 def codegen_document(

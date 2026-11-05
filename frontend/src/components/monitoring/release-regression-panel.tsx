@@ -1,4 +1,4 @@
-import { formatNumber, formatPercent } from '@/lib/format'
+import { formatNumber, formatPercent, formatShare } from '@/lib/format'
 import { countOf } from '@/lib/plural'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -51,6 +51,33 @@ function withheldReason(verdict: ReleaseComparabilityItem): string {
     default:
       return 'The latest release cannot be judged yet.'
   }
+}
+
+/**
+ * While the newest release ramps with nothing found, the backend shows its
+ * predecessor's comparison in its place (`handed_over`). The rows then name the
+ * predecessor, so the panel says which release is actually newest and why its
+ * own comparison is not the one shown — otherwise the rows read as findings
+ * against the latest release, which the header names.
+ */
+function HandOverNote({ verdict }: { verdict: ReleaseComparabilityItem }) {
+  if (!verdict.latest_active_version || !verdict.version) return null
+  return (
+    <p className="mb-3 text-body-sm text-fg-tertiary">
+      <CodeToken>{verdict.latest_active_version}</CodeToken>
+      {' is rolling out'}
+      {verdict.latest_release_share != null && ` (${formatShare(verdict.latest_release_share)} of traffic)`}
+      {' — showing '}
+      <CodeToken>{verdict.version}</CodeToken>
+      {verdict.previous_version && (
+        <>
+          {' vs '}
+          <CodeToken>{verdict.previous_version}</CodeToken>
+        </>
+      )}
+      {' while it ramps up (48 hours at most).'}
+    </p>
+  )
 }
 
 function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionItem }) {
@@ -131,6 +158,8 @@ export function ReleaseRegressionPanel({
   const withheld = comparability.filter(verdict => !verdict.comparable)
   const withheldReasons = [...new Set(withheld.map(withheldReason))]
   const judged = comparability.length > 0
+  // One pass, one hand-over: every partition carries the same flag and pair.
+  const handOver = comparability.find(verdict => verdict.handed_over)
 
   return (
     // The shared section-card geometry: a header bar with the
@@ -189,6 +218,7 @@ export function ReleaseRegressionPanel({
                 ))}
               </div>
             )}
+            {handOver && <HandOverNote verdict={handOver} />}
             {items.length > 0 ? (
               <div className="divide-y">
                 {items.map(item => (

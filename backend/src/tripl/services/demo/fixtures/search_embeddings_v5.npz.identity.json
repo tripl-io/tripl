@@ -491,6 +491,7 @@
  "variable\u001f${query_length}\u001fstring": "e04c811439c1560b831988b99502565682710b66c987e5075cb550b34cc498e8",
  "variable\u001f${recipe_category}\u001fstring": "fd85355f2012cc084c8b03f16ae424826927bbee73c82e82c1a9a0d4e4193fc8",
  "variable\u001f${referrer}\u001fstring": "2c31d9f407de74f521a18b6b8e63416e0d94f8dbf8d7af678a254ef6858d5403",
+ "variable\u001f${results_count}\u001fnumber": "fdb730f3a76829aa535d8f9a90fee4d91f5fe402503fa284755d99df0ad31304",
  "variable\u001f${results_count}\u001fstring": "fdb730f3a76829aa535d8f9a90fee4d91f5fe402503fa284755d99df0ad31304",
  "variable\u001f${session_id}\u001fstring": "aa6a843abdf2ca009d9a44cae9f3ea04c0ef8ac46b9da50c3642ce69d241069a",
  "variable\u001f${trial_days}\u001fnumber": "174584da4a633b07ffb082ddedc72bf62358d047801a98daac7733970f274c7a",

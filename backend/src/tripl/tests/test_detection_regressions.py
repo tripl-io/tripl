@@ -27,9 +27,11 @@ import tripl.worker.celery_app  # noqa: F401
 from tripl.core.adapters.base import AggregateSpec, ColumnInfo
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
+from tripl.core.analyzers import anomaly_detector
 from tripl.core.analyzers.anomaly_detector import (
     AnomalyDetectionSettings,
     SeriesPoint,
+    TrendShiftResult,
     _detect_trend_shift,
     _present_series,
     _rolling_anomaly_at,
@@ -233,6 +235,65 @@ def test_trend_row_is_anchored_where_the_raw_value_left_its_band() -> None:
     # The run owns its row, so every bucket of it is still one incident.
     run = frozenset(_bucket(hour) for hour in range(run_start, _TREND_HOURS))
     assert result.shifted_buckets == run
+
+
+def test_a_run_says_which_way_each_of_its_buckets_moved() -> None:
+    """A drop run claims its buckets as drops: only drop rows re-announce it."""
+    run_start = _TREND_HOURS - 10
+    points = [
+        SeriesPoint(bucket=_bucket(hour), count=50.0 if hour >= run_start else 100.0)
+        for hour in range(_TREND_HOURS)
+    ]
+    trend = [50.0 if hour >= run_start else 100.0 for hour in range(_TREND_HOURS)]
+
+    result = _detect_trend_shift(
+        points,
+        _trend_components(trend),
+        evaluation_start=_bucket(_TREND_HOURS - 24),
+        settings=_TREND_SETTINGS,
+        interval=_HOUR,
+    )
+
+    assert result.shifted_buckets
+    assert set(result.shift_directions) == set(result.shifted_buckets)
+    assert set(result.shift_directions.values()) == {"drop"}
+
+
+def test_a_row_moving_against_its_trend_run_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A trend run claims the newest buckets as a rise. Inside it, a burst (a
+    spike, the rise re-announced) loses its row to the run's; an outage (a drop)
+    is another incident and keeps it. Before, both went, and an outage on a
+    series whose fitted trend was climbing had no row at all."""
+    hours = 24 * 22
+    counts = [100.0 + 10.0 * ((hour * 7) % 5) for hour in range(hours)]
+    burst, outage = hours - 3, hours - 1
+    counts[burst] = 400.0
+    counts[outage] = 5.0
+    points = [SeriesPoint(bucket=_bucket(hour), count=count) for hour, count in enumerate(counts)]
+    claimed = [_bucket(hour) for hour in range(hours - 6, hours)]
+    monkeypatch.setattr(
+        anomaly_detector,
+        "_detect_trend_shift",
+        lambda *args, **kwargs: TrendShiftResult(
+            anomalies=[],
+            shifted_buckets=frozenset(claimed),
+            shift_directions=dict.fromkeys(claimed, "spike"),
+        ),
+    )
+
+    result = detect_anomalies(
+        points,
+        interval=_HOUR,
+        evaluation_start=_bucket(hours - 24),
+        evaluation_end=_bucket(hours),
+        settings=_TREND_SETTINGS,
+    )
+
+    flagged = {(row.bucket, row.direction) for row in result.anomalies}
+    assert (_bucket(outage), "drop") in flagged
+    assert all(row.bucket != _bucket(burst) for row in result.anomalies)
 
 
 def test_a_run_whose_row_is_gated_out_does_not_silence_its_buckets() -> None:

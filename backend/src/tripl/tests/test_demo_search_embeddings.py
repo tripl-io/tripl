@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.config import settings
+from tripl.core.demo_warehouse import calendar, rows
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.search_document import SearchDocument
 from tripl.schemas.search import SearchResult
@@ -652,7 +653,26 @@ def test_advertised_demo_queries_are_in_generator_query_list() -> None:
     assert advertised <= normalized
 
 
-async def test_shipped_fixture_covers_current_demo_documents() -> None:
+@pytest.fixture(
+    params=[True, False],
+    ids=["results_count-sent-as-a-string", "results_count-sent-as-a-number"],
+)
+def property_type_change(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[bool]:
+    """The calendar's property type change, pinned on for every release or off.
+
+    The warehouse model caches the hours it generated, so the cache is dropped
+    before the build reads the pinned rows and after, before the pin is undone.
+    """
+    sends_string = bool(request.param)
+    monkeypatch.setattr(calendar, "property_type_broken", lambda _version: sends_string)
+    rows.clear_cache()
+    yield sends_string
+    rows.clear_cache()
+
+
+async def test_shipped_fixture_covers_current_demo_documents(property_type_change: bool) -> None:
     """CI freshness gate: every demo document still resolves to a fixture vector.
 
     The fixture ships with the demo recipe it was generated for, so a missing
@@ -686,6 +706,18 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
     drift in the demo's tags, event names or descriptions — or in the embed-text
     recipe itself — turns this red and points at the regeneration script. That is
     the gate this test was written to be, scoped to where it can still be honest.
+
+    BOTH STATES OF THE CALENDAR'S TYPE CHANGE
+    ---------------------------------------------------------------
+    A build indexes ``${results_count}`` under the type its first live
+    collection samples: ``number``, or still ``string`` when the sample holds a
+    row of a release that sends the count as a string on iOS. Which one depends
+    on the hour (such releases alternate every fortnight, and the share of one
+    drains for days after the next ships). On the wall clock this checked the
+    state of the hour it ran in, and failed in every ``number`` hour once the
+    fixture had been generated in a ``string`` one. The change is pinned
+    instead, on for every release and then off, and both builds must resolve;
+    the generator builds both for the same reason.
     """
     assert search_embeddings.DEFAULT_FIXTURE_PATH.is_file(), (
         f"no {search_embeddings.DEFAULT_FIXTURE_PATH.name} for the current demo recipe — "
@@ -731,9 +763,13 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
         missing_identities: list[str] = []
         unresolvable: list[str] = []
         tag_documents = 0
+        type_change_title = f"${{{calendar.PROPERTY_TYPE_CHANGE_KEY}}}"
+        type_change_types: set[str] = set()
         for branch_id in branch_ids:
             documents = await build_documents(session, project.id, branch_id, project.slug)
             for doc in documents:
+                if doc.entity_type == "variable" and doc.title == type_change_title:
+                    type_change_types.add(doc.subtitle)
                 identity = search_embeddings.identity_key(doc.entity_type, doc.title, doc.subtitle)
                 embed_key = embed_text_key(
                     embed_text_for(
@@ -764,6 +800,12 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
     assert tag_documents > 0, (
         "the demo built no tag documents, so the embed-text freshness gate below "
         "measured nothing — the demo recipe changed shape and this test needs rescoping"
+    )
+    # Each pin must build the state it names, or one of the two goes unchecked.
+    assert type_change_types == {"string" if property_type_change else "number"}, (
+        f"the demo indexed {type_change_title} as {sorted(type_change_types)} with the "
+        f"calendar's type change {'on' if property_type_change else 'off'} — the type "
+        "change moved and this test needs rescoping"
     )
     assert not stale_embed_text, (
         "tag documents whose embed text is no longer in the fixture archive. Their "

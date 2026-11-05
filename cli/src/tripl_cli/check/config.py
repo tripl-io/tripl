@@ -404,6 +404,21 @@ def find_config(start: Path) -> Path | None:
         directory = directory.parent
 
 
+def repository_root(start: Path) -> Path | None:
+    """The nearest directory at or above ``start`` holding ``.git``, or ``None``.
+
+    The same rule ``find_config`` stops at. A ``.git`` FILE counts, as in a
+    worktree or a submodule, whose own root is what its CI checks out.
+    """
+    directory = start.resolve()
+    while True:
+        if (directory / ".git").exists():
+            return directory
+        if directory.parent == directory:
+            return None
+        directory = directory.parent
+
+
 def load(path: Path) -> CheckConfig:
     """Read and validate one config file. Every problem is a ``TriplConfigError`` (exit 2)."""
     try:

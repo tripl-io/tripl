@@ -5,7 +5,16 @@ every source file and builds one ``SymbolIndex``, because the enum a call's
 ``.home`` refers to is usually declared in a different file — often one outside
 ``sources``. The second finds the call sites, matches each against the event
 types IN CONFIG ORDER (the first matching spec wins, so a call is never counted
-as two event types), and maps its arguments onto plan fields.
+as two event types), and maps its arguments onto plan fields. It also reads
+each file's ``tripl-check-ignore`` markers (``suppress.py``) and hands every
+item the ones covering its call.
+
+``first_pass`` and ``second_pass`` are public because ``inventory`` (what
+``tripl check --list`` shows) runs the very same passes rather than a copy of
+them; nothing it learns flows back into ``scan()``. So does ``base_items``,
+the gate's scan of the tree as it was before a change (``gate.py``): the same
+passes and the same config over a ``Snapshot``, which hands the first pass
+each changed file's base text instead of the file on disk.
 
 Nothing here touches the network.
 """
@@ -15,8 +24,8 @@ from __future__ import annotations
 import itertools
 import os
 import re
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -30,10 +39,20 @@ from tripl_cli.check.config import (
     VALUE_NUMBER,
     CallSpec,
     CheckConfig,
+    EnumSource,
     EventTypeSpec,
 )
 from tripl_cli.check.lexer import EXTENSIONS, LineIndex, Token, tokenize
-from tripl_cli.check.model import CheckItem, Origin
+from tripl_cli.check.model import (
+    SKIP_TOO_LARGE,
+    SKIP_UNREADABLE,
+    CheckItem,
+    Marker,
+    Origin,
+    SkippedFile,
+    Suppression,
+)
+from tripl_cli.check.suppress import attach, markers
 from tripl_cli.check.symbols import SymbolIndex
 from tripl_cli.check.values import Evaluator, Value
 from tripl_cli.errors import TriplConfigError
@@ -45,6 +64,12 @@ MAX_FILE_BYTES = 2_000_000
 MAX_EXPANSION = 50
 
 _IGLU = re.compile(r"iglu:[^/]+/([^/]+)/[^/]+/[^/]+")
+
+# Why a ``Snapshot`` has no text for a file: it did not exist at the base.
+SKIP_ABSENT = "absent"
+
+# How the first pass reads a file: ``(text, None)``, or ``(None, why)``.
+Read = Callable[[Path], tuple[str | None, str | None]]
 
 
 @dataclass(frozen=True)
@@ -59,6 +84,10 @@ class ScanOutcome:
     items: tuple[CheckItem, ...]
     files: int
     calls: int
+    # Configured files the scan did not read, so a report can say it checked less.
+    skipped: tuple[SkippedFile, ...] = ()
+    # Every ``tripl-check-ignore`` marker in the scanned files, valid or not.
+    markers: tuple[Marker, ...] = ()
 
 
 # --- globbing -------------------------------------------------------------------
@@ -109,10 +138,28 @@ def _is_dir_pattern_match(relative_dir: str, patterns: Iterable[str]) -> bool:
     return any(glob_regex(pattern).fullmatch(probe) for pattern in patterns)
 
 
+def excluded(relative: str, exclude: Iterable[str]) -> bool:
+    """Whether ``walk`` leaves ``relative`` out: matched itself, or under a pruned directory.
+
+    The one rule for what ``exclude:`` takes away. The walk prunes a
+    directory everything under which an exclude matches (``Sources/Vendor/*``
+    prunes ``Sources/Vendor/Lib/K.swift`` too, which the pattern itself does
+    not match), so a path is tested against every directory above it as well.
+    """
+    exclude = tuple(exclude)
+    if _matches(relative, exclude):
+        return True
+    parts = relative.split("/")
+    return any(
+        _is_dir_pattern_match("/".join(parts[:depth]), exclude) for depth in range(1, len(parts))
+    )
+
+
 def walk(root: Path, include: Iterable[str], exclude: Iterable[str]) -> Iterator[tuple[Path, str]]:
     """Every file under ``root`` matching ``include`` and not ``exclude``, sorted.
 
-    Yields ``(path, posix-relative path)``; excluded directories are pruned.
+    Yields ``(path, posix-relative path)``; excluded directories are pruned,
+    by the same rule ``excluded`` states for one path.
     """
     include = tuple(include)
     exclude = tuple(exclude)
@@ -130,27 +177,127 @@ def walk(root: Path, include: Iterable[str], exclude: Iterable[str]) -> Iterator
                 yield Path(directory) / name, relative
 
 
-def discover(config: CheckConfig) -> list[SourceFile]:
+def discover(config: CheckConfig, *, limit: int | None = None) -> list[SourceFile]:
+    """The source files under ``config.root``, in walk order; the first ``limit`` when given.
+
+    With a limit the walk stops there, so a huge tree is not walked to its end.
+    """
     if not config.root.is_dir():
         raise TriplConfigError(f"the check root {config.root} is not a directory.")
     found: list[SourceFile] = []
     for path, relative in walk(config.root, config.sources, config.exclude):
         language = EXTENSIONS.get(path.suffix.lower())
-        if language is not None:
-            found.append(SourceFile(path, relative, language))
+        if language is None:
+            continue
+        if limit is not None and len(found) >= limit:
+            break
+        found.append(SourceFile(path, relative, language))
     return found
 
 
-def _read(path: Path) -> str | None:
+def _read(path: Path) -> tuple[str | None, str | None]:
+    """``(text, None)``, or ``(None, why)`` for a file the scan leaves out."""
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
-            return None
-        return path.read_text(encoding="utf-8", errors="replace")
+            return None, SKIP_TOO_LARGE
+        return path.read_text(encoding="utf-8", errors="replace"), None
     except OSError:
+        return None, SKIP_UNREADABLE
+
+
+def newlines(text: str) -> str:
+    """``text`` with its line ends read as ``_read`` reads them (universal newlines)."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def source_language(config: CheckConfig, relative: str) -> str | None:
+    """The language the scan reads ``relative`` in as a source file, were it there; else None."""
+    if not _matches(relative, config.sources) or excluded(relative, config.exclude):
         return None
+    return EXTENSIONS.get(Path(relative).suffix.lower())
+
+
+def enum_sources(config: CheckConfig, relative: str) -> list[EnumSource]:
+    """The ``enums:`` entries that would read the file at ``relative``, were it there."""
+    if excluded(relative, config.exclude):
+        return []
+    return [source for source in config.enums if _matches(relative, source.patterns)]
+
+
+def scanned(config: CheckConfig, relative: str) -> bool:
+    """Whether the scan reads the file at ``relative`` (to the check root), were it there.
+
+    Its size aside: ``fits`` is the other half of the rule, for text in hand.
+    """
+    return source_language(config, relative) is not None or bool(enum_sources(config, relative))
+
+
+def fits(text: str) -> bool:
+    """Whether a file of ``text`` is within the size ``_read`` reads, counted in UTF-8 bytes.
+
+    For a base text the gate rebuilt, whose bytes are not on disk. A byte the
+    decoding replaced counts as three, so the count errs toward too large,
+    which leaves the file out of the base: every call in it is then new.
+    """
+    return len(text.encode("utf-8", "surrogatepass")) <= MAX_FILE_BYTES
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """The tree at the base of a change: the files it changed as they were, the rest as they are.
+
+    ``texts`` maps a file's path (under the check root, as the walk names it)
+    to its base text, or None for a file the base did not have. ``deleted``
+    holds ``(path, relative)`` for each file the base had and the tree no
+    longer does, which the walk cannot find.
+    """
+
+    texts: Mapping[Path, str | None] = field(default_factory=dict)
+    deleted: tuple[tuple[Path, str], ...] = ()
+    # Directories the base did not have as they are now (a submodule the
+    # change moved): every file under one reads as absent.
+    absent: tuple[Path, ...] = ()
+
+    def read(self, path: Path) -> tuple[str | None, str | None]:
+        if any(path.is_relative_to(directory) for directory in self.absent):
+            return None, SKIP_ABSENT
+        if path in self.texts:
+            text = self.texts[path]
+            if text is None:
+                return None, SKIP_ABSENT
+            # The base's own size, its line ends as they were, under the cap
+            # the scan applies to it; then read as ``_read`` reads a file.
+            return (newlines(text), None) if fits(text) else (None, SKIP_TOO_LARGE)
+        return _read(path)
 
 
 # --- the two passes -------------------------------------------------------------
+@dataclass(frozen=True)
+class Tree:
+    """What the first pass read: the one symbol index, and every scanned source tokenized."""
+
+    symbols: SymbolIndex
+    parsed: tuple[tuple[SourceFile, str, list[Token]], ...]
+    # Configured files it could not read, sorted by path.
+    skipped: tuple[SkippedFile, ...]
+
+
+@dataclass(frozen=True)
+class FileCalls:
+    """One scanned file in the second pass: every call in it, with what it matched.
+
+    ``calls`` pairs each call ``find_calls`` found (in offset order) with the
+    event type and call spec that matched it, or None.
+    """
+
+    source: SourceFile
+    text: str
+    tokens: list[Token]
+    lines: LineIndex
+    evaluator: Evaluator
+    calls: tuple[tuple[Call, tuple[EventTypeSpec, CallSpec] | None], ...]
+
+
 def scan(config: CheckConfig) -> ScanOutcome:
     """Find and map every configured tracking call under ``config.root``."""
     if not config.event_types:
@@ -158,43 +305,138 @@ def scan(config: CheckConfig) -> ScanOutcome:
             "the check config names no event types; add an `event_types:` section "
             "saying how each plan event type is tracked."
         )
+    tree = first_pass(config, discover(config))
+    items: list[CheckItem] = []
+    found_markers: list[Marker] = []
+    matched = 0
+    for found in second_pass(config, tree):
+        hits = [(call, hit) for call, hit in found.calls if hit is not None]
+        placed = markers(
+            found.source.relative, found.text, found.tokens, found.source.language, found.lines
+        )
+        found_markers.extend(entry.marker for entry in placed)
+        covering = attach(placed, [call for call, _ in hits], found.lines) if placed else {}
+        for index, (call, (event_type, spec)) in enumerate(hits):
+            matched += 1
+            origin = call_origin(found.source, call, found.lines)
+            # Called from here, not through a helper: every frame above the
+            # evaluator is stack a deeply nested argument cannot use.
+            collected = collect_call(call, spec, event_type, found.evaluator)
+            items.extend(
+                call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
+            )
+    return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped, tuple(found_markers))
+
+
+def base_items(config: CheckConfig, snapshot: Snapshot) -> list[CheckItem]:
+    """The items ``scan`` would find in the tree at the base: the same passes, the same config.
+
+    The walk is of today's tree, which the snapshot corrects: a file added
+    since reads as absent, a changed one as it was, and a deleted one is
+    walked again if the config would read it. Markers are read on the base
+    text as ``scan`` reads them, because which findings a call waives is part
+    of what is compared (``gate.item_key``).
+    """
+    if not config.event_types:
+        return []
     files = discover(config)
+    enum_paths = list(enum_files(config))
+    walked = {source.path for source in files} | {path for path, _, _ in enum_paths}
+    for path, relative in snapshot.deleted:
+        if path in walked:
+            continue
+        # The walk's own rule, so a file it would not have read stays out.
+        language = source_language(config, relative)
+        if language is not None:
+            files.append(SourceFile(path, relative, language))
+        for enum_source in enum_sources(config, relative):
+            enum_paths.append((path, relative, _enum_languages(enum_source, path)))
+    tree = first_pass(config, files, read=snapshot.read, enums=enum_paths)
+    items: list[CheckItem] = []
+    for found in second_pass(config, tree):
+        hits = [(call, hit) for call, hit in found.calls if hit is not None]
+        placed = markers(
+            found.source.relative, found.text, found.tokens, found.source.language, found.lines
+        )
+        covering = attach(placed, [call for call, _ in hits], found.lines) if placed else {}
+        for index, (call, (event_type, spec)) in enumerate(hits):
+            origin = call_origin(found.source, call, found.lines)
+            # Called from here, as in scan(): no frame above the evaluator.
+            collected = collect_call(call, spec, event_type, found.evaluator)
+            items.extend(
+                call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
+            )
+    return items
+
+
+def enum_files(config: CheckConfig) -> Iterator[tuple[Path, str, frozenset[str]]]:
+    """``(path, relative, languages)`` for every file an ``enums:`` entry names, in config order."""
+    for enum_source in config.enums:
+        for path, relative in walk(config.root, enum_source.patterns, config.exclude):
+            yield path, relative, _enum_languages(enum_source, path)
+
+
+def _enum_languages(enum_source: EnumSource, path: Path) -> frozenset[str]:
+    return frozenset(enum_source.languages) or frozenset(
+        filter(None, [EXTENSIONS.get(path.suffix.lower())])
+    )
+
+
+def first_pass(
+    config: CheckConfig,
+    files: Iterable[SourceFile],
+    *,
+    read: Read = _read,
+    enums: Iterable[tuple[Path, str, frozenset[str]]] | None = None,
+) -> Tree:
+    """Read and tokenize ``files``, and index them with the configured enum files.
+
+    ``read`` reads each file (the gate passes a ``Snapshot``'s); ``enums`` is
+    the enum files to index, ``enum_files(config)`` when not given.
+    """
     symbols = SymbolIndex()
     parsed: list[tuple[SourceFile, str, list[Token]]] = []
     seen: set[Path] = set()
-    for enum_source in config.enums:
-        for path, _relative in walk(config.root, enum_source.patterns, config.exclude):
-            languages = enum_source.languages or frozenset(
-                filter(None, [EXTENSIONS.get(path.suffix.lower())])
-            )
-            text = _read(path)
-            if text is None:
-                continue
-            for language in sorted(languages):
-                symbols.index_tokens(tokenize(text, language), language)
-            seen.add(path)
-    for source in files:
-        text = _read(source.path)
+    skipped: dict[str, SkippedFile] = {}
+    for path, relative, languages in enum_files(config) if enums is None else enums:
+        text, why = read(path)
         if text is None:
+            skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
+            continue
+        for language in sorted(languages):
+            symbols.index_tokens(tokenize(text, language), language)
+        seen.add(path)
+    for source in files:
+        text, why = read(source.path)
+        if text is None:
+            skipped.setdefault(
+                source.relative, SkippedFile(source.relative, why or SKIP_UNREADABLE)
+            )
             continue
         tokens = tokenize(text, source.language)
         if source.path not in seen:
             symbols.index_tokens(tokens, source.language)
         parsed.append((source, text, tokens))
-    items: list[CheckItem] = []
-    matched = 0
-    for source, text, tokens in parsed:
-        lines = LineIndex(text)
-        evaluator = Evaluator(symbols, source.language)
-        for call in find_calls(tokens, source.language, text):
-            hit = _first_match(config.event_types, call, source.language)
-            if hit is None:
-                continue
-            matched += 1
-            event_type, spec = hit
-            origin = _origin(source, call, lines)
-            items.extend(map_call(call, spec, event_type, evaluator, origin))
-    return ScanOutcome(tuple(items), len(parsed), matched)
+    return Tree(symbols, tuple(parsed), tuple(skipped[path] for path in sorted(skipped)))
+
+
+def second_pass(config: CheckConfig, tree: Tree, *, explain: bool = False) -> Iterator[FileCalls]:
+    """Each file's call sites, matched against the event types (with none, nothing matches).
+
+    ``explain`` gives each file an evaluator whose dynamic values say why they
+    were not read, which only ``tripl check --list`` shows.
+    """
+    for source, text, tokens in tree.parsed:
+        language = source.language
+        calls = find_calls(tokens, language, text)
+        yield FileCalls(
+            source,
+            text,
+            tokens,
+            LineIndex(text),
+            Evaluator(tree.symbols, language, explain=explain),
+            tuple((call, _first_match(config.event_types, call, language)) for call in calls),
+        )
 
 
 def _first_match(
@@ -207,7 +449,8 @@ def _first_match(
     return None
 
 
-def _origin(source: SourceFile, call: Call, lines: LineIndex) -> Origin:
+def call_origin(source: SourceFile, call: Call, lines: LineIndex) -> Origin:
+    """Where ``call`` is: its first and last character, and its callee or selector."""
     line, column = lines.position(call.offset)
     end_line, end_column = lines.position(max(call.end - 1, call.offset))
     snippet = call.selector if call.selector is not None else call.callee
@@ -222,13 +465,10 @@ class _Collected:
     properties: Value | None = None
 
 
-def map_call(
-    call: Call,
-    spec: CallSpec,
-    event_type: EventTypeSpec,
-    evaluator: Evaluator,
-    origin: Origin,
-) -> list[CheckItem]:
+def collect_call(
+    call: Call, spec: CallSpec, event_type: EventTypeSpec, evaluator: Evaluator
+) -> _Collected:
+    """The value each target ``spec`` maps gets from ``call``; the last one assigned wins."""
     collected = _Collected(fields={})
     for arg in call.args:
         mapped, target = spec.target_for(arg)
@@ -247,7 +487,7 @@ def map_call(
             event_type.resolve_target(target),
             _evaluate(evaluator, link.args[0], target),
         )
-    return _items(collected, event_type.name, origin)
+    return collected
 
 
 def _evaluate(evaluator: Evaluator, arg: Arg, target: str) -> Value:
@@ -321,7 +561,17 @@ def _properties(value: Value | None) -> dict[str, Any] | None:
     }
 
 
-def _items(collected: _Collected, event_type: str, origin: Origin) -> list[CheckItem]:
+def call_items(
+    collected: _Collected,
+    event_type: str,
+    origin: Origin,
+    *,
+    suppressions: tuple[Suppression, ...] = (),
+) -> list[CheckItem]:
+    """The items one call's collected values expand into: what ``tripl check`` sends for it.
+
+    Every item carries ``suppressions``, the markers covering the call.
+    """
     fields = collected.fields or {}
     dynamic_targets = [
         target
@@ -348,6 +598,7 @@ def _items(collected: _Collected, event_type: str, origin: Origin) -> list[Check
                 complete=False,
                 dynamic=tuple(dynamic_targets) or ("name",),
                 sendable=False,
+                suppressions=suppressions,
             )
         ]
     items: list[CheckItem] = []
@@ -362,6 +613,7 @@ def _items(collected: _Collected, event_type: str, origin: Origin) -> list[Check
                 properties=properties,
                 complete=False,
                 dynamic=tuple(dynamic_targets),
+                suppressions=suppressions,
             )
         )
     return items

@@ -531,6 +531,11 @@ class _Lexer:
         if not self.tokens:
             return True
         last = self.tokens[-1]
+        if last.kind == PUNCT and last.text == "<" and last.end == self.pos:
+            # `</` is a JSX closing tag (`<div>x</div>`), never `<` then a regex:
+            # read as one, it would swallow the rest of the line, a `}` or a
+            # comment after the tag included.
+            return False
         if last.kind == PUNCT:
             return last.text[-1] in _REGEX_AFTER_PUNCT and last.text not in (")", "]", "}")
         if last.kind == IDENT:

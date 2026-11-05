@@ -1,10 +1,11 @@
 """Generate the compressed demo search-embedding fixture.
 
-Seeds the full demo scenario into an in-memory SQLite database, builds the
-search documents for BOTH demo branches (main + the deep-copied feature
-branch, whose single edited event description must land in the fixture too),
-embeds the deduped texts plus a curated query list via the OpenAI embedding
-API, and writes ``search_embeddings_v5.npz`` into
+Seeds the full demo scenario into an in-memory SQLite database, once in each
+state of the calendar's property type change, builds the search documents
+for BOTH demo branches (main + the deep-copied feature branch, whose single
+edited event description must land in the fixture too), embeds the deduped
+texts plus a curated query list via the OpenAI embedding API, and writes
+``search_embeddings_v5.npz`` into
 ``src/tripl/services/demo/fixtures/`` together with its
 ``.identity.json`` sidecar (the content-independent fallback index — see
 ``services.demo.search_embeddings``; both files must ship together).
@@ -79,6 +80,15 @@ DEFAULT_BATCH_SIZE = 64
 Embedder = Callable[[list[str]], list[list[float]]]
 
 
+def _pinned_type_change(sends_string: bool) -> Callable[[str], bool]:
+    """``calendar.property_type_broken`` for one build: every release, or none."""
+
+    def _broken(_version: str) -> bool:
+        return sends_string
+
+    return _broken
+
+
 @dataclass(frozen=True)
 class GeneratedFixture:
     path: Path
@@ -124,7 +134,19 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
     shares, a short-history one included; the filled texts add vectors for
     what a visitor searches minutes later, and anything they rewrite after
     that falls back to the identity.
+
+    And the demo is built twice, once in each state of the calendar's property
+    type change: every release sending ``results_count`` as a string on iOS,
+    then none. Which state a real build is in depends on its hour. Its first
+    live collection types the variable from a sample of rows: ``number`` when
+    no row of a release that sends the string is in it, and still ``string``
+    when one is, a mixed sample having no type. Such releases alternate every
+    fortnight, and the share of one drains for days after the next ships, so
+    both states come round every fortnight. Built once, in a ``string`` hour
+    as the shipped archive was, the fixture had no vector for the variable of
+    a demo built in a ``number`` one.
     """
+    from tripl.core.demo_warehouse import calendar, rows
     from tripl.services import demo_history_service, demo_service
 
     # A script has no request organization; the demo seed resolves its project
@@ -183,24 +205,32 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
     original_seed = demo_service.enqueue_demo_seed
     original_fill = demo_service.enqueue_demo_history_fill
     original_mode = settings.demo_warehouse_mode
+    original_type_change = calendar.property_type_broken
     demo_service.enqueue_demo_seed = _seed_inline  # type: ignore[assignment]
     demo_service.enqueue_demo_history_fill = _hold_fill  # type: ignore[assignment]
     settings.demo_warehouse_mode = "memory"
     try:
         with bound_org(OrgRef(DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)):
-            project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
-            if project.generation_status != "ready":
-                raise SystemExit(f"the demo build ended {project.generation_status!r}")
-            await _read_documents(project.id, project.slug)
-            for project_id in fills:
-                outcome = await demo_history_service.finish_demo_history(session, project_id)
-                if outcome != "complete":
-                    raise SystemExit(f"the demo's history fill ended {outcome!r}")
-            await _read_documents(project.id, project.slug)
+            for slug, sends_string in (("demo-fixture-gen", True), ("demo-fixture-gen-2", False)):
+                calendar.property_type_broken = _pinned_type_change(sends_string)
+                # The warehouse model caches the hours it generated.
+                rows.clear_cache()
+                fills.clear()
+                project = await demo_service.create_demo_project(session, slug=slug)
+                if project.generation_status != "ready":
+                    raise SystemExit(f"the demo build ended {project.generation_status!r}")
+                await _read_documents(project.id, project.slug)
+                for project_id in fills:
+                    outcome = await demo_history_service.finish_demo_history(session, project_id)
+                    if outcome != "complete":
+                        raise SystemExit(f"the demo's history fill ended {outcome!r}")
+                await _read_documents(project.id, project.slug)
     finally:
         demo_service.enqueue_demo_seed = original_seed
         demo_service.enqueue_demo_history_fill = original_fill
         settings.demo_warehouse_mode = original_mode
+        calendar.property_type_broken = original_type_change
+        rows.clear_cache()
     return CollectedTexts(texts=texts, identity_keys=identity_keys)
 
 
@@ -283,7 +313,14 @@ async def generate_fixture(
         ),
     )
     # Content-independent fallback index, written beside the archive so the demo
-    # keeps its vectors after a scan rewrites document text.
+    # keeps its vectors after a scan rewrites document text. Every identity maps
+    # to a text this run embedded. Until the archive is next embedded, the
+    # shipped sidecar also has one entry written by hand: that archive came from
+    # one build, in which ``${results_count}`` stayed a ``string``, so the
+    # variable's ``number`` identity maps to that text. The two differ in the
+    # type word and in what the scan observed, which differs between any two
+    # builds anyway, so the vector is still that variable's. A run of this
+    # script maps the identity to its own text.
     sidecar = identity_sidecar_path(output_path)
     sidecar.write_text(
         json.dumps(dict(sorted(collected.identity_keys.items())), indent=1, ensure_ascii=False)

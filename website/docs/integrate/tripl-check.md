@@ -23,6 +23,8 @@ the CLI, a CI job and your own tools all get the same verdict. The command only
 reads the plan. A read-only `tk_r_` key is enough.
 
 For the flags, see [`tripl check`](../run/cli.md#tripl-check) on the CLI page.
+To run it on every merge request, in GitLab, GitHub or any other CI, see
+[Check tracking code in CI](../how-to/check-tracking-in-ci.md).
 
 ## How it finds your tracking calls {#how-it-finds-calls}
 
@@ -56,10 +58,14 @@ It supports these languages, chosen by file extension:
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` |
 
 A value is **literal** when the scanner can read it from the source: a string
-literal, a number, or an enum case whose raw value it can find (see
-[Enum sources](#enum-sources)). Anything else is **dynamic**: a property, a
-function call, or a value computed at run time. A dynamic value is sent as
-`null`, which means "unknown at scan time". A dynamic value is never an error.
+literal, a number, an enum case or a string constant whose value it can find,
+or a call to a function declared to return a string whose every `return` is a
+string literal (see [Enum sources](#enum-sources)). Anything else is
+**dynamic**: a local variable, a parameter, any other function call, or a value
+computed at run time. A dynamic
+value is sent as `null`, which means "unknown at scan time". A dynamic value is
+never an error. `tripl check --list` shows what the scan reads from each call,
+and why it does not read a value (see [List what the scan reads](#list)).
 
 A call where nothing at all is literal (no name, no field value) is not sent
 to the validator. It is counted with status `dynamic`, and listed only with
@@ -161,7 +167,7 @@ event_types:
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
 | `exclude` | Glob patterns for files to skip, even when a `sources` pattern matches them. They are added to the built-in excludes: `.git`, `node_modules`, `Pods`, `Carthage`, `DerivedData`, `.build`, `build` and `dist` directories, and `*.min.js` files. |
 | `enums` | Files that declare the enums your calls use: a glob string, or `{file: GLOB, languages: [...]}`. See [Enum sources](#enum-sources). |
-| `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. An entry with neither is a config error. |
+| `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. A `preset` and a `presets` list can be combined: the `preset` comes first. An entry with neither is a config error. |
 
 An `event_types` entry can also have `field_map`, which renames targets to
 plan field names for every call of the type, presets included. Use it when a
@@ -258,6 +264,24 @@ between the receiver and the method are allowed.
 | `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
 | `snowplow_self_describing` | `SelfDescribing(schema: "iglu:…", payload: […])` (also `SPSelfDescribing`, `SelfDescribingJson`); JS `trackSelfDescribingEvent({event: {schema, data}})`; Objective-C `initWithSchema:payload:` | the Iglu schema's name segment to the event name; `payload` / `data` / `eventData` to `properties` |
 
+To start a call spec of your own from a preset, print it.
+`tripl check --print-preset segment_track` prints the preset's call specs as
+YAML, after two comment lines:
+
+```text
+# preset segment_track: paste these under an event type's calls: in place of preset: segment_track, then edit them.
+# If this is the event type's first preset and its codegen: block has no style:, set style: named in it; codegen took that style from this preset.
+```
+
+Paste the specs under an event type's `calls:` in place of
+`preset: segment_track`, then edit them. If that was the event type's first
+preset and its `codegen:` block has no `style:`, set the `style:` the second
+line names in it: [`tripl codegen`](./codegen.md#styles) took the style from
+the first preset's name, which the pasted specs do not carry. Otherwise leave
+the block as it is: a `style:` it sets is the one codegen uses, and a preset
+after the first gave no style. `--print-preset` without a name prints every
+preset. It needs no config and no key.
+
 ## Enum sources {#enum-sources}
 
 Wrappers often take enum cases instead of strings:
@@ -289,6 +313,42 @@ enum AppEvents {
   qualified form in that call, or rename one of the cases.
 - A case the sources do not declare is also dynamic.
 
+**String constants** resolve the same way, by their qualified name:
+`const val X = "y"` (Kotlin, also inside an `object` or an unnamed
+`companion object`; a named one's constants resolve as `Outer.Name.X` or
+`Name.X`, never as `Outer.X`),
+`static final String X = "y"` (Java), `static let x = "y"` inside a type and
+`let x = "y"` at file scope (Swift), `const X = "y"` and one-level
+`const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
+`#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
+as the constant's value. A bare name (`PlayStart`, from inside the class that
+declares it) resolves only for a constant declared at file scope. A `var` (or a
+TypeScript `let`) set to a string at file or type scope, and a Java `String`
+field that is not `final`, are read the same way, as their initial value, even
+though the code can change them before the call.
+
+**Functions** declared to return a string, whose every `return` is a string
+literal, resolve to that set of strings, and the call is checked once for each
+of them: Swift `func f() -> String`, Kotlin `fun f(): String` or an `= "…"`
+expression body, Java `String f()`, and TypeScript `function f(): string`. One
+`return` of anything else makes the function dynamic. These are not read, so a
+call to one is dynamic: a Swift function marked `async` or `throws`, a Kotlin
+extension function (`fun Screen.f()`) or one with type parameters
+(`fun <T> f()`), a Java method with a `throws` clause, Objective-C functions,
+plain JavaScript functions, and TypeScript functions without a `: string` (or
+`: String`) return type, class methods, arrow functions and function expressions.
+A Swift computed property (`var x: String { "y" }`) is not read either: a
+reference to one is dynamic.
+
+Every scanned source file is read for enums, constants and functions too, so
+`enums` is needed only for files outside `sources`. A file listed under `enums`
+that also matches `exclude` is not read.
+
+Still dynamic, though written from constants: `String.format` and `.format(…)`
+templates, two constants joined with `+` (a concatenation is read only when one
+of its parts is a string literal), a name picked by `if` or `when`, and a local
+variable the name was stored in before the call.
+
 ## Interpolated names become properties {#interpolation}
 
 A name built with string interpolation is not a typo. The literal part is still
@@ -308,9 +368,9 @@ places. A token matches a token whatever its property is called, so
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
 
-A name that is not a string literal at all (a property, or a function that
-returns the name) is dynamic. Such a call is counted but cannot be matched to an
-event.
+A name the scanner cannot read at all (a variable, a parameter, a call of a
+function it does not read) is dynamic. Such a call is counted but cannot be
+matched to an event.
 
 ## What it reports {#findings}
 
@@ -330,7 +390,19 @@ message text.
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
 | `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
-| `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. |
+| `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
+
+Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
+call. The CLI raises them and they never fail the run. They are the rule
+(`ruleId`) of a SARIF result and the `check_name` of a Code Quality issue
+(`tripl/invalid_suppression`). The text listing has a line for each instead
+(`Suppression ignored:` and `Unused suppression:`), and the JSON document's
+`suppressions` gives each marker's `problem` and `used` rather than a code:
+
+| Code | Severity | Meaning |
+|------|----------|---------|
+| `invalid_suppression` | warning | A marker names no code, names `no_verdict`, or gives no reason. It suppresses nothing. |
+| `unused_suppression` | info | A valid marker covers no finding with a code it lists in this run: the call was fixed, or the code is misspelled. |
 
 **Typed properties.** A key of `properties` is also checked against the
 event's typed properties. These are the keys of the event's JSON field
@@ -346,6 +418,393 @@ templates.
 A `null` (dynamic) value never produces `value_not_allowed` or
 `missing_required_field`. An `info` finding does not change an item's status,
 except with `--strict`, where it makes an otherwise clean item a warning.
+
+## Suppress a finding {#suppress}
+
+Sometimes a call is wrong on purpose: a debug-only event that never reaches
+production, or a field the plan will gain next week. Put a
+`tripl-check-ignore` comment at the call and give a reason:
+
+```kotlin
+// tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (APP-12)
+analytics.track("debug_tap", mapOf("screen" to "home"))
+```
+
+The finding no longer fails the run. JSON, SARIF, Code Quality and JUnit still
+report it, marked as suppressed and with the reason; the text listing counts
+it in its summary (`; 1 finding suppressed`) instead of listing it. The marker
+reads the same in Swift, Objective-C, Kotlin, Java and TypeScript or
+JavaScript:
+
+```
+tripl-check-ignore[<code>(,<code>)*] -- <reason>
+```
+
+- **Codes.** Each is a finding code (`unknown_event`), or a code and a field
+  (`value_not_allowed:plan`) to waive it on that field only. Codes are not
+  checked against a list: a misspelled one waives nothing and shows as unused.
+- **Reason.** Everything after `--` to the end of the comment line (or to
+  `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
+  JUnit show it with the finding.
+- **Comment forms.** Any `//`, `///`, `/* */` or `/** * */` comment, and JSX's
+  `{/* */}`. The keyword must begin a comment line: right after `//`, `/*` or a
+  block comment's leading `*`. A comment that mentions it mid-sentence
+  (`// TODO tripl-check-ignore…`) is not a marker. Text inside a string, a
+  template literal or a regular expression is never read.
+
+**Which calls it covers.**
+
+- Every matched call whose lines contain the marker's line, from the callee to
+  the closing parenthesis, builder-chain links (`.label(…)`) included. A
+  trailing comment covers the call on its line:
+
+  ```swift
+  tracker.track(name: "Cart", props: p)  // tripl-check-ignore[unknown_field:ab_variant] -- experiment field, plan entry pending
+  ```
+
+- When the marker is the first thing on its line, also every call that starts
+  on the next line holding code. Blank lines and comment-only lines in between
+  are skipped:
+
+  ```objc
+  /* tripl-check-ignore[deprecated_event] -- legacy screen, removed in 5.0 */
+  [Tracker trackWithCategory:@"cart" action:@"old"];
+  ```
+
+  ```tsx
+  {/* tripl-check-ignore[value_not_allowed:plan] -- value mapped by the ingestion proxy */}
+  <Button onClick={() => track("buy", { plan: p })} />
+  ```
+
+A covered call is waived on every item it expands into (a name function that
+returns several names, for example).
+
+**A marker without a reason suppresses nothing.** Nor does one that names no
+code or names `no_verdict`, which cannot be suppressed because nothing was
+decided about the call. The finding fails the run as usual, so the required
+reason is enforced by the check itself, and the marker is reported as
+`invalid_suppression`:
+
+```
+Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
+```
+
+A malformed marker is never a usage error (exit 2) and never removes a report.
+
+**An unused marker** covers no finding with a code it lists in this run. Two
+markers on one call (one above it, one trailing) that list the same code are
+both used. An unused marker is listed as
+`unused_suppression` and never fails the run, with `--strict` either:
+
+```
+Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
+```
+
+A suppression changes only whether the run fails. A result's `status` and the
+summary counts stay the plan's verdict. Payload mode reads no source, so it has
+no markers. One known limitation: in a JSX file, element text that looks like a
+comment (`<p>// tripl-check-ignore…</p>`) is read as one.
+
+## Gate on the change {#new-findings}
+
+A repository that adopts `tripl check` late has legacy findings, and a plan
+edit on main can turn a call nobody touched into an error. Neither should
+block a merge request that did not cause it. With a gate, only the findings
+that are **new in this change** fail the run:
+
+```bash
+tripl check --new-from-rev "$(git merge-base origin/main HEAD)"   # git: the change since that commit
+git diff -M "$BASE" > change.diff          # or hg diff --git, svn diff --git, git format-patch
+tripl check --new-from-patch change.diff   # needs no git
+```
+
+`--new-from-rev REF` asks git for the diff from the commit `REF` to the working
+tree. The clone needs that one commit, not the history between
+(`git fetch --no-tags --depth=1 origin REF`). `--new-from-patch FILE` reads the
+same diff from a file, or from stdin with `-`, in **git's format only**: a
+`diff --git` header on every file, with any of git's prefixes (`a/`/`b/`, the
+mnemonic `c/`/`w/` and the like, or none) and any context size. Every VCS can
+write one: `hg diff --git`, `svn diff --git`, `git format-patch` (a series, a
+pull request's `.patch`, each change undone in turn), and for two plain trees
+`git diff --no-index BASE_DIR .` run in the checkout (it exits 1 when they
+differ). A plain `diff -u` or `diff -ruN`, Subversion's own format or `Only in`
+lines are refused (exit 2): their paths and their missing sides cannot be read
+reliably, and the gate does not guess. Pass `-M` to `git diff` so a renamed
+file reads as a rename. Neither flag reads a CI variable.
+
+**Where a patch's paths start.** At the repository root (the directory that
+holds `.git`) when the check root is in a repository, as git writes them;
+outside one, at the directory `tripl check` runs in, the way `git apply`
+reads a patch. A path that leaves that directory (`../`), or that the patch
+leaves in the tree and the checkout does not have, maps onto nothing (see
+below).
+
+**What is new.** The gate compares what each call **sends**, not its lines.
+It rebuilds the tree as it was at the base by undoing the diff's hunks, scans
+it with the same CLI and the same check configuration, and compares the items
+of the two scans as multisets: an item is new or changed when the base has
+fewer items that send the same thing (event type, name, field values, what
+was only known at runtime, and which codes its valid `tripl-check-ignore`
+markers waive) through the same function, in any file. The function is the
+name the call ends in (or the Objective-C selector), not the receiver as
+written, so dropping `self.` or `this.`, renaming the receiver or importing
+a qualified name calls the same thing. The name of a placeholder in an
+interpolated value is not part of it either (`promo_\(sheetId)_opened` and
+`promo_\(id)_opened` are the same), while its text and the number and place
+of its holes are. Nor is the order of named arguments or object keys, nor
+the file: a call moved to another file sends what it sent. When the tree has more copies than the base, the ones in files the
+change left alone are the old ones. The base is read by the scan's own rules:
+what `exclude:` prunes, the 2 MB size limit (on the base's own bytes, line
+ends included) and markers apply to it as they do to the checkout, and a
+call in a file today's scan does not read (too large, unreadable) is not
+compared: a copy of it pasted elsewhere is new. So:
+
+- **new in the change:** a new call; an edited call; a copy of a call pasted
+  anywhere; a call whose values changed through a constant in another file
+  or an `enums:` file the change edited, or added (a second constant of the
+  same name makes the value unknown, and that is a change too); a call whose
+  marker the change removed, broke (no reason, a misspelled code) or added
+  (its other findings then count as well); a pasted copy of a marked call
+  that carries no marker; in `--new-from-rev`, every call in a file git does
+  not track (generated code, a file not added yet), and every call that reads
+  a constant from one;
+- **not new:** a legacy finding at a call the change left alone; a call that
+  was only moved, to another file too (a function pulled out into a new
+  file, a file renamed and rewritten past git's rename detection), or
+  reformatted, or whose named arguments were reordered, or whose marker's
+  reason was reworded; a call deleted in one file and the same call added in
+  another (the same thing is sent); a finding that appears only because
+  `.tripl/check.yml` changed (both scans read today's configuration).
+
+When the diff touches no file the scan reads (under `sources:` or `enums:`,
+minus `exclude:`), nothing is scanned twice and nothing is new.
+
+**A plan branch.** With `--branch`, the branch's own edits can fail a call
+the change left alone, for example an event the branch archives. Those calls
+are validated against main too, in one more batch: a finding main does not
+have, or has at a lower severity, was caused by the branch, and it is new
+(`cause: "plan_branch"` in JSON).
+
+**What it changes.** The exit code, the text listing (only what is new or
+fails, with a `Gate:` line counting the rest; a marker problem is listed only
+in a file the change touched) and the gate fields of [JSON](#output) and SARIF
+(`properties.inChange` on each result, `properties.gate` on the run, and no
+`baselineState`). Code Quality and JUnit list every finding with and without
+a gate, because GitLab works out what a merge request adds by comparing them
+with the default branch's reports. So under a gate JUnit can show more failed
+cases than the exit code counts. A result's `status` stays the plan's
+verdict, and a [suppressed](#suppress) finding never fails, new or not.
+
+```
+Gate: changes since 1a2b3c4d5e6f (5 files, 3 call sites new or changed). 1 call site fails the run; 41 errors and 12 warnings are not new in this change.
+Plan branch checkout-v2: 0 findings caused by the branch (2 call sites also checked against main).
+```
+
+**Edge cases.**
+
+The gate **fails closed**: what it cannot rebuild counts as changed, never
+as untouched, and a `Gate:` line (and the JSON `gate`) says so.
+
+- A file whose diff does not fit it, a binary one, or one a patch deletes
+  that is still there cannot be rebuilt: every call in it counts as changed
+  (`Gate: the diff cannot rebuild … as it was`, JSON `unreconstructable`).
+  A patch whose hunks do not fit a file it names outside the scan is not a
+  patch of this checkout: every call counts as changed. (A file git's own
+  diff deletes that is still on disk, untracked by the change, is compared
+  with its base like any other.)
+- A file the diff deletes whose base cannot be rebuilt may have defined
+  constants other calls read: every call counts as changed.
+- A scanned file that is a symlink changes with the file it points at,
+  wherever that file sits, under `exclude:` or outside `sources:`. When the
+  change moves any symlink, every scanned file read through a link counts as
+  changed, because where a chain of links led at the base is not known.
+- A submodule the change moves (a new commit, or tracked edits in it) counts
+  as changed as a whole, every call in it (it is listed with a trailing `/`):
+  the diff names its commit, not its files. An untracked file in it does not
+  move it.
+- A patch that names a file this checkout does not have (a patch of another
+  tree, or with paths that start somewhere else) makes **every** call count as
+  changed (`Gate: the diff names …, which this checkout does not have`, JSON
+  `unmapped`).
+- Line ends are compared with CRLF and LF read alike, so a checkout with
+  `core.autocrlf` or `eol=crlf` fits the LF diff git prints.
+- With `--new-from-rev`, a file the scan reads that git does not track, ignored
+  or not, has no base: every call in it is new, and so is every call that
+  reads a constant from it (`Gate: git does not track …`, JSON `untracked`).
+  Keep generated sources out with `exclude:`, or accept that their calls
+  always count.
+- A `--new-from-patch` diff is all the gate knows: it must cover every change
+  between the base and the checkout. A file generated in the checkout and not
+  in the base, or not in the patch, is read as unchanged; put generated
+  sources in `exclude:`, or generate them in the base as well.
+- An empty `REF` (`--new-from-rev ""`) gates nothing and prints
+  `--new-from-rev is empty: every finding counts.` on stderr, so one job line
+  can serve merge request pipelines, where the base variable is set, and the
+  default branch, where it is empty. An empty patch file is a change with
+  nothing new.
+- `no_verdict` fails the run whatever the gate says: nothing was decided.
+- `--new-from-rev` and `--new-from-patch` are mutually exclusive, and both
+  are refused with `--list` and `--payloads` (a captured event has no source
+  to compare; a [baseline](#baseline) gates those).
+
+**Known limits.** The gate reads the change from git's diff, so what git
+leaves out of the diff it does not see:
+
+- A file git is told not to look at (`git update-index --assume-unchanged`
+  or `--skip-worktree`) is not in the diff: an edit to it reads as unchanged
+  under `--new-from-rev`.
+- A clean filter in `.gitattributes` (`filter=…`, other than git-lfs) diffs
+  what the filter makes of the file, not the file: an edit the filter hides
+  reads as unchanged.
+
+**When git cannot answer** the run stops with exit 2 before any request: git
+is not installed (use the `ghcr.io/tripl-io/tripl-cli` image, which ships it,
+or `--new-from-patch`), the directory is not a git checkout, the commit is not
+in the clone (the message says how to fetch it: by SHA, as `origin/<branch>` for a branch, or with more history for a name like `HEAD^1`), git took longer than
+60 seconds, or git refuses the repository because another user owns it
+("detected dubious ownership", typical for a checkout mounted into a container
+running as another uid). The CLI never works around that last one: the
+message names the command that marks the checkout safe,
+`git config --global --add safe.directory "<dir>"`, or run the container as the
+checkout's owner (`docker run -u "$(id -u):$(id -g)" …`).
+
+## Baseline {#baseline}
+
+The [gate](#new-findings) needs a diff base, and some runs have none: a
+pipeline on the default branch, a nightly schedule (the plan changes in
+tripl, not in git, so a call nobody touched can turn into an error
+overnight), and `--payloads` (captured events have no source to diff). A
+baseline is a file you commit that lists the findings the repository already
+has. With `--baseline FILE`, only the findings the file does not hold fail
+the run:
+
+```bash
+tripl check --write-baseline .tripl/check-baseline.json   # once: record what is there today
+git add .tripl/check-baseline.json && git commit -m "chore: tripl check baseline"
+tripl check --baseline .tripl/check-baseline.json         # in CI: fail only on what is not in it
+```
+
+**Which one to use.**
+
+- A [marker](#suppress) is for one call that is wrong on purpose, with a
+  reason, for good.
+- The [gate](#new-findings) is for a merge request: what the change brought
+  in fails, whatever the repository had before.
+- A baseline is for the legacy findings a repository adopts `tripl check`
+  with, on the runs the gate cannot cover: the default branch, a schedule,
+  `--payloads`. It should shrink over time, and never grow by itself.
+
+**What it holds.** An entry is a finding without its place: the call it is
+on, by what the call sends, the same key the gate compares (callee, event
+type, name, field values, what was only known at runtime; never the line or
+the file), plus the finding's code and field, the most severe severity seen
+and how many there were. So:
+
+- a call moved to another line or file, or reformatted, stays in the
+  baseline;
+- a copy of a baselined call pasted anywhere is new once there are more of
+  them than the entry's count;
+- an edited call is new: it sends something else;
+- a finding more severe than its entry (a warning that became an error) is
+  new;
+- a finding a [marker](#suppress) suppresses is not written and takes up no
+  count, and `no_verdict` is never baselined: nothing was decided about the
+  call.
+
+**Captured events** (`--payloads`) are baselined differently, because what
+varies between two captures is runtime data, not code:
+
+- An event is keyed on its `event_type`, `name` and `fields` as they are, and
+  on the **names** of its `properties`, never their values: the same event
+  captured again with another timestamp or session ID stays in the baseline,
+  while a property added or removed makes it new.
+- An entry is matched by **presence**, not by count: how many times a test
+  run fired an event is not compared, so an entry holds every finding of its
+  event, code and field. Its `count` is what was seen when the file was
+  written, for a reader only. `--prune-baseline` drops an entry this run did
+  not see at all, and never lowers a count.
+
+`--write-baseline FILE` runs the check as usual, writes every finding that
+fails it to `FILE` (an error, or anything with `--strict`; a suppressed one
+and `no_verdict` aside), replacing what was there, and exits 0 unless an
+item got no verdict. Write it with the same `--strict` as the check that
+reads it. The file is JSON, written to diff cleanly in review: no timestamp,
+entries sorted, one key per line, and the same findings always give the same
+bytes. Each entry has an `example`, the item and one place it was at when the
+file was written, for a reader; it is never compared:
+
+```json
+{
+  "version": 1,
+  "fingerprint_key": "triplCheck/v2",
+  "project": "demo",
+  "mode": "static",
+  "cli_version": "1.4.0",
+  "entries": [
+    {
+      "code": "unknown_event",
+      "field": null,
+      "severity": "error",
+      "count": 2,
+      "example": "legacy trial_ended at Sources/Paywall.swift:41",
+      "key": ["logEvent", {"complete": false, "event_type": "legacy", "fields": {}, "name": "trial_ended", "properties": null}, true, [], [], []]
+    }
+  ]
+}
+```
+
+A `--baseline` file that is missing, is not valid JSON, has another
+`version` or `fingerprint_key` (written by a tripl that keys findings
+differently), or was written for another project or mode (static or
+`--payloads`) stops the run with exit 2 before any request, and any
+`--report` file an earlier run left is removed: a file the CLI cannot use
+must never read as one that holds nothing, or as one that holds everything.
+
+**What it changes.** The exit code, the text listing (a call whose listed
+findings the baseline all holds, and that does not fail the run, is counted
+on a `Baseline:` line instead of listed; a listed finding the baseline holds
+ends in `(in the baseline)`), and the baseline fields of [JSON](#output) and
+SARIF. Code Quality and JUnit read the same with a baseline and without, as
+with a gate. The line says what the file held, what fails and what the
+baseline kept out of the listing:
+
+```
+Baseline: .tripl/check-baseline.json (57 findings in 41 entries). 1 call site fails the run; 38 errors and 4 warnings are in the baseline.
+Baseline: 3 findings it holds were not seen in this run; --prune-baseline drops them.
+```
+
+**With a gate.** `--baseline` combines with `--new-from-rev` and
+`--new-from-patch`: a finding fails only when it is new in the change **and**
+not in the baseline. When there are more copies of a call than the entry's
+count, the copies the change did not bring in take up the count first, so a
+pasted copy is the one that fails. `--write-baseline` is refused with a gate
+flag (exit 2): it records the whole run.
+
+**Shrink it.** An entry no finding of this run matched is stale: the call
+was fixed, deleted or changed. Stale findings never fail a run; the
+`Baseline:` line and JSON's `baseline.stale` count them.
+`--baseline FILE --prune-baseline` rewrites `FILE` without them, lowering an
+entry's count (and its severity to the worst still seen) or dropping it,
+and never adds one: a new finding still fails the run, and stays out of the
+file. Nothing is written when nothing changed, nor when the run could not see
+everything, because what it did not see would be dropped: the instance was
+unavailable (exit 4), nothing was checked, a configured file was not read, or
+an item got no verdict (`Baseline: … not pruned: …`). Run the prune by hand,
+or in a separate maintenance job that commits the result through a merge
+request, never in the check job itself: a gate that rewrites its own baseline
+gates nothing.
+
+- `--prune-baseline` needs `--baseline`, and `--write-baseline` is refused with
+  `--baseline` or `--prune-baseline`. None of the three works with `--list`.
+- A path to write that is a directory, a link, a special file or a
+  `--report` path is refused (exit 2). The file is written through a
+  temporary file, after the reports and before anything is printed, so a
+  reader never sees half of it, and a report that cannot be written leaves it
+  as it was.
+- One baseline per project and mode: keep a separate file for `--payloads`.
+- Writing the file with a newer tripl may change `cli_version` only; a tripl
+  whose keys changed refuses an old file and asks for a new
+  `--write-baseline`.
 
 ## Static and payload modes {#modes}
 
@@ -379,15 +838,224 @@ fails if `page` requires `id`. Payload mode needs no `sources`, `event_types` or
 `enums`. It still reads `project` and `branch` from the config file if one is
 present.
 
+## List what the scan reads {#list}
+
+`tripl check --list` scans your code exactly as `tripl check` does and shows
+what it found. It needs no URL and no API key, and it sends nothing. Use it to
+write `.tripl/check.yml`: run it after each change to the file.
+
+```bash
+tripl check --list
+```
+
+It prints three things:
+
+- **Every call the config matches**, with what the scan read from it: the
+  event name, each field and the properties, named as a call spec names them
+  (a field called `name` is `field:name`). `?` is a value the scan did not
+  read. Under such a call, an indented line says why, and `not mapped:` names
+  the arguments the call spec maps to no target. A `?` inside `{…}` is a
+  dictionary entry the scan did not read. It gets no line: its reason is only
+  in the JSON, under the dictionary's `entries`
+  (`read.properties.entries.<key>.reason`).
+- **The functions that forward their own parameter** into a tracking call.
+- **The calls that look like tracking** but match no call spec.
+
+The summary counts the calls: how many are fully read, how many are not sent
+(no name or field read, so `tripl check` counts them as `dynamic`), and how
+many are sent with a value not read. It counts the top-level values only (the
+name, each field, the properties as a whole), so a call whose only `?` is a
+dictionary entry is fully read. `--json` prints the same as one document,
+the [`check --list` document](../run/cli.md#check---list-document). The CLI
+page has [an example](../run/cli.md#tripl-check-list).
+
+`--list` exits 0 whenever the scan ran, even when the reader closed the pipe
+early (`| head`), and 2 for a config error. It refuses the flags it has no use
+for: `--report`, `--branch`, `--strict`, `--allow-empty`, and a `--format`
+other than `text` or `json`.
+
+### Why a value is not read {#list-reasons}
+
+Each value the scan did not read gets one reason. Some reasons point at your
+config. For the others there is nothing to configure: the scan does not read
+that kind of value yet.
+
+| Reason | What it is | What to do |
+|--------|------------|------------|
+| `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
+| `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
+| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
+| `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
+| `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
+| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
+| `concatenation` | Values joined with `+`, with no string literal among them, or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | Nothing to configure: the scan does not join these yet. |
+| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
+| `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
+| `expression` | Any other expression: a chained call, an operator, a subscript, a lambda. | Nothing to configure. |
+| `variable` | A variable the scan does not follow: a property, a lambda parameter, a captured variable. | Nothing to configure. |
+
+The function and the line a `parameter`, `parameter_property` or `local` reason
+names come from reading the source, not from compiling it. They are a hint:
+nothing `tripl check` sends or decides depends on them.
+
+The scan knows a function by its declaration: a Kotlin `fun`, a Swift `func` or
+`init`, a Java or C function, and a TypeScript `function`, method or named
+arrow (`const track = (event: string) => …`). A TypeScript return type may be
+an object or a function type (`Promise<{ ok: boolean }>`, `() => void`). A
+lambda, a closure or an Objective-C method is not read as a function: a value
+in one is explained from the named function around it, if there is one.
+
+An expression body (`= …`, `=> …`) ends with its line, unless a bracket is
+still open, the line ends in an operator, or the next line starts with `.`,
+`?.`, `&&` or `||`. An operator here is one of `+`, `-`, `*`, `/`, `%`, `&`,
+`|`, `^`, `&&`, `||`, `??`, `==`, `!=`, `===`, `!==`, `<=`, `>=`, `=`, `=>`,
+`:`, `.` and `?.`; `<`, `>` and a postfix `++` or `--` are none. In Kotlin a
+line that ends in `,`, `else` or the `)` of a brace-less `if (…)` goes on too,
+and so does a next line that starts with `?:`, `else`, `catch` or `finally`,
+but not one that starts with `+` or `-`: Kotlin reads that as a new
+statement. In TypeScript a line that ends in `?` goes on too, and so does a
+next line that starts with `?` or an operator other than `=` and `=>`; a `,`
+at the body's level ends the body. In both languages, so does a `;`.
+
+### Functions that forward their parameter {#list-forwarders}
+
+A wrapper such as `fun track(event: String) { analytics.logEvent(event) }`
+hides the event name from the scan. At the matched call, the name is only the
+parameter `event`; it is written where `track` is called. `--list` names each
+such function, the parameters it forwards, and how many calls of it it found
+in the same file and elsewhere, matched or not. Add a call spec for the
+function, and its calls are read:
+
+```yaml
+event_types:
+  event:
+    calls:
+      - function: "analytics.logEvent"
+        positional: [name, properties]
+      - function: "track"          # the wrapper --list named
+        positional: [name]
+```
+
+The calls are counted by name, in the function's own file and elsewhere,
+leaving out those in its own body: a call of that name there is the tracking
+call it forwards to, or the function calling itself. By name alone, so a call
+of another function with the same name counts too, a tracking call named like
+it included. A Swift `init` or a TypeScript `constructor` is listed under its
+type's name, which is what its callers write (`ScreenView(screen: name)`,
+`new PageView(path)`), though the reason line under the call, and
+`declared.function` in the JSON, still name it `init` or `constructor`. One in
+an anonymous class is not listed.
+
+### Calls that look like tracking {#list-tracking-like}
+
+`--list` also shows the calls that no call spec matches but that look like
+tracking, grouped by method: the callee's last segment, or an Objective-C
+message's selector. Each group has a signal, strongest first:
+
+- `constant`: an argument is an event-name constant, a constant whose path
+  names an event (`wrap(Events.Name.Open)`). These groups come first, and the
+  text shows all of them.
+- `name`: the method's name says so. It contains `event`, has a word that
+  starts with `track`, or is `capture`, `screen`, `screenView`,
+  `logScreenView` or `logPurchase`.
+- `receiver`: a tracking vendor's receiver (`analytics`, `tracker`,
+  `amplitude`, `firebase` and the like) calls a tracking verb such as `log`,
+  `track` or `send`.
+
+These methods take event constants too, so they never give the `constant`
+signal (their name or receiver can still give another one):
+
+- the formats `format`, `formatted`, `stringWithFormat` and
+  `localizedStringWithFormat`;
+- the collection builders `listOf`, `setOf`, `arrayOf`, `mutableListOf`,
+  `mutableSetOf`, `hashSetOf`, `linkedSetOf`, `sortedSetOf`, `arrayListOf`,
+  `listOfNotNull`, `setOfNotNull`, `mapOf`, `mutableMapOf`, `hashMapOf`, `of`
+  (`List.of`, `Map.of`, `EnumSet.of`) and `asList`, and `add`, `addAll`,
+  `push`, `equals` and every method that starts with `put`;
+- a test's assertions and matchers, and React's hooks: a method that starts
+  with `expect`, `assert`, `XCTAssert`, `should`, `to`, `is`, `use`, `eq` or
+  `equal`, then an upper-case letter or nothing (`assertEquals`, `toBe`,
+  `isEqualTo`, `shouldBe`, `eq`, `equalTo`, `useState`).
+
+Event plumbing is left out. A method is plumbing when it:
+
+- is `addEventListener`, `removeEventListener`, `dispatchEvent`,
+  `preventDefault`, `stopPropagation`, `createEvent` or `initEvent`, or ends
+  in `listener`, in any case;
+- is a handler: it starts with `on` and an upper-case letter (`onClick`), or
+  with `handle` in any case;
+- contains an input event: `TouchEvent`, `KeyEvent`, `PointerEvent`,
+  `MotionEvent`, `DragEvent`, `InputEvent` or `AccessibilityEvent`;
+- is a UI one-shot event holder: it ends in `LiveEvent`, or is
+  `EventObserver`;
+- is a DOM event type called with no receiver, with or without `new`:
+  `Event`, `CustomEvent`, `UIEvent`, `MouseEvent`, `KeyboardEvent`,
+  `FocusEvent`, `WheelEvent`, `InputEvent`, `PointerEvent`, `TouchEvent`,
+  `DragEvent`, `CompositionEvent`, `ClipboardEvent`, `AnimationEvent`,
+  `TransitionEvent`, `MessageEvent`, `ErrorEvent`, `ProgressEvent`,
+  `PopStateEvent`, `HashChangeEvent`, `StorageEvent`, `SubmitEvent`,
+  `BeforeUnloadEvent` or `PageTransitionEvent`. A bare `Event(…)` is also
+  Android's one-shot event holder. `Analytics.Event(…)` has a receiver, so it
+  can still be listed.
+
+Except where they say "in any case", these two lists match a method's name as
+written. For an Objective-C message, that name is its selector's first part.
+
+A call in a matched call's arguments, or in those of a chained method its call
+spec maps under `chain:` (to a target or to `null`), or one that wraps a
+matched call, is left out too; a call in another chained method, such as
+`.then(…)`, is listed. A declaration with no body, which reads like a call, is
+left out as well: an interface or abstract method, a protocol requirement, an
+overload, a C prototype in a header. The scan tells one from a call by a
+declaring keyword (`fun`, `func`, `init`, `function`), a return type (the end
+of a preprocessor line, as in `#endif`, is none), a typed parameter or a
+modifier, so a TypeScript member with none of these (`track(name, props);`) is
+still listed. The text shows the 10 largest groups besides the `constant`
+ones; `--json` lists them all.
+
+### Labels read as fields {#list-default-labels}
+
+A call spec without `args:` maps every labelled argument to the field of the
+same name. That is often right, but a label like `key` or `exclude` then reads
+as a plan field. `--list` notes it, per event type:
+
+```text
+event: fields key, exclude are read from the labels key and exclude because the call spec has no args:; map them in args: (null drops one).
+```
+
+List the labels in `args:`, and map the ones that are not fields to `null`.
+
+### No config yet {#list-discovery}
+
+With no `.tripl/check.yml` found and no `--check-config`, `--list` scans the
+whole git repository it runs in, every file in a supported language. It skips
+the built-in [excludes](#config-keys) and every hidden directory (`.venv`,
+`.gradle`, `.next` and the like), which hold installed or generated code, not
+your app's. Nothing can match, so it lists the calls that look like tracking: a
+place to start the config. It needs a git checkout; outside one, it is exit 2. It reads at most
+20000 source files. When it stops there, it says so: write the config with
+`sources:` to scan the rest.
+
 ## Output formats {#output}
 
-| Flag | Output on stdout |
-|------|------------------|
-| *(none)* | Human-readable text: every item that is not a clean pass, with its location and findings, then a summary. |
-| `--json` | One JSON document with a row for **every** item, passing ones included. See the [`check` document](../run/cli.md#check-document). |
-| `--format sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
+`--format` picks what goes to stdout, and `--report FORMAT=PATH` writes the
+same result to a file. Repeat `--report` for every file your CI reads: one run,
+one validation, the same verdicts in every file.
 
-In SARIF, each finding is one result and its code is the rule (`ruleId`).
+| Format | What it is |
+|--------|------------|
+| `text` (the default) | Human-readable: every item that is not a clean pass, with its location and findings, then a summary. A [suppressed](#suppress) finding is counted in the summary (`; 1 finding suppressed`), not listed, and a marker that suppresses nothing or matched nothing gets a line after it. |
+| `json` (or `--json`) | One JSON document with a row for **every** item, passing ones included. See the [`check` document](../run/cli.md#check-document). |
+| `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
+| `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
+| `junit` | JUnit XML, for GitLab's test summary and the test reports of most other CI systems. |
+
+```bash
+tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+```
+
+**SARIF.** Each finding is one result and its code is the rule (`ruleId`).
 Errors are `level: "error"`, warnings `level: "warning"` and info findings
 `level: "note"`. A static finding carries a `physicalLocation` with a `region`
 for its line and column. Its path is relative to the scan root, the `root` of
@@ -398,18 +1066,98 @@ points at the `--payloads` path as you typed it, so a relative path is relative
 to the working directory the command ran in, and at the event's line. A payload
 read from standard input has no file location: its finding carries a
 `logicalLocation` naming the line or array position instead. SARIF is mainly
-useful for the static mode.
+useful for the static mode. A [suppressed](#suppress) finding stays a result,
+with `suppressions: [{"kind": "inSource", "status": "accepted",
+"justification": <reason>, "location": <the marker>}]`, which code scanning
+shows as dismissed. A marker that suppresses nothing is a result of its own,
+rule `invalid_suppression` at `level: "warning"`, and an unused one rule
+`unused_suppression` at `level: "note"`, both at the marker's line. With a
+[baseline](#baseline), each result carries `properties.baselined` and the run
+`properties.baseline`; SARIF's own `baselineState` is never set.
 
-Human text and progress messages go to stderr when `--json` or `--format sarif`
-is given, so you can redirect stdout to a file.
+**Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
+(`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
+warning and `info` for an info finding; `location` names the file and the
+call's lines. A [suppressed](#suppress) finding stays in the report with the
+same fingerprint, at `severity: info` and with its description starting
+`Suppressed: <reason> — `, so GitLab shows it as neither new nor resolved. A
+marker that suppresses nothing is a `tripl/invalid_suppression` issue
+(`minor`), an unused one a `tripl/unused_suppression` issue (`info`).
+
+**JUnit.** One test case per call site (or captured event), passing ones
+included. A case is named after the call (its event type, name, field values
+and callee) and never after its line, so it keeps its history in the CI system
+when code above it moves; identical calls in one file are numbered (`#2`). Its
+class is the file. It fails exactly when its call fails the run without a
+[gate](#new-findings): an error, or a warning with `--strict`. It ignores the
+gate and the [baseline](#baseline), as Code Quality does. A call where nothing was readable is skipped, and with
+`--strict` it is a warning, so it fails. A warning without `--strict` passes,
+with its findings as the case's output. A [suppressed](#suppress) finding fails
+no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
+
+**Paths.** In Code Quality and JUnit, paths are relative to the repository root
+(the nearest directory that holds `.git`), the way a CI system resolves them
+against its checkout, even when `.tripl/` sits in a subdirectory of a monorepo.
+The text, JSON and SARIF formats keep paths relative to the scan root.
+
+**Fingerprints.** Every finding has a fingerprint, the same value in JSON
+(`findings[].fingerprint`), SARIF (`partialFingerprints["triplCheck/v2"]`) and
+Code Quality (`fingerprint`). It is built from what the call is (its file,
+callee, event type, name and field values, and the finding's code and field),
+never from its line and never from what the plan says. So a CI system comparing
+two runs, as GitLab's Code Quality report does, sees the same finding after an
+edit above it moves it down the file, and a new one once the call itself
+changes. Identical calls in one file are told apart by their order.
+Suppressing a finding leaves its fingerprint as it was. A reported marker has a
+fingerprint of its own, built from its file, its problem and its text, never
+its line.
+
+**JSON.** `status` is the plan's verdict. When the scan read a
+`tripl-check-ignore` marker, the document also says what the markers did:
+`results[].fails` and `results[].findings[].fails` say what fails the run,
+`findings[].suppression` names the marker that waived a finding, `summary`
+gains `suppressed` and `failing`, and `suppressions` lists every marker. With
+no marker in the scanned files, none of these keys is present. Under a
+[gate](#new-findings), and only then, `gate` says what was compared, every row
+and finding gains `in_change` and `fails`, a finding `cause`, and `exit_code`
+is the gated one. With a [baseline](#baseline), and only then, `baseline`
+says what the file held and this run matched, every row gains `fails` and
+every finding `baselined` and `fails`. See the
+[`check` document](../run/cli.md#check-document).
+
+**A run that could not finish writes no report**: a configuration or usage
+error (exit 2), an instance that refused a request (exit 1) or was unavailable
+(exit 4), or a crash. Nothing goes to stdout or to any `--report` file, and a
+file an earlier run left at a `--report` path is removed, so it cannot pass for
+this run's. That includes connection settings that do not resolve, such as a
+`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist.
+Only a regular file is ever replaced or removed: a `--report` path that is or
+names a directory (`reports/`), a link or a special file is refused (exit 2). A
+command line the parser rejects outright, such as an unknown flag, leaves every
+file alone, because it is refused before the command starts. A report that cannot be
+written fails the run (exit 1) before anything is printed.
+
+Human text and progress messages go to stderr when stdout carries `json`,
+`sarif`, `codequality` or `junit`, so you can redirect stdout to a file.
 
 ## Exit codes {#exit-codes}
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors. Warnings are allowed unless you pass `--strict`. |
-| **1** | At least one error, or at least one warning with `--strict`. Also: a request to the instance failed. In that case no document is written to stdout. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a `--payloads` file that is not valid JSON or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, or a `--branch` that matches nothing. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. |
+| **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
+
+A configuration that matches no call checks nothing, and a CI check must not
+report that as a pass, so it is exit 2: usually a `sources:` glob after a
+directory moved, or a call spec after a wrapper was renamed. `--allow-empty`
+accepts it, for a repository with no tracking code yet, and also accepts a
+`--payloads` file with no events.
+
+`tripl check --list` checks nothing, so it never fails because nothing
+matched: it exits 0 whenever the scan ran, and 2 for a config error or a flag
+it refuses (see [List what the scan reads](#list)).
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was
@@ -421,71 +1169,51 @@ red.
 request that ships code for events that are still on a plan branch under
 review.
 
-## In GitHub Actions {#github-actions}
+## In CI {#ci}
 
-This workflow runs the check on every pull request, fails the job on errors,
-and uploads SARIF so findings appear on the changed lines. It installs the CLI
-with `uv` the same way the [CLI page](../run/cli.md#install) does.
+[Check tracking code in CI](../how-to/check-tracking-in-ci.md) walks through
+it: a read-only key for a bot user, the job for
+[GitLab CI/CD](../how-to/check-tracking-in-ci.md#gitlab),
+[GitHub Actions](../how-to/check-tracking-in-ci.md#github-actions) and
+[other CI systems](../how-to/check-tracking-in-ci.md#other-ci), and how to make
+the check block merges. In short:
 
-```yaml
-# .github/workflows/tracking-plan.yml
-name: Tracking plan
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-  security-events: write   # needed to upload SARIF
-
-jobs:
-  tripl-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: astral-sh/setup-uv@v6
-
-      - name: Check tracking calls against the plan
-        env:
-          TRIPL_BASE_URL: https://tripl.example.com
-          TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
-        run: uvx tripl check --format sarif > tripl-check.sarif
-
-      - name: Upload findings to code scanning
-        if: always()   # upload even when the check failed
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: tripl-check.sarif
-          category: tripl-check
-```
-
-Notes:
-
-- `if: always()` on the upload matters. The check exits 1 when it finds an
-  error, and without it the findings would never reach the pull request.
+- Pin the CLI to the version your instance runs (the image
+  `ghcr.io/tripl-io/tripl-cli:X.Y.Z`, `pip install tripl==X.Y.Z` or
+  `uvx tripl@X.Y.Z`): the two are released together.
 - A read-only key (`tk_r_`) is enough, because the check only reads the plan.
-  If you already keep a write key in secrets for [`tripl annotate`](../run/cli.md#in-a-github-actions-workflow),
-  do not reuse it here. Mint a read key and scope it to the project.
-- To check against a plan branch named after the pull request's branch, add
-  `--branch "${{ github.head_ref }}"`. The check exits 2 when no such plan
-  branch exists, so use this only if your team follows that naming convention.
-- Without `uv`, `pip install tripl` followed by `tripl check …` works the same.
+  If you already keep a write key in secrets for
+  [`tripl annotate`](../run/cli.md#in-a-github-actions-workflow), do not reuse
+  it here. Mint a read key and scope it to the project.
+- Write the report your CI shows: `codequality` and `junit` for GitLab, `sarif`
+  for GitHub code scanning, `junit` for most others.
+- To fail a merge request only on what it adds, [gate](#new-findings) the run
+  on its base commit with `--new-from-rev`; the how-to has the line for each
+  CI.
+- To gate the default branch and a scheduled run too, where there is no diff
+  base, commit a [baseline](#baseline) and pass
+  `--baseline .tripl/check-baseline.json`.
+- To check against a plan branch named after the merge request's branch, add
+  `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
+  (GitLab; it adds nothing outside a merge request pipeline), or set
+  `HEAD_REF: ${{ github.head_ref }}` in the step's `env` and add
+  `${HEAD_REF:+--branch "$HEAD_REF"}` (GitHub; never paste `${{ … }}` into the
+  script itself, where a branch name would run as shell). The check exits 2 when
+  no such plan branch exists, so use this only if your team follows that naming
+  convention.
 
 To check captured events instead, for example from a UI test run that writes
-what the app sent to `events.ndjson`:
+what the app sent to `build/events.ndjson`:
 
-```yaml
-      - name: Check events captured by the UI tests
-        env:
-          TRIPL_BASE_URL: https://tripl.example.com
-          TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
-        run: uvx tripl check --payloads build/events.ndjson
+```bash
+tripl check --payloads build/events.ndjson --report junit=tripl-events.xml
 ```
 
 ## Related pages {#related}
 
 - [`tripl check`](../run/cli.md#tripl-check) on the CLI page: every flag.
+- [Check tracking code in CI](../how-to/check-tracking-in-ci.md): the jobs for
+  GitLab, GitHub and other CI systems.
 - [Agent API guide: plan validation](./agent-api-guide.md#plan-validation): the
   endpoint behind the check, for your own tools.
 - [Properties & templates](../use/variables-and-templates.md): documented values

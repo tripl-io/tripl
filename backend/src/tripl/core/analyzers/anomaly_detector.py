@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from bisect import bisect_left
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import lru_cache
 from math import ceil, isfinite, sqrt
@@ -726,10 +726,16 @@ class TrendShiftResult:
     nothing. ``detect_anomalies`` uses it to suppress the
     per-bucket rows that would otherwise re-announce one level change bucket
     after bucket.
+
+    ``shift_directions`` says, for each of those buckets, which way the trend
+    moved there (``"spike"`` up, ``"drop"`` down): only a per-bucket row moving
+    the same way re-announces the shift. A row moving AGAINST it is another
+    incident inside the run, and keeps its row.
     """
 
     anomalies: list[DetectedAnomaly]
     shifted_buckets: frozenset[datetime]
+    shift_directions: Mapping[datetime, str] = field(default_factory=dict)
 
 
 def _departs_from_pre_shift(actual: float, reconstructed: float) -> bool:
@@ -771,6 +777,13 @@ def _detect_trend_shift(
 
     anomalies: list[DetectedAnomaly] = []
     shifted_buckets: set[datetime] = set()
+    shift_directions: dict[datetime, str] = {}
+
+    def claim(run: list[tuple[int, SeriesPoint, float, float, float, float]]) -> None:
+        for _idx, member, _level, _scale, _stddev, member_z in run:
+            shifted_buckets.add(member.bucket)
+            shift_directions[member.bucket] = "spike" if member_z > 0 else "drop"
+
     # A sustained shift spans many buckets; we collapse each contiguous shifted
     # run into a SINGLE row, and a run whose anchor lies before
     # ``evaluation_start`` is not re-emitted at all. Anchoring at a fixed point of
@@ -841,7 +854,6 @@ def _detect_trend_shift(
         runs.append(current_run)
 
     for run in runs:
-        run_buckets = [member[1].bucket for member in run]
         anchor = next(
             (
                 member
@@ -855,12 +867,12 @@ def _detect_trend_shift(
         idx, point, pre_shift_level, scale, effective_stddev, z_score = anchor
         if point.bucket < evaluation_start:
             # Emitted (and frozen) by an earlier scan: still the same incident.
-            shifted_buckets.update(run_buckets)
+            claim(run)
             continue
         if emission_end is not None and point.bucket >= emission_end:
             # Still settling: a later scan emits the row, so the run already
             # owns its buckets.
-            shifted_buckets.update(run_buckets)
+            claim(run)
             continue
 
         # Reconstruct what this bucket would have been without the level shift so
@@ -921,9 +933,13 @@ def _detect_trend_shift(
                 kind="trend",
             )
         )
-        shifted_buckets.update(run_buckets)
+        claim(run)
 
-    return TrendShiftResult(anomalies=anomalies, shifted_buckets=frozenset(shifted_buckets))
+    return TrendShiftResult(
+        anomalies=anomalies,
+        shifted_buckets=frozenset(shifted_buckets),
+        shift_directions=shift_directions,
+    )
 
 
 def _collapse_outage_runs(
@@ -1362,9 +1378,14 @@ def detect_anomalies(
         # dropped rather than merged. Without this a sustained
         # level change keeps clearing the per-bucket sigma bar for as long as the
         # baseline takes to re-level, and the incident re-enters the signal list
-        # every scan.
+        # every scan. Same incident means same direction: a bucket that DROPS
+        # inside a run the trend reads as a rise (a three-hour outage on a series
+        # whose fitted trend is climbing) is not the rise re-announced, and
+        # dropping its row left the outage with no row at all.
         settled_primary = [
-            anomaly for anomaly in primary if anomaly.bucket not in trend.shifted_buckets
+            anomaly
+            for anomaly in primary
+            if trend.shift_directions.get(anomaly.bucket) != anomaly.direction
         ]
         merged = _merge_anomalies(settled_primary, trend.anomalies)
 

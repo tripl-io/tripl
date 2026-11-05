@@ -613,9 +613,10 @@ async def _load_release_regression_candidates(
 ) -> list[DriftAlertCandidate]:
     """Replay twin of ``signals._get_active_release_regression_candidates``.
 
-    Every stored row is CURRENT — the recalculation keeps only the latest
-    release's regressions — which is why the live loader needs no time filter at
-    all: it runs per collection and re-reads whatever the last pass wrote. A
+    Every stored row is CURRENT — the recalculation keeps only the current
+    comparison's regressions, the latest release's or, during a hand-over, its
+    predecessor's (see the live twin) — which is why the live loader needs no
+    time filter at all: it runs per collection and re-reads whatever the last pass wrote. A
     replay cannot reconstruct that history, because the table holds one row per
     (scan, scope, release) and not one per collection. So it places each row at
     the window it actually measured and admits it when that window's END falls

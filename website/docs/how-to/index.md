@@ -45,6 +45,9 @@ every guide ends with a link to the reference page for it.
   plan cannot say, and translate it.
 - [Let an AI agent read the plan](./connect-an-ai-agent.md): give Claude or any
   MCP client a key and the plan to work from.
+- [Check tracking code in CI](./check-tracking-in-ci.md): find unknown events
+  and values the plan does not allow in every merge request, in GitLab, GitHub
+  or any other CI.
 
 :::tip Not sure what a word means?
 [Concepts](../use/concepts.md) explains every idea in tripl in plain language:

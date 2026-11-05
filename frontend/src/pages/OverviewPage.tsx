@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/error-state'
 import { OnboardingChecklist } from '@/components/onboarding-checklist'
 import { countRealSources, isDemoSource } from '@/components/onboarding-utils'
 import { DemoSourceBadge } from '@/demo/capabilityBadges'
+import { DemoHistoryFillNotice } from '@/demo/DemoHistoryFillNotice'
 import { DemoWelcomePanel } from '@/demo/DemoWelcomePanel'
 import { Chip } from '@/components/primitives/chip'
 import { Dot } from '@/components/primitives/dot'
@@ -481,6 +482,8 @@ export default function OverviewPage() {
         }
       >
         <div className="p-4">
+        {/* A demo's week opens two days long; this says the rest is on its way. */}
+        <DemoHistoryFillNotice compact className="mb-3" />
         {volumeQuery.isError && (
           <ErrorState
             title="Volume unavailable"

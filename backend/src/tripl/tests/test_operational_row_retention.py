@@ -14,7 +14,9 @@ from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
+from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJob, ScanJobStatus
+from tripl.models.scan_preview_job import ScanPreviewJob
 from tripl.worker.tasks import maintenance
 
 
@@ -95,6 +97,76 @@ def test_cleanup_scan_jobs_keeps_active_and_recent_jobs(
     with session_factory() as session:
         remaining = session.scalars(select(ScanJob)).all()
     assert {row.id for row in remaining} == {row.id for row in rows[2:]}
+
+
+def test_cleanup_scan_jobs_prunes_previews_and_dry_runs_on_their_own_horizon(
+    session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A preview is read once: it goes after a week, finished or long abandoned."""
+    monkeypatch.setattr(maintenance, "_get_sync_session", session_factory)
+    monkeypatch.setattr(maintenance.settings, "scan_job_retention_days", 90)
+    monkeypatch.setattr(maintenance.settings, "scan_preview_retention_days", 7)
+    now = datetime.now(UTC)
+    # (status, created, updated, completed) in days ago; True = pruned.
+    ages: list[tuple[str, int, int, int | None, bool]] = [
+        (ScanJobStatus.completed.value, 10, 10, 10, True),
+        (ScanJobStatus.failed.value, 10, 10, None, True),
+        # A worker that died mid-preview leaves a row nothing will finish.
+        (ScanJobStatus.running.value, 10, 10, None, True),
+        (ScanJobStatus.completed.value, 1, 1, 1, False),
+        (ScanJobStatus.pending.value, 0, 0, None, False),
+        # Finished yesterday after a long queue: measured from completion.
+        (ScanJobStatus.completed.value, 10, 1, 1, False),
+    ]
+    with session_factory() as session:
+        config = _scan_config(session)
+
+        def stamps(created: int, updated: int, completed: int | None) -> dict[str, object]:
+            return {
+                "project_id": config.project_id,
+                "data_source_id": config.data_source_id,
+                "created_at": now - timedelta(days=created),
+                "updated_at": now - timedelta(days=updated),
+                "completed_at": now - timedelta(days=completed) if completed is not None else None,
+            }
+
+        previews = [
+            ScanPreviewJob(status=status, base_query="SELECT 1", **stamps(c, u, done))
+            for status, c, u, done, _ in ages
+        ]
+        dry_runs = [
+            ScanDryRunJob(status=status, base_query="SELECT 1", **stamps(c, u, done))
+            for status, c, u, done, _ in ages
+        ]
+        # A scan job of the same age stays: scans keep their own 90 days.
+        scan = ScanJob(
+            scan_config_id=config.id,
+            status=ScanJobStatus.completed.value,
+            created_at=now - timedelta(days=10),
+            updated_at=now - timedelta(days=10),
+            completed_at=now - timedelta(days=10),
+        )
+        session.add_all([*previews, *dry_runs, scan])
+        session.commit()
+
+    result = maintenance.cleanup_scan_jobs.run()
+
+    assert result["deleted"] == 0
+    assert result["previews_deleted"] == 3
+    assert result["dry_runs_deleted"] == 3
+    kept = {
+        row.id
+        for rows in (previews, dry_runs)
+        for row, age in zip(rows, ages, strict=True)
+        if not age[4]
+    }
+    with session_factory() as session:
+        remaining = {
+            *session.scalars(select(ScanPreviewJob.id)).all(),
+            *session.scalars(select(ScanDryRunJob.id)).all(),
+        }
+        assert session.get(ScanJob, scan.id) is not None
+    assert remaining == kept
 
 
 def test_cleanup_distribution_drifts_uses_band_specific_horizons(

@@ -208,7 +208,9 @@ can hold (a field the type no longer has, or text a scan stored in a number
 field) is left out and listed in the notice. The copy cannot be created under
 the source's identity: on a type without a scan naming rule, the copied name
 blocks **Create event** until you change it; under a rule, a field the name is
-built from has to change. If you have unsaved edits when you press
+built from has to change. Under a rule, **Name** is read-only, so the copy
+opens with the cursor in the first field the name is built from, and the hint
+under **Name** links to each of those fields. If you have unsaved edits when you press
 **Duplicate**, you are asked once whether to discard them. The address carries
 the source as `?from=<event id>`, so a reload or a shared link opens the same
 prefill. After **Create event** you return to the page you came from, normally
@@ -690,7 +692,9 @@ comment** discussion (top-level comments plus one level of replies) per
 attachment. On an event of a merged branch, or of a closed one until it is
 reopened, the attachments are read-only like the rest of that branch's plan:
 uploading, attaching, reordering or deleting one answers `409`. Their comment
-threads stay open.
+threads stay open. A [public demo](../run/public-demo.md#storage) stores no
+uploaded image: the panel offers only **Attach Figma link**, and an upload
+through the API answers `403`.
 
 ### Event types
 

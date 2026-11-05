@@ -177,6 +177,32 @@ describe('EventForm filled in from a duplicate (tripl-4zzc.7)', () => {
     expect(screen.getByRole('button', { name: 'Create event' })).toBeEnabled()
   })
 
+  it('opens a rule-governed copy on the field its name is built from', () => {
+    renderForm({ eventTypes: [RULED_TYPE], duplicate: duplicateOf('pv:b1') })
+
+    // The Name box is the rule's; the copy is named through Variant.
+    expect(screen.getByLabelText(/^Name/)).toHaveAttribute('readonly')
+    expect(screen.getByLabelText(/^Variant/)).toHaveFocus()
+    expect(screen.getByText('names the event: change it to name the copy')).toBeInTheDocument()
+  })
+
+  it('points from a rule-governed name to each field it is built from', () => {
+    renderForm({ eventTypes: [RULED_TYPE] })
+
+    expect(screen.getByLabelText(/^Variant/)).not.toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Variant' }))
+    expect(screen.getByLabelText(/^Variant/)).toHaveFocus()
+    // Not a copy: the row says only what it does.
+    expect(screen.getByText('names the event')).toBeInTheDocument()
+  })
+
+  it('leaves the focus alone on a copy of a type without a rule', () => {
+    renderForm({ duplicate: duplicateOf('checkout_started') })
+
+    expect(screen.getByLabelText(/^Variant/)).not.toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Variant' })).toBeNull()
+  })
+
   it('offers Duplicate on an editable saved event only', () => {
     const onDuplicate = vi.fn()
     const saved = {

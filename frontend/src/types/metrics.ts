@@ -223,7 +223,9 @@ export type ReleaseComparabilityReason = Schemas['ReleaseComparabilityReason']
 /**
  * Verdict of one release-regression pass. An empty `items` means "nothing
  * regressed" only when the matching verdict says `comparable`; otherwise the
- * findings were withheld and the release cannot be judged yet.
+ * findings were withheld and the release cannot be judged yet. With
+ * `handed_over`, `version`/`previous_version` are the predecessor's comparison
+ * shown while `latest_active_version` (the newest release) ramps.
  */
 export type ReleaseComparabilityItem = Schemas['ReleaseComparabilityItem']
 

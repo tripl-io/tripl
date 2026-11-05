@@ -17,7 +17,9 @@ File names come from plan strings, so they are sanitised to
 sanitise alike get ``-2``, ``-3``. JSON is written with sorted keys and a
 trailing newline, so a committed export diffs cleanly between revisions.
 
-Exit codes: 0 written; 1 the instance failed; 2 a bad invocation.
+Exit codes: 0 written; 1 the instance refused the request, or a file could not
+be written; 2 a bad invocation; 4 the instance was unavailable, so nothing was
+written.
 """
 
 from __future__ import annotations

@@ -12,6 +12,7 @@ import {
   type ScenarioState,
 } from '@/demo/scenarioModel'
 import { liveLoopState } from '@/demo/scenarioTestState'
+import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { stopAllMetricCollectionWatches } from '@/hooks/useMetricCollectionWatcher'
 import MonitoringDetailPage from './MonitoringDetailPage'
@@ -225,18 +226,21 @@ function appVersionAdoptionResponse(scanConfigId: string) {
   }
 }
 
-function renderMonitoringPage(search = '') {
+/** `project` is the shell's answer, as ActiveProjectContext hands it down. */
+function renderMonitoringPage(search = '', project?: Project) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/p/demo/monitoring/project-total/scan-1${search}`]}>
-        <Routes>
-          <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
-        </Routes>
-        <LocationProbe />
-      </MemoryRouter>
+      <ActiveProjectContext.Provider value={project}>
+        <MemoryRouter initialEntries={[`/p/demo/monitoring/project-total/scan-1${search}`]}>
+          <Routes>
+            <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
+          </Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </ActiveProjectContext.Provider>
     </QueryClientProvider>,
   )
 }
@@ -248,6 +252,50 @@ afterEach(() => {
   cleanup()
   stopAllMetricCollectionWatches()
   vi.restoreAllMocks()
+})
+
+describe('MonitoringDetailPage on a demo still filling its history', () => {
+  it('says the history is loading, just above the charts', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
+      if (url.includes('/api/v1/projects/demo/metrics/total')) {
+        return mockJsonResponse({
+          scope: 'project_total',
+          scan_config_id: 'scan-1',
+          event_id: null,
+          event_type_id: null,
+          interval: '1h',
+          latest_signal: null,
+          data: [metricPoint('2026-01-02T00:00:00Z', 210)],
+          forecast: [],
+        })
+      }
+      if (url.endsWith('/api/v1/projects/demo/scans/scan-1')) {
+        return mockJsonResponse({ id: 'scan-1', app_version_column: null })
+      }
+      if (url.includes('/api/v1/projects/demo/annotations')) return mockJsonResponse([])
+      throw new Error(`Unhandled fetch: ${url}`)
+    })
+
+    renderMonitoringPage('', {
+      id: 'p-1',
+      name: 'Demo',
+      slug: 'demo',
+      created_at: '2026-07-01T00:00:00Z',
+      updated_at: '2026-07-01T00:00:00Z',
+      is_demo: true,
+      generation_status: 'ready',
+      demo_history_status: 'filling',
+      demo_history_progress: 25,
+    } as Project)
+
+    const notice = await screen.findByText('History is still loading — 25%.')
+    const tabs = await screen.findByRole('tablist')
+    // Above the tab strip, so it is read before the short line it explains.
+    expect(notice.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(notice.closest('[data-slot="demo-history-fill-notice"]')).toHaveAttribute('role', 'status')
+  })
 })
 
 describe('MonitoringDetailPage app-version view', () => {

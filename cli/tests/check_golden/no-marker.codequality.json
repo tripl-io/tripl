@@ -1,0 +1,70 @@
+[
+  {
+    "type": "issue",
+    "check_name": "tripl/unknown_event",
+    "description": "no event - se  pay_tapped",
+    "categories": [
+      "Bug Risk"
+    ],
+    "fingerprint": "c5178177b3cea6b020e13da66bae8bec7a2092d37e4716dd5195419f2cc6c60c",
+    "severity": "major",
+    "location": {
+      "path": "apps/ios/Sources/Pay.swift",
+      "lines": {
+        "begin": 12,
+        "end": 13
+      }
+    }
+  },
+  {
+    "type": "issue",
+    "check_name": "tripl/value_not_allowed",
+    "description": "not allowed (field label) - se  pay_tapped",
+    "categories": [
+      "Bug Risk"
+    ],
+    "fingerprint": "85e6495544b90116ebe392d559e52a4adc5793211ca6b7f3ae132b0e85e3d8ca",
+    "severity": "major",
+    "location": {
+      "path": "apps/ios/Sources/Pay.swift",
+      "lines": {
+        "begin": 12,
+        "end": 13
+      }
+    }
+  },
+  {
+    "type": "issue",
+    "check_name": "tripl/deprecated_event",
+    "description": "deprecated - se  settings_opened",
+    "categories": [
+      "Bug Risk"
+    ],
+    "fingerprint": "e59192791246a400480a49b70f9efff526a1751ee444a64b3ecdb2789dc9d96e",
+    "severity": "minor",
+    "location": {
+      "path": "apps/ios/Sources/Pay.swift",
+      "lines": {
+        "begin": 30,
+        "end": 31
+      }
+    }
+  },
+  {
+    "type": "issue",
+    "check_name": "tripl/dynamic_value",
+    "description": "runtime (field x) - se  pay_tapped",
+    "categories": [
+      "Bug Risk"
+    ],
+    "fingerprint": "44fb2cdcc44848d250090a9fa6694e75f8c463569a997b70aa2967702bfc3971",
+    "severity": "info",
+    "location": {
+      "path": "apps/ios/Sources/Pay.swift",
+      "lines": {
+        "begin": 44,
+        "end": 45
+      }
+    }
+  }
+]

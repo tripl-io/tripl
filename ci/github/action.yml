@@ -1,0 +1,195 @@
+# tripl check as a GitHub Actions step, pinned to a CLI release:
+#
+#   - uses: actions/checkout@v7
+#   - uses: tripl-io/tripl/ci/github@cli-vX.Y.Z
+#     with:
+#       base-url: https://tripl.example.com
+#       api-key: ${{ secrets.TRIPL_READ_ONLY_KEY }}
+#
+# See website/docs/how-to/check-tracking-in-ci.md.
+name: tripl check
+description: Check tracking calls in the code against the tripl tracking plan.
+author: tripl
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  version:
+    description: The tripl CLI release to run. Defaults to the release this action comes from.
+    default: "0.3.3" # tripl version: bin/release.sh sets it
+  base-url:
+    description: The instance's https:// address. Empty reads the TRIPL_BASE_URL environment variable.
+    default: ""
+  api-key:
+    description: >-
+      A read-only API key. Empty reads the TRIPL_API_KEY environment variable. A pull
+      request with neither (from a fork, or Dependabot's) is skipped with a notice.
+    default: ""
+  project:
+    description: The tripl project. Empty reads it from the check config.
+    default: ""
+  check-config:
+    description: The check config, relative to the repository root. Empty finds the nearest .tripl/check.yml.
+    default: ""
+  directory:
+    description: Where to run, relative to the repository root, for a repository holding several apps.
+    default: "."
+  baseline:
+    description: The committed baseline, relative to the repository root. Used when the file exists; empty never uses one.
+    default: .tripl/check-baseline.json
+  gate:
+    description: In a pull request or a merge queue, fail only on findings it brings in (--new-from-rev).
+    default: "true"
+  strict:
+    description: Fail on warnings too (--strict).
+    default: "false"
+  pass-on-outage:
+    description: Pass, with a warning, when tripl was unavailable and nothing was checked (exit 4).
+    default: "true"
+  sarif:
+    description: Upload the findings to code scanning (needs security-events write).
+    default: "true"
+  category:
+    description: >-
+      The code scanning category. Empty is tripl-check, or tripl-check/<directory>,
+      so each app of a repository checked in its own step keeps its own alerts.
+    default: ""
+  args:
+    description: More arguments for tripl check, separated by spaces (no quoting).
+    default: ""
+
+outputs:
+  exit-code:
+    description: >-
+      What tripl check exited with (0 passed, 1 findings, 2 configuration, 4 tripl
+      unavailable); empty when a pull request without a key skipped it.
+    value: ${{ steps.check.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      with:
+        enable-cache: false
+    - id: check
+      shell: bash
+      env:
+        # Inputs reach the script as data, never as shell code.
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_PROJECT: ${{ inputs.project }}
+        INPUT_CHECK_CONFIG: ${{ inputs.check-config }}
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_GATE: ${{ inputs.gate }}
+        INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_PASS_ON_OUTAGE: ${{ inputs.pass-on-outage }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_CATEGORY: ${{ inputs.category }}
+        INPUT_ARGS: ${{ inputs.args }}
+        EVENT_NAME: ${{ github.event_name }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+      run: |
+        set -euo pipefail
+        set -f # no globbing in what the inputs hold
+        [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || {
+          echo "::error::version: '$INPUT_VERSION' is not a tripl release (X.Y.Z)."
+          exit 2
+        }
+        [[ -z "$INPUT_BASE_URL" ]] || export TRIPL_BASE_URL="$INPUT_BASE_URL"
+        [[ -z "$INPUT_API_KEY" ]] || export TRIPL_API_KEY="$INPUT_API_KEY"
+        if [[ -z "${TRIPL_API_KEY:-}" && ( "$EVENT_NAME" == pull_request || "$EVENT_NAME" == pull_request_target ) ]]; then
+          # A fork's pull request, or Dependabot's, gets no secrets.
+          echo "::notice title=tripl check::No API key in this pull request (a fork's, or Dependabot's): not checked."
+          exit 0
+        fi
+        root="$GITHUB_WORKSPACE"
+        has() { git -C "$root" rev-parse --quiet --verify "$1^{commit}" >/dev/null; }
+        fetch() {
+          git -C "$root" fetch --quiet --no-tags "$@" || {
+            echo "::error title=tripl check::git fetch $* failed, so the gate has no base. Check out with fetch-depth: 0, or keep the checkout's credentials."
+            exit 2
+          }
+        }
+        args=(check)
+        sarif=""
+        if [[ "$INPUT_SARIF" == true ]]; then
+          sarif="$RUNNER_TEMP/tripl-check.sarif"
+          rm -f "$sarif"
+          args+=(--report "sarif=$sarif")
+        fi
+        [[ -z "$INPUT_PROJECT" ]] || args+=(--project "$INPUT_PROJECT")
+        [[ -z "$INPUT_CHECK_CONFIG" ]] || args+=(--check-config "$root/$INPUT_CHECK_CONFIG")
+        [[ "$INPUT_STRICT" != true ]] || args+=(--strict)
+        if [[ -n "$INPUT_BASELINE" ]]; then
+          if [[ -f "$root/$INPUT_BASELINE" ]]; then
+            args+=(--baseline "$root/$INPUT_BASELINE")
+          else
+            echo "No baseline at $INPUT_BASELINE: every error outside the change fails the run."
+            echo "Write one with: tripl check --write-baseline $INPUT_BASELINE"
+          fi
+        fi
+        if [[ "$INPUT_GATE" == true ]]; then
+          base=""
+          case "$EVENT_NAME" in
+            pull_request)
+              if [[ "$(git -C "$root" rev-parse HEAD)" == "$GITHUB_SHA" ]]; then
+                # The merge commit GitHub made: its first parent is the base
+                # branch as the pull request will merge into it.
+                has HEAD^2 || fetch --depth=2 origin "$GITHUB_SHA"
+                base="$(git -C "$root" rev-parse HEAD^1)" || exit 2
+              else
+                # The pull request's head, checked out instead: where it left
+                # the base branch, which needs both histories.
+                if [[ -f "$(git -C "$root" rev-parse --git-dir)/shallow" ]]; then
+                  fetch --unshallow origin "$PR_BASE_SHA"
+                else
+                  has "$PR_BASE_SHA" || fetch origin "$PR_BASE_SHA"
+                fi
+                base="$(git -C "$root" merge-base "$PR_BASE_SHA" HEAD)" || {
+                  echo "::error title=tripl check::The pull request's head and $PR_BASE_SHA share no commit."
+                  exit 2
+                }
+              fi
+              ;;
+            merge_group)
+              # The group's commit is its base plus the pull requests in it.
+              base="$MERGE_GROUP_BASE_SHA"
+              has "$base" || fetch --depth=1 origin "$base"
+              ;;
+          esac
+          # Empty on a push or a schedule: every finding counts, and the baseline decides.
+          args+=(--new-from-rev "$base")
+        fi
+        # shellcheck disable=SC2206 # split on spaces, on purpose
+        args+=($INPUT_ARGS)
+        cd "$root/$INPUT_DIRECTORY"
+        echo "tripl ${args[*]}"
+        status=0
+        uvx "tripl@$INPUT_VERSION" "${args[@]}" || status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        if [[ -n "$sarif" && -f "$sarif" ]]; then
+          category="$INPUT_CATEGORY"
+          if [[ -z "$category" ]]; then
+            directory="$INPUT_DIRECTORY"
+            while [[ "$directory" == ./* ]]; do directory="${directory#./}"; done
+            while [[ "$directory" == */ ]]; do directory="${directory%/}"; done
+            category="tripl-check"
+            [[ -z "$directory" || "$directory" == . ]] || category="tripl-check/$directory"
+          fi
+          echo "sarif=$sarif" >> "$GITHUB_OUTPUT"
+          echo "category=$category" >> "$GITHUB_OUTPUT"
+        fi
+        if [[ "$status" -eq 4 && "$INPUT_PASS_ON_OUTAGE" == true ]]; then
+          echo "::warning title=tripl check::tripl was unavailable, so nothing was checked (exit 4)."
+          exit 0
+        fi
+        exit "$status"
+    - if: always() && steps.check.outputs.sarif != ''
+      uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      with:
+        sarif_file: ${{ steps.check.outputs.sarif }}
+        category: ${{ steps.check.outputs.category }}

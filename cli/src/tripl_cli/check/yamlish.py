@@ -15,11 +15,17 @@ in. A tracking config needs very little of YAML, and what it needs is here:
 Anchors, aliases, tags, multi-document streams and block scalars (``|``/``>``)
 are refused with a line number rather than misread. A config that needs them
 can be written as JSON instead: the loader takes ``.json`` as well.
+
+``dump_sequence`` is the writer for the same subset, for ``tripl check
+--print-preset``: a block sequence of mappings whose values are scalars or flow
+collections, which ``loads`` reads back as the same values.
 """
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -402,3 +408,55 @@ def _flow_mapping(text: str, index: int) -> tuple[dict[str, Any], int]:
             continue
         else:
             raise YamlError("expected ',' or '}' in a flow mapping")
+
+
+# --- the writer for the same subset ---------------------------------------------
+# A scalar written plain must read back as the same string: a word that `_plain`
+# does not resolve to something else (`null`, `True`, a number).
+_PLAIN_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
+
+
+def dump_sequence(items: Iterable[Mapping[str, Any]]) -> str:
+    """``items`` as a block sequence, one mapping per item, keys in their order.
+
+    A value is a scalar, a flow mapping (``{name: name, event: name}``) or a
+    flow sequence (``[name, properties]``); ``loads`` reads the text back as
+    the same values, a tuple as a list.
+    """
+    lines: list[str] = []
+    for item in items:
+        if not item:
+            lines.append("- {}")
+            continue
+        prefix = "- "
+        for key, value in item.items():
+            lines.append(f"{prefix}{_dump_scalar(key)}: {_dump_flow(value)}")
+            prefix = "  "
+    return "\n".join(lines)
+
+
+def _dump_flow(value: Any) -> str:
+    if isinstance(value, Mapping):
+        entries = (f"{_dump_scalar(key)}: {_dump_flow(item)}" for key, item in value.items())
+        return "{" + ", ".join(entries) + "}"
+    if isinstance(value, list | tuple):
+        return "[" + ", ".join(_dump_flow(item) for item in value) + "]"
+    return _dump_scalar(value)
+
+
+def _dump_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if not isinstance(value, str):
+        raise TypeError(f"the YAML writer takes no {type(value).__name__}")
+    if _PLAIN_WORD.fullmatch(value) and _plain(value) == value:
+        return value
+    # Double-quoted the JSON way, whose escapes the reader decodes, except two:
+    # json.dumps writes \b and \f, which `_unquote` refuses, and a character
+    # past the BMP as a surrogate pair, which would read back as two lone halves.
+    assert value.isascii() and value.isprintable(), f"not printable ASCII: {value!r}"
+    return json.dumps(value)

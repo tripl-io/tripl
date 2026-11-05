@@ -1636,6 +1636,111 @@ async def test_get_release_regressions_serves_a_withheld_verdict_with_no_rows(
     assert verdict["max_emerging_share"] == 0.25
     # No regression row carries the pair, so this can only come from the verdict.
     assert body["latest_version"] == "2.1.0"
+    assert verdict["handed_over"] is False
+    assert verdict["latest_active_version"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_release_regressions_names_the_newest_release_during_a_hand_over(
+    client: AsyncClient,
+) -> None:
+    """While 6.21.0 ramps with nothing found, the rows are 6.20.0 vs 6.19.0.
+    The header used to take "latest" from the rows and the verdict pair, naming
+    6.20.0 while the By-version chart named 6.21.0; it is the verdict's
+    ``latest_active_version`` now, and the verdict says the pair is handed
+    over, with the newest release's share for the label."""
+    setup = await _setup_metrics_project(client, "regression-handover")
+    event_resp = await client.post(
+        "/api/v1/projects/regression-handover/events",
+        json={
+            "event_type_id": setup["page_type_id"],
+            "name": "event_name=Checkout",
+            "status": "implemented",
+            "field_values": [{"field_definition_id": setup["page_field_id"], "value": "home"}],
+        },
+    )
+    event_id = event_resp.json()["id"]
+
+    async with TestSessionLocal() as session:
+        data_source = DataSource(
+            id=uuid.uuid4(),
+            name=f"Regression Handover DS {uuid.uuid4().hex[:8]}",
+            db_type="clickhouse",
+            host="localhost",
+            port=8123,
+            database_name="default",
+            username="default",
+            password_encrypted="",
+        )
+        scan_config = ScanConfig(
+            id=uuid.uuid4(),
+            data_source_id=data_source.id,
+            project_id=uuid.UUID(setup["project_id"]),
+            event_type_id=uuid.UUID(setup["page_type_id"]),
+            name="Handover Regression Config",
+            base_query="SELECT time, event_name, app_version FROM events",
+            time_column="time",
+            app_version_column="app_version",
+            cardinality_threshold=100,
+            interval="1h",
+        )
+        session.add_all([data_source, scan_config])
+        await session.flush()
+        session.add(
+            ReleaseRegression(
+                id=uuid.uuid4(),
+                scan_config_id=scan_config.id,
+                scope_type="event",
+                scope_ref=event_id,
+                event_id=uuid.UUID(event_id),
+                event_type_id=None,
+                app_version_column="app_version",
+                version="6.20.0",
+                previous_version="6.19.0",
+                kind="missing",
+                observed_count=0,
+                expected_count=180.0,
+                ratio=0.0,
+                share_prev=0.05,
+                share_new=0.0,
+                release_share=0.8,
+                window_from=datetime(2026, 10, 6, 10, tzinfo=UTC),
+                window_to=datetime(2026, 10, 20, 12, tzinfo=UTC),
+            )
+        )
+        session.add(
+            ReleaseComparability(
+                id=uuid.uuid4(),
+                scan_config_id=scan_config.id,
+                scope_type="event",
+                app_version_column="app_version",
+                version="6.20.0",
+                previous_version="6.19.0",
+                latest_active_version="6.21.0",
+                latest_release_share=0.12,
+                handed_over=True,
+                comparable=True,
+                reason="comparable",
+                emerging_share=0.0,
+                max_emerging_share=0.25,
+            )
+        )
+        await session.commit()
+        scan_config_id = str(scan_config.id)
+
+    resp = await client.get(
+        f"/api/v1/projects/regression-handover/scans/{scan_config_id}/release-regressions"
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["latest_version"] == "6.21.0"
+    assert [(i["version"], i["previous_version"]) for i in body["items"]] == [("6.20.0", "6.19.0")]
+    verdict = body["comparability"][0]
+    assert verdict["handed_over"] is True
+    assert verdict["latest_active_version"] == "6.21.0"
+    assert verdict["latest_release_share"] == 0.12
+    assert (verdict["version"], verdict["previous_version"]) == ("6.20.0", "6.19.0")
 
 
 @pytest.mark.asyncio

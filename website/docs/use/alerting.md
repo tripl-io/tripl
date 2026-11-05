@@ -1495,6 +1495,14 @@ window rather than a scope over a bucket:
 - **There is no recent-trend sparkline.** The only trend available is the
   event's all-versions volume over a different window — a glyph that would rise
   while the line above it says the event dropped.
+- **A rollout does not silence the release before it.** For up to 48 hours
+  after a new release activates, while it carries less traffic than its
+  predecessor and has found nothing, the check keeps reporting the
+  predecessor's comparison (the
+  [hand-over](anomaly-detection.md#release-regression)), so a rule keeps
+  alerting on a regression most users still run. The line names the release
+  the regression was found in — `dropped in 15.7.4 vs 15.7.3` — never the one
+  rolling out.
 
 The **By version** tab on an event's monitoring page shows the same check for
 the *current* latest release, with the comparability verdict; see

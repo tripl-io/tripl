@@ -42,6 +42,7 @@ x-backend-environment: &backend-environment
   SCAN_JOB_RETENTION_DAYS: ${SCAN_JOB_RETENTION_DAYS:-90}
   DISTRIBUTION_DRIFT_RETENTION_DAYS: ${DISTRIBUTION_DRIFT_RETENTION_DAYS:-90}
   DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS: ${DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS:-30}
+  SCAN_PREVIEW_RETENTION_DAYS: ${SCAN_PREVIEW_RETENTION_DAYS:-7}
   PHOTO_ORPHAN_SWEEP_GRACE_HOURS: ${PHOTO_ORPHAN_SWEEP_GRACE_HOURS:-24}
   # Demo kill switches: DEMO_ENABLED gates provisioning (create + reset),
   # DEMO_RUNTIME_ENABLED gates a demo's scheduled collections.
@@ -74,14 +75,26 @@ x-backend-environment: &backend-environment
   SEARCH_EMBEDDING_BASE_URL: ${SEARCH_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
 
+# Container logs rotate, as in compose.yaml: Docker's default json-file driver
+# keeps everything a container writes for as long as the container lives, and a
+# dev stack left running for weeks (the worker and beat log every task) fills a
+# laptop's disk the same way a server's. Five 10 MB files per container.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   metrics-init:
+    logging: *logging
     build: *backend-build
     command: ["sh", "-c", "mkdir -p /app/var/prometheus && find /app/var/prometheus -maxdepth 1 -type f -name '*.db' -delete"]
     volumes:
       - prometheus-multiproc:/app/var/prometheus
 
   postgres:
+    logging: *logging
     image: pgvector/pgvector:0.8.7-pg18-trixie
     # tini as PID 1. A healthcheck probe that times out is killed and its orphan
     # reaped by PID 1; the postmaster, as PID 1, reads that as a crashed child and
@@ -105,6 +118,7 @@ services:
     mem_reservation: 512m
 
   rabbitmq:
+    logging: *logging
     image: rabbitmq:4.3-management
     # consumer_timeout raised above the Celery collect_metrics hard limit so long
     # metrics replays aren't force-requeued mid-run. See infra/rabbitmq/rabbitmq.conf.
@@ -126,6 +140,7 @@ services:
     mem_reservation: 256m
 
   redis:
+    logging: *logging
     image: redis:8.8.3-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
     ports:
@@ -139,6 +154,7 @@ services:
     mem_reservation: 128m
 
   api:
+    logging: *logging
     build: *backend-build
     command: ["sh", "-c", "python -m tripl.migrate && uvicorn tripl.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
@@ -188,6 +204,7 @@ services:
           path: ./backend/Dockerfile
 
   celery-worker:
+    logging: *logging
     build: *backend-build
     # One fork per core by default: eight ~250 MB forks overrun the 1 GB limit
     # below and the kernel kills them mid-task. Compose fills in
@@ -236,6 +253,7 @@ services:
           path: ./backend/Dockerfile
 
   celery-beat:
+    logging: *logging
     build: *backend-build
     command: ["celery", "-A", "tripl.worker.celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
     environment: *backend-environment
@@ -272,6 +290,7 @@ services:
           path: ./backend/Dockerfile
 
   frontend:
+    logging: *logging
     build:
       context: ./frontend
       target: dev
@@ -325,6 +344,7 @@ services:
   # website/docs/integrate/mcp-server.md. Enable with:
   #   docker compose -f compose.dev.yaml --profile mcp up
   mcp:
+    logging: *logging
     # Context is the repo root, not ./mcp-server: tripl-mcp builds against the
     # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see.
     build:
