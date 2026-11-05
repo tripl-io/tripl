@@ -97,10 +97,15 @@ class FakeCursor:
         self._rows: list[tuple[object, ...]] = []
 
     def execute(
-        self, sql: str, params: list[str] | None = None, timeout: int | None = None
+        self,
+        sql: str,
+        params: list[str] | None = None,
+        *,
+        _statement_params: dict[str, object] | None = None,
     ) -> None:
         self._conn.statements.append((sql, list(params or [])))
-        self._conn.timeouts.append(timeout)
+        timeout = (_statement_params or {}).get("STATEMENT_TIMEOUT_IN_SECONDS")
+        self._conn.timeouts.append(timeout if isinstance(timeout, int) else None)
         if self._conn.raise_errno is not None:
             raise DriverError("SQL execution canceled", self._conn.raise_errno)
         if self._conn.refused_param is not None and self._conn.refused_param in (params or []):
@@ -109,9 +114,8 @@ class FakeCursor:
         self.description = [(name,) for name in answer[0]]
         self._rows = answer[1]
 
-    def describe(self, sql: str, timeout: int | None = None) -> list[Meta]:
+    def describe(self, sql: str) -> list[Meta]:
         self._conn.statements.append((sql, []))
-        self._conn.timeouts.append(timeout)
         return list(self._conn.metadata)
 
     def fetchall(self) -> list[tuple[object, ...]]:
@@ -608,7 +612,10 @@ def test_factory_wires_settings_timeout_and_a_password(monkeypatch: pytest.Monke
         "STATEMENT_TIMEOUT_IN_SECONDS": 120,
     }
     assert kwargs["login_timeout"] == 120
-    assert kwargs["network_timeout"] == 120
+    for name in ("query_timeout", "request_timeout", "connect_timeout", "retry_timeout"):
+        assert kwargs[name] == 120
+    assert "network_timeout" not in kwargs
+    assert "socket_timeout" not in kwargs
     assert adapter._schema_allowlist == ("marts",)
     assert adapter._schemas_in_scope() == ["events", "marts"]
 
