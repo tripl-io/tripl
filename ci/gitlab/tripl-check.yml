@@ -14,7 +14,7 @@ spec:
   inputs:
     version:
       description: The tripl CLI release to run. Defaults to the release this file comes from.
-      default: "0.3.2" # tripl version: bin/release.sh sets it
+      default: "0.3.3" # tripl version: bin/release.sh sets it
       regex: ^[0-9]+\.[0-9]+(\.[0-9]+)?$
     image:
       description: The CLI image, without its tag (a mirror of ghcr.io/tripl-io/tripl-cli).

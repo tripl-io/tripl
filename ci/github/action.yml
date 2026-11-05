@@ -17,7 +17,7 @@ branding:
 inputs:
   version:
     description: The tripl CLI release to run. Defaults to the release this action comes from.
-    default: "0.3.2" # tripl version: bin/release.sh sets it
+    default: "0.3.3" # tripl version: bin/release.sh sets it
   base-url:
     description: The instance's https:// address. Empty reads the TRIPL_BASE_URL environment variable.
     default: ""

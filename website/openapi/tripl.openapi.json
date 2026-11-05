@@ -3,7 +3,7 @@
   "info": {
     "title": "tripl",
     "description": "Analytics tracking plan service. Authenticate with an API key in `Authorization: Bearer tk_...`. Guide: https://docs.tripl.io/integrate/agent-api-guide",
-    "version": "0.3.2"
+    "version": "0.3.3"
   },
   "paths": {
     "/api/v1/auth/status": {
