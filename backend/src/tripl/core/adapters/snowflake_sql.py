@@ -147,10 +147,15 @@ def import_driver() -> ModuleType:
 
 
 def field_type_name(type_code: int) -> str:
-    """The driver's name for a result column's type code (``FIXED``, ``VARIANT`` ...)."""
-    from snowflake.connector.constants import FIELD_ID_TO_NAME
+    """The driver's name for a result column's type code (``FIXED``, ``VARIANT`` ...).
 
-    return FIELD_ID_TO_NAME[int(type_code)] or "UNKNOWN"
+    Since 5.0 the table lives in ``snowflake.connector._internal.type_codes``;
+    ``constants`` keeps it only as an implicit re-export, the supported path
+    mypy cannot see. A code the driver does not know is ``UNKNOWN``.
+    """
+    from snowflake.connector.constants import FIELD_ID_TO_NAME  # type: ignore[attr-defined]
+
+    return FIELD_ID_TO_NAME.get(int(type_code)) or "UNKNOWN"
 
 
 # --------------------------------------------------------------------------- #

@@ -50,7 +50,7 @@ dependencies = [
     "dnspython>=2.8.0",
     "holidays>=0.105",
     "databricks-sql-connector>=4.6.0",
-    "snowflake-connector-python>=3.12",
+    "snowflake-connector-python>=5.0",
     "trino>=0.330",
     "pyathena>=3.0",
 ]

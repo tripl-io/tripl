@@ -167,10 +167,14 @@ class SnowflakeAdapter(SnowflakeExpressions):
             "validate_default_parameters": True,
         }
         if timeout is not None:
+            # The 5.x driver's names for what 4.x called network_timeout (query
+            # and request wall clocks) and socket_timeout (connect and retry).
             seconds = math.ceil(timeout)
             kwargs["login_timeout"] = seconds
-            kwargs["network_timeout"] = seconds
-            kwargs["socket_timeout"] = seconds
+            kwargs["query_timeout"] = seconds
+            kwargs["request_timeout"] = seconds
+            kwargs["connect_timeout"] = seconds
+            kwargs["retry_timeout"] = seconds
         if auth_type == "key_pair":
             kwargs["authenticator"] = "SNOWFLAKE_JWT"
             kwargs["private_key"] = load_private_key(password)
@@ -187,20 +191,20 @@ class SnowflakeAdapter(SnowflakeExpressions):
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         """Execute one statement under the deadline; every statement goes through here.
 
-        The driver cancels the statement itself when ``timeout`` elapses, on top
-        of the session's ``STATEMENT_TIMEOUT_IN_SECONDS``. A cancelled statement
+        The statement carries its own ``STATEMENT_TIMEOUT_IN_SECONDS``, the
+        deadline with any per-call cap, so the warehouse cancels it then (the
+        5.x driver has no per-call ``timeout``). A cancelled statement
         surfaces as a ``TimeoutError`` with a message the operator can act on,
         never as the driver's text.
         """
         deadline = self._query_deadline(timeout_cap)
         values = params.values if isinstance(params, Params) and params.values else None
+        statement_params = (
+            {"STATEMENT_TIMEOUT_IN_SECONDS": math.ceil(deadline)} if deadline is not None else None
+        )
         cursor = self._conn.cursor()
         try:
-            cursor.execute(
-                sql,
-                values,
-                timeout=math.ceil(deadline) if deadline is not None else None,
-            )
+            cursor.execute(sql, values, _statement_params=statement_params)
             names = [str(column[0]) for column in cursor.description or []]
             rows = [tuple(row) for row in cursor.fetchall()]
         except Exception as exc:
@@ -225,15 +229,13 @@ class SnowflakeAdapter(SnowflakeExpressions):
 
         ``cursor.describe`` asks Snowflake to compile the statement and return
         its result metadata without running it, so no warehouse time is spent
-        and nothing is scanned, however large the base query's tables are.
+        and nothing is scanned, however large the base query's tables are. The
+        session's ``STATEMENT_TIMEOUT_IN_SECONDS`` is its deadline.
         """
         deadline = self._query_deadline()
         cursor = self._conn.cursor()
         try:
-            metadata = cursor.describe(
-                f"SELECT * FROM ({base_query}) AS _src",
-                timeout=math.ceil(deadline) if deadline is not None else None,
-            )
+            metadata = cursor.describe(f"SELECT * FROM ({base_query}) AS _src")
         except Exception as exc:
             if deadline is not None and getattr(exc, "errno", None) in _CANCELLED_ERRNOS:
                 raise self._timeout_error(deadline, exc) from exc

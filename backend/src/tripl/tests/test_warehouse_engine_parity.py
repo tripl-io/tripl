@@ -219,9 +219,13 @@ class _SFCursor(_DBXCursor):
     """Snowflake's driver binds ``:1, :2 ...`` (the ``numeric`` paramstyle)."""
 
     def execute(  # type: ignore[override]
-        self, sql: str, params: list[str] | None = None, timeout: int | None = None
+        self,
+        sql: str,
+        params: list[str] | None = None,
+        *,
+        _statement_params: dict[str, object] | None = None,
     ) -> None:
-        del timeout
+        del _statement_params
         values = list(params or [])
         for number in range(len(values), 0, -1):
             value = values[number - 1].replace("'", "\\'")
