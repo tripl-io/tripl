@@ -12,7 +12,7 @@
 # own rather than `COPY --from=<image>` because Dependabot bumps FROM lines
 # only. Bump it together with the uv images of the root Dockerfile,
 # backend/Dockerfile and mcp-server/Dockerfile.
-FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
 FROM python:3.14-slim-trixie AS build
 
