@@ -1,0 +1,19 @@
+{
+  "journey": "checkout",
+  "fixture": "synthetic-order-v1",
+  "build": "v1",
+  "runs": [
+    [
+      "checkout",
+      "purchase"
+    ],
+    [
+      "checkout",
+      "purchase"
+    ]
+  ],
+  "allowlist": [
+    "checkout",
+    "purchase"
+  ]
+}

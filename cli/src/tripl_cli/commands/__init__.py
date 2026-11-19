@@ -65,13 +65,16 @@ def register_all(
         annotate,
         check,
         codegen,
+        compatibility,
         docs,
         doctor,
         drifts,
         events,
         export,
         install,
+        journey_capture,
         plan,
+        reproduce,
         scans,
         status,
         upgrade,
@@ -105,9 +108,12 @@ def register_all(
     # One word too: it validates a checkout (or a capture file) as a whole against
     # the plan, from a developer's terminal or a CI step (#261).
     check.register(subparsers, parent)
+    journey_capture.register(subparsers, parent)
+    reproduce.register(subparsers, parent)
     # One word each as well, for the same reason: `codegen` turns the plan into typed
     # tracking code for a checkout, `export` writes the plan out as JSON Schema (#262).
     codegen.register(subparsers, parent)
+    compatibility.register(subparsers, parent)
     export.register(subparsers, parent)
     # A group again: the docs catalog is a class of objects an operator browses
     # (`ls`, `cat`), and `pull`/`push` move a folder of them to and from disk (F22).
