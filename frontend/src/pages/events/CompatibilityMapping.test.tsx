@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
-import { CompatibilityMapping, mappingError } from './CompatibilityMapping'
+import { mappingError } from './mappingError'
+import { CompatibilityMapping } from './CompatibilityMapping'
 
 it('validates the JSON object and the persisted UTF-8 size', () => {
   expect(mappingError('')).toBeNull()

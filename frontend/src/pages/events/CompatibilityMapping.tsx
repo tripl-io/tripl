@@ -1,3 +1,4 @@
+import { mappingError } from './mappingError'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -8,16 +9,6 @@ const example = {
     { event: 'checkout_success', platform: 'ios', min_build: 1, max_build: 120 },
     { event: 'order_completed', platform: 'ios', min_build: 110, max_build: 999 },
   ],
-}
-
-export function mappingError(value: string) {
-  if (!value) return null
-  if (new TextEncoder().encode(value).length > 2000) return 'Mapping exceeds 2000 bytes.'
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return null
-  } catch { /* Share the same validation message for malformed and scalar JSON. */ }
-  return 'Enter a JSON object.'
 }
 
 function arg(value: string) {
