@@ -71,7 +71,9 @@ def register_all(
         events,
         export,
         install,
+        journey_capture,
         plan,
+        reproduce,
         scans,
         status,
         upgrade,
@@ -105,6 +107,8 @@ def register_all(
     # One word too: it validates a checkout (or a capture file) as a whole against
     # the plan, from a developer's terminal or a CI step (#261).
     check.register(subparsers, parent)
+    journey_capture.register(subparsers, parent)
+    reproduce.register(subparsers, parent)
     # One word each as well, for the same reason: `codegen` turns the plan into typed
     # tracking code for a checkout, `export` writes the plan out as JSON Schema (#262).
     codegen.register(subparsers, parent)

@@ -481,3 +481,7 @@ uv run --group dev mypy src
 than from the published release, so a change here is picked up by
 `cd mcp-server && uv sync` without any install step — and both suites test the
 same source. Run **both** after touching `client.py`.
+
+Use `tripl reproduce` to compare synthetic app-test captures from healthy,
+suspect and candidate builds for a tracking incident.
+Create each capture with `tripl journey-capture`.

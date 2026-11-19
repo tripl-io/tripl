@@ -2221,3 +2221,9 @@ not have degrades to **All**.
 If alerts don't arrive, see
 [Troubleshooting → "alerts never fire"](./troubleshooting.md). For the broader
 catalog of monitoring surfaces, see the [Feature reference](./feature-reference.md).
+
+### Reproduce a tracking regression
+
+On an event or release-regression incident, an editor can expand **Reproduce tracking regression** and choose the tracked event name from the app. Use the same synthetic journey and fixture on the last healthy build and the suspect build. Download their capture files into the same directory as `healthy.json` and `suspect.json`, then run the displayed CLI command. See [the CLI guide](../run/cli.md) for the capture format and exit codes.
+
+Enter the stable HTTPS CI artifact page for each completed build. Use the page teammates can access with their own CI login. Temporary signed download URLs expire and can expose credentials. Paste the JSON result and choose **Add evidence to note draft**. Review the journey, build identifiers, event counts and rerun command, then choose **Save note** to share them with the incident team. For a candidate fix, repeat with `--candidate candidate.json` and add the new report to the same note. Share the named synthetic capture artifacts with the engineer who will rerun the comparison.

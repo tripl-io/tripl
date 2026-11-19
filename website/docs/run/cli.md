@@ -4922,3 +4922,40 @@ tripl check --json \
   [`tripl export`](#tripl-export).
 - [API keys & governance](../administer/admin-guide.md#api-keys--governance) —
   scopes, project binding, expiry.
+
+## `tripl reproduce`
+
+Run the same team-owned synthetic app test on the healthy and suspect builds.
+Make the adapter record the build identifier, journey name, fixture revision, allowlist
+and a list of completed attempts. Each attempt contains only allowlisted event
+names in emission order. An empty attempt means the journey completed with zero
+events. Omit failed or incomplete attempts. Use an empty runs list if the
+journey could not complete. Keep account IDs and event properties out of captures.
+
+```json
+{"build":"v1","journey":"checkout","fixture":"order-v1","allowlist":["checkout","purchase"],"runs":[["checkout","purchase"],["checkout","purchase"]]}
+```
+
+```sh
+tripl reproduce --event purchase --healthy healthy.json --suspect suspect.json --json
+tripl reproduce --event purchase --healthy healthy.json --suspect suspect.json --candidate candidate.json --json
+```
+
+The healthy build supplies the expected emission count per completed attempt.
+Supply at least two completed attempts per build to check for intermittent emissions. Missing artifacts, mismatched
+fixtures, a selected event outside any capture allowlist, repeated build IDs and unstable counts produce an inconclusive result
+(exit 4). A reproducible count change or still-failing candidate exits 3. Matching
+suspect counts or a verified fix exits 0. Malformed captures exit 2. Capture size
+is limited to 1 MiB per file. Share the JSON report and the same capture files
+with the incident so another engineer can run the quoted command locally.
+
+## `tripl journey-capture`
+
+Run the same local synthetic test command for each build, using its build ID,
+journey name, fixture revision and output path.
+
+```sh
+tripl journey-capture --build v1 --journey checkout --fixture synthetic-order-v1 --output healthy.json --allow-event purchase -- ./checkout-test
+```
+
+See the [runnable checkout example](https://github.com/tripl-io/tripl/tree/main/cli/examples/checkout).
