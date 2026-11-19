@@ -485,3 +485,5 @@ same source. Run **both** after touching `client.py`.
 Use `tripl reproduce` to compare synthetic app-test captures from healthy,
 suspect and candidate builds for a tracking incident.
 Create each capture with `tripl journey-capture`.
+
+Use `tripl compatibility preview` to compile a bounded historical check of an event rename on a plan branch. After review and merge, `tripl compatibility model` emits the reusable ClickHouse SELECT from the main event.

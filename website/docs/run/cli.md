@@ -4959,3 +4959,29 @@ tripl journey-capture --build v1 --journey checkout --fixture synthetic-order-v1
 ```
 
 See the [runnable checkout example](https://github.com/tripl-io/tripl/tree/main/cli/examples/checkout).
+
+## `tripl compatibility`
+
+During a mobile rollout, keep old and new physical event names in one logical series. Define a single string meta field named `compatibility_mapping`. On your working branch, edit the logical event, insert the example in that field, adjust its table, columns and integer build ranges, then save. Each rule selects one physical event name, platform and inclusive build interval. The logical event's catalog name labels the output.
+
+### `tripl compatibility preview`
+
+Use the event ID of the **branch copy**. The command reads the saved mapping and prints SQL. Run that SQL with your read-only warehouse credentials.
+
+```sh
+tripl compatibility preview "$BRANCH_EVENT_ID" --project shop --branch "$BRANCH_ID" \
+  --start 2026-11-01 --end 2026-11-08 > preview.sql &&
+  clickhouse-client < preview.sql
+```
+
+The UTC window includes the start date and excludes the end date, up to 31 days. Review physical, logical, ambiguous, duplicate and unmatched row counts per platform and build. Only configured physical names enter the reconciliation. In a dual-write interval supply a reliable occurrence key unique per business occurrence within platform, build and UTC day. Emissions crossing a UTC day boundary count separately. With no reliable key, ambiguous rows are excluded from the model. Raw records stay in the source table.
+
+### `tripl compatibility model`
+
+After the branch is approved and merged, use the event's **main** ID. Commit the generated SELECT to your analytics repository and review it before deploying a view with your normal warehouse tooling. Use the same view for the checkout dashboard and weekly order report. Compare both totals against the accepted preview before switching either consumer.
+
+```sh
+tripl compatibility model "$MAIN_EVENT_ID" --project shop > orders.sql
+```
+
+Use `--json` for the SQL and its project, event and branch identifiers. Regenerate the artifact when approved mappings change.

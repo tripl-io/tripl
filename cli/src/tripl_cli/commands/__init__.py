@@ -65,6 +65,7 @@ def register_all(
         annotate,
         check,
         codegen,
+        compatibility,
         docs,
         doctor,
         drifts,
@@ -112,6 +113,7 @@ def register_all(
     # One word each as well, for the same reason: `codegen` turns the plan into typed
     # tracking code for a checkout, `export` writes the plan out as JSON Schema (#262).
     codegen.register(subparsers, parent)
+    compatibility.register(subparsers, parent)
     export.register(subparsers, parent)
     # A group again: the docs catalog is a class of objects an operator browses
     # (`ls`, `cat`), and `pull`/`push` move a folder of them to and from disk (F22).

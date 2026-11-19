@@ -1305,6 +1305,8 @@ export function EventForm({
           />
 
           <MetaFieldsCard
+            eventId={event?.id}
+            branchId={branchId}
             slug={slug}
             metaFields={metaFields}
             metaValues={metaValues}
