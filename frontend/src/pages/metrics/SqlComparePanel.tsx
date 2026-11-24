@@ -28,10 +28,8 @@ function formatPct(value: number | null): string {
  * comparison is withheld; nothing here saves anything.
  */
 export function SqlComparePanel({ saved, draft, unit, maxRows = 50 }: SqlComparePanelProps) {
-  const failed = [
-    saved.error ? `Saved definition: ${saved.error}` : null,
-    draft.error ? `Draft: ${draft.error}` : null,
-  ].filter((message): message is string => message !== null)
+  // Each side's error already names it ("Saved definition: …", "Draft …").
+  const failed = [saved.error, draft.error].filter((message): message is string => !!message)
 
   if (failed.length > 0) {
     return (

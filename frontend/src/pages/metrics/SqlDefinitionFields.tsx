@@ -164,8 +164,8 @@ export function SqlDefinitionFields({
     try {
       const result = await metricsCatalogApi.preview(slug, request)
       return result.error
-        ? { points: [], error: result.error }
-        : { points: result.points, error: null }
+        ? { points: [], error: `${label}: ${result.error}` }
+        : { points: result.points ?? [], error: null }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'the request failed'
       const timedOut = /timed? ?out|timeout/i.test(message)
