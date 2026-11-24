@@ -2349,3 +2349,56 @@ describe('MetricEditPage data sources of this project', () => {
     )
   })
 })
+
+describe('MetricForm compare with saved', () => {
+  it('runs the saved and draft queries over the same window and shows the change', async () => {
+    vi.mocked(metricsCatalogApi.preview)
+      .mockResolvedValueOnce({
+        columns: ['bucket', 'value'],
+        points: [
+          { bucket: '2026-07-01T00:00:00Z', value: 10 },
+          { bucket: '2026-07-01T01:00:00Z', value: 10 },
+        ],
+        point_count: 2,
+        truncated: false,
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        columns: ['bucket', 'value'],
+        points: [
+          { bucket: '2026-07-01T00:00:00Z', value: 10 },
+          { bucket: '2026-07-01T01:00:00Z', value: 15 },
+        ],
+        point_count: 2,
+        truncated: false,
+        error: null,
+      })
+    renderForm(EDIT_METRIC)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compare with saved' }))
+
+    expect(await screen.findByText(/2 buckets compared/)).toBeInTheDocument()
+    expect(metricsCatalogApi.preview).toHaveBeenCalledTimes(2)
+    const [savedCall, draftCall] = vi.mocked(metricsCatalogApi.preview).mock.calls
+    expect(savedCall?.[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
+    expect(draftCall?.[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
+  })
+
+  it('names the side that failed and withholds the comparison', async () => {
+    vi.mocked(metricsCatalogApi.preview)
+      .mockRejectedValueOnce(new Error('request timed out'))
+      .mockResolvedValueOnce({
+        columns: ['bucket', 'value'],
+        points: [{ bucket: '2026-07-01T00:00:00Z', value: 3 }],
+        point_count: 1,
+        truncated: false,
+        error: null,
+      })
+    renderForm(EDIT_METRIC)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compare with saved' }))
+
+    expect(await screen.findByText('Saved definition timed out.')).toBeInTheDocument()
+    expect(screen.queryByText(/buckets compared/)).not.toBeInTheDocument()
+  })
+})

@@ -19,13 +19,24 @@ import type {
 import type { TableSchema } from '@/types/dataSourceSchema'
 import { IntervalField } from './IntervalField'
 import { MetricPreviewPanel } from './MetricPreviewPanel'
+import { SqlComparePanel, type CompareSide } from './SqlComparePanel'
 import { starterSql } from './metricTemplates'
 import { examplePlaceholder, sqlPlaceholder } from '@/components/forms/placeholders'
 import { errorAria, fieldErrorId, type FieldErrors } from '@/lib/fieldErrors'
 import type { MetricDraft } from './metricDraft'
 
+/** The saved SQL metric's query, compared against the draft's over one window. */
+export interface SavedSqlQuery {
+  dataSourceId: string | null
+  sql: string
+  timeColumn: string
+  valueColumn: string | null
+}
+
 interface SqlDefinitionFieldsProps {
   slug: string
+  /** Set only for an existing SQL metric; enables "Compare with saved". */
+  savedQuery?: SavedSqlQuery | null
   draft: MetricDraft
   patch: (next: Partial<MetricDraft>) => void
   errors: FieldErrors
@@ -59,6 +70,7 @@ interface SqlDefinitionFieldsProps {
  */
 export function SqlDefinitionFields({
   slug,
+  savedQuery,
   draft,
   patch,
   errors,
@@ -76,6 +88,9 @@ export function SqlDefinitionFields({
 }: SqlDefinitionFieldsProps) {
   // Last dry-run result, for the inputs it ran against.
   const [preview, setPreview] = useState<MetricPreviewResponse | null>(null)
+  // Saved vs draft over the same window; null until "Compare with saved" runs.
+  const [compare, setCompare] = useState<{ saved: CompareSide; draft: CompareSide } | null>(null)
+  const [comparing, setComparing] = useState(false)
 
   // Stateless dry-run of the current SQL config against the warehouse. User
   // mistakes come back as 200 with `error` set and render inside the result
@@ -127,9 +142,66 @@ export function SqlDefinitionFields({
   // offering what an edited query no longer projects.
   const resetPreview = () => {
     setPreview(null)
+    setCompare(null)
     previewMut.reset()
     onPreviewColumns(null)
     onPreviewFailed?.(false)
+  }
+
+  // Dry-runs the saved query and the draft over the SAME data source, interval
+  // and window. Each side settles on its own, so a timeout or error names the
+  // side that failed instead of hiding the other. Nothing is saved.
+  const compareBlocker =
+    previewBlocker ??
+    (!savedQuery
+      ? 'Only a saved SQL metric can be compared.'
+      : !savedQuery.dataSourceId
+        ? 'The saved query has no data source to compare against.'
+        : null)
+  const canCompare = compareBlocker === null && !comparing
+
+  const runSide = async (request: MetricPreviewRequest, label: string): Promise<CompareSide> => {
+    try {
+      const result = await metricsCatalogApi.preview(slug, request)
+      return result.error
+        ? { points: [], error: `${label}: ${result.error}` }
+        : { points: result.points ?? [], error: null }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'the request failed'
+      const timedOut = /timed? ?out|timeout/i.test(message)
+      return { points: [], error: timedOut ? `${label} timed out.` : `${label} failed: ${message}` }
+    }
+  }
+
+  const onCompare = async () => {
+    if (!savedQuery || !savedQuery.dataSourceId) return
+    setComparing(true)
+    setCompare(null)
+    const timing = { interval: draft.interval }
+    const [saved, draftSide] = await Promise.all([
+      runSide(
+        {
+          data_source_id: savedQuery.dataSourceId,
+          sql: savedQuery.sql,
+          time_column: savedQuery.timeColumn,
+          value_column: savedQuery.valueColumn,
+          ...timing,
+        },
+        'Saved definition',
+      ),
+      runSide(
+        {
+          data_source_id: draft.dataSourceId,
+          sql: draft.metricSql,
+          time_column: draft.sqlTimeColumn.trim(),
+          value_column: draft.sqlValueColumn.trim() || null,
+          ...timing,
+        },
+        'Draft',
+      ),
+    ])
+    setCompare({ saved, draft: draftSide })
+    setComparing(false)
   }
 
   const dataSourceOptions: SelectOption[] = [
@@ -252,6 +324,30 @@ export function SqlDefinitionFields({
             </div>
           )}
           {preview && <MetricPreviewPanel result={preview} color={draft.color} unit={draft.unit} />}
+          {savedQuery && (
+            <div className="mt-[10px] flex flex-wrap items-center gap-[10px]">
+              <button
+                type="button"
+                onClick={onCompare}
+                disabled={!canCompare}
+                {...disabledReasonAria('metric-sql-compare', compareBlocker)}
+                className="inline-flex h-8 items-center gap-[6px] rounded-control border px-3 text-body-sm font-medium transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-50 border-border text-fg-secondary"
+              >
+                {comparing ? <Loader2 className="animate-spin" size={12} /> : null}
+                {comparing ? 'Comparing…' : 'Compare with saved'}
+              </button>
+              {compareBlocker ? (
+                <DisabledReason id="metric-sql-compare" reason={compareBlocker} />
+              ) : (
+                <span className="text-caption text-fg-tertiary">
+                  Runs the saved and draft queries over the same window; nothing is saved.
+                </span>
+              )}
+            </div>
+          )}
+          {compare && (
+            <SqlComparePanel saved={compare.saved} draft={compare.draft} unit={draft.unit} />
+          )}
         </Field>
         <Field
           label="Time column"
