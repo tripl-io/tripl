@@ -1136,8 +1136,8 @@ def test_every_timeout_flag_is_the_same_flag() -> None:
     leaves = _leaf_parsers(build_parser())
     assert leaves, "walked the parser and found no commands — the walk is broken"
     # `install` and `upgrade` act on a DIRECTORY and poll /health on their own
-    # `--wait` budget; they are the only two with no per-request deadline.
-    local = {"tripl install", "tripl upgrade"}
+    # `--wait` budget; the journey commands work on local artifacts.
+    local = {"tripl install", "tripl upgrade", "tripl reproduce", "tripl journey-capture"}
     wrong: list[str] = []
     for path, parser in sorted(leaves.items()):
         option = _option(parser, "--timeout")

@@ -1,3 +1,4 @@
+import { CompatibilityMapping } from './CompatibilityMapping'
 /**
  * The sections of the single-event form below Details, split out of
  * `EventForm.tsx` along the seams the form already had. State stays
@@ -321,6 +322,7 @@ export function FieldValuesCard({
 }
 
 export function MetaFieldsCard({
+  eventId, branchId,
   slug,
   metaFields,
   metaValues,
@@ -328,6 +330,8 @@ export function MetaFieldsCard({
   variables,
 }: {
   /** For the subtitle's link to where meta fields are defined. */
+  eventId?: string
+  branchId?: string | null
   slug?: string
   metaFields: MetaFieldDefinition[]
   metaValues: Record<string, string[]>
@@ -360,13 +364,16 @@ export function MetaFieldsCard({
           required={mf.is_required}
           last={i === metaFields.length - 1}
         >
-          <MetaFieldControl
+          {mf.name === 'compatibility_mapping' && mf.field_type === 'string' && !mf.allow_multiple
+            ? <CompatibilityMapping id={`meta-${mf.id}`} eventId={eventId} slug={slug} branchId={branchId}
+                value={metaValues[mf.id]?.[0] ?? ''} onChange={v => onMetaValuesChange(mf.id, v ? [v] : [])} />
+            : <MetaFieldControl
             metaField={mf}
             inputId={`meta-${mf.id}`}
             values={metaValues[mf.id] ?? []}
             onChange={next => onMetaValuesChange(mf.id, next)}
             variables={variables}
-          />
+          />}
         </EvField>
       ))}
     </SurfCard>
