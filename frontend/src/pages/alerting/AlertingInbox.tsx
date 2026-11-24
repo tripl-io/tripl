@@ -56,6 +56,7 @@ import {
   type InboxFilterState,
 } from './inboxFilters'
 import { IncidentDeliveries } from './IncidentDeliveries'
+import { IncidentReproduction } from './IncidentReproduction'
 import { IncidentSummary } from './IncidentSummary'
 import { OwnersNotify } from './OwnersNotify'
 import { useNoteDraft, type NoteDraftStore } from './noteDraftStore'
@@ -980,7 +981,7 @@ const IncidentCard = memo(function IncidentCard({
         </div>
       )}
       {group.note && (
-        <p className="mt-2 rounded-sm border-l-2 border-fg-tertiary/30 bg-muted/40 px-2 py-1 text-body-sm">
+        <p className="mt-2 whitespace-pre-wrap break-words rounded-sm border-l-2 border-fg-tertiary/30 bg-muted/40 px-2 py-1 text-body-sm">
           {group.note}
         </p>
       )}
@@ -999,6 +1000,19 @@ const IncidentCard = memo(function IncidentCard({
       {/* A cited summary of the incident (F14, #267). Collapsed and fetched
           only when opened; renders nothing while AI is off. */}
       <IncidentSummary slug={slug} correlationGroupId={id} canWrite={canWrite} />
+
+      {canWrite && group.scope_types.some(scope => scope === 'release_regression' || scope === 'event') && (
+        <IncidentReproduction
+          initialEvent={group.scope_names.length === 1 ? group.scope_names[0]! : ''}
+          append={evidence => {
+            const existing = noteDraftStore.get(id) || group.note || ''
+            const next = [existing, evidence].filter(Boolean).join('\n\n')
+            if (next.length > MAX_INBOX_NOTE_LENGTH) throw new Error('Shorten the incident note before adding evidence.')
+            noteDraftStore.set(id, next)
+            openNote()
+          }}
+        />
+      )}
 
       {/* Omitted, not disabled, for a viewer: five buttons and a note box per
           card, greyed out and unexplained, is a worse page than one that does

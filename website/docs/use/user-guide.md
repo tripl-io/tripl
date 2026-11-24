@@ -1042,6 +1042,27 @@ For a wider list of issues, see [Troubleshooting](./troubleshooting).
 
 ---
 
+## Compare a SQL metric draft with its saved definition
+
+Before saving an edit to a SQL metric's filter or denominator, open the metric
+and press **Compare with saved** in the Query card. tripl runs the saved query
+and your draft against the same data source, interval and recent window, then
+shows both series side by side with the absolute change and the percentage
+change per bucket. The totals line gives the net shift the KPI would see in
+that window.
+
+How to read it:
+
+- **—** in a cell means no value, not zero. A bucket present on only one side
+  is counted as missing and excluded from the totals.
+- A **zero saved baseline** has no percentage (the change is still shown in
+  absolute terms).
+- If one side's preview fails or times out, the comparison names that side and
+  is withheld, so a half-result never looks like a clean comparison.
+
+Comparing is a dry run: it never changes the saved definition or the values
+already collected.
+
 ## Where to go next
 
 - Don't recognize a term used here? → [Concepts](./concepts)

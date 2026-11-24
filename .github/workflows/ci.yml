@@ -289,6 +289,12 @@ jobs:
           docker logs bqemu 2>&1 | tail -50 || true
           exit 1
 
+      - name: Execute compatibility model and preview on ClickHouse
+        working-directory: cli
+        env:
+          TRIPL_COMPAT_CLICKHOUSE_URL: http://localhost:8123/?user=tripl&password=tripl
+        run: uv run pytest -q tests/test_compat_sql.py
+
       - name: Conformance gates
         env:
           # Turns "warehouse unreachable" from a graceful local SKIP into a hard CI

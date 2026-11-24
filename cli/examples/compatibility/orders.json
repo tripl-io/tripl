@@ -1,0 +1,13 @@
+{
+  "table": "analytics.events",
+  "event_column": "name",
+  "platform_column": "platform",
+  "build_column": "build",
+  "time_column": "ts",
+  "dedup_column": "order_id",
+  "rules": [
+    {"event": "checkout_success", "platform": "ios", "min_build": 1, "max_build": 25},
+    {"event": "order_completed", "platform": "ios", "min_build": 25, "max_build": 9999},
+    {"event": "checkout_success", "platform": "android", "min_build": 1, "max_build": 9999}
+  ]
+}
