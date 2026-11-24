@@ -2380,8 +2380,8 @@ describe('MetricForm compare with saved', () => {
     expect(await screen.findByText(/2 buckets compared/)).toBeInTheDocument()
     expect(metricsCatalogApi.preview).toHaveBeenCalledTimes(2)
     const [savedCall, draftCall] = vi.mocked(metricsCatalogApi.preview).mock.calls
-    expect(savedCall[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
-    expect(draftCall[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
+    expect(savedCall?.[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
+    expect(draftCall?.[1]).toMatchObject({ data_source_id: 'ds-1', time_column: 'bucket', interval: '1h' })
   })
 
   it('names the side that failed and withholds the comparison', async () => {
