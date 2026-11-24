@@ -51,12 +51,16 @@ export function SqlSchemaBrowser({
   }, [tables, q])
   const shownEntries = useMemo(() => {
     if (!q) return entries.map(entry => ({ ...entry, hiddenColumns: 0 }))
+    // A loop, not a map: the column budget is reassigned as it is spent, and
+    // the React Compiler lint rejects reassigning a variable inside a callback.
+    const result: Array<(typeof entries)[number] & { hiddenColumns: number }> = []
     let budget = SEARCH_COLUMN_LIMIT
-    return entries.slice(0, SEARCH_TABLE_LIMIT).map(entry => {
+    for (const entry of entries.slice(0, SEARCH_TABLE_LIMIT)) {
       const columns = entry.columns.slice(0, budget)
       budget -= columns.length
-      return { ...entry, columns, hiddenColumns: entry.columns.length - columns.length }
-    })
+      result.push({ ...entry, columns, hiddenColumns: entry.columns.length - columns.length })
+    }
+    return result
   }, [entries, q])
   const hiddenMatches = entries.length - shownEntries.length
 
