@@ -62,7 +62,23 @@ import {
 import { EventCompositionFields } from './EventCompositionFields'
 import { FactDefinitionFields } from './FactDefinitionFields'
 import { MonitoringFields } from './MonitoringFields'
-import { SqlDefinitionFields } from './SqlDefinitionFields'
+import { SqlDefinitionFields, type SavedSqlQuery } from './SqlDefinitionFields'
+
+/**
+ * The saved SQL query of an existing SQL metric, for "Compare with saved".
+ * Null for a new metric or any other kind: there is nothing saved to compare.
+ */
+function savedSqlQueryOf(metric: MetricDefinitionDetailResponse | null): SavedSqlQuery | null {
+  if (!metric || metric.kind !== 'sql') return null
+  const config = metric.config
+  const valueColumn = typeof config.value_column === 'string' && config.value_column ? config.value_column : null
+  return {
+    dataSourceId: metric.data_source_id,
+    sql: typeof config.metric_sql === 'string' ? config.metric_sql : '',
+    timeColumn: typeof config.time_column === 'string' ? config.time_column : '',
+    valueColumn,
+  }
+}
 import { TemplateGallery } from './TemplateGallery'
 import { ColorSwatches } from './ColorSwatches'
 import { SeriesPreviewCard } from './SeriesPreviewCard'
@@ -706,6 +722,7 @@ export function MetricForm({
           {draft.kind === 'sql' && (
             <SqlDefinitionFields
               slug={slug}
+              savedQuery={savedSqlQueryOf(metric)}
               draft={draft}
               patch={patch}
               errors={fieldErrors}
