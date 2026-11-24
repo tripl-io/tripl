@@ -373,11 +373,15 @@ def _typed(tokens: list[Token], opening: int, close: int) -> bool:
             end = matching(kept, 0)
             if end + 1 < len(kept) and kept[end + 1].is_punct(":"):
                 return True
-        elif kept[0].kind == IDENT and len(kept) > 1:
-            if kept[1].is_punct(":") or (
-                kept[1].is_punct("?") and (len(kept) == 2 or kept[2].is_punct(":"))
-            ):
-                return True
+        elif (
+            kept[0].kind == IDENT
+            and len(kept) > 1
+            and (
+                kept[1].is_punct(":")
+                or (kept[1].is_punct("?") and (len(kept) == 2 or kept[2].is_punct(":")))
+            )
+        ):
+            return True
     return False
 
 
