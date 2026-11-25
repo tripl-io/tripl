@@ -176,6 +176,32 @@ class TestNormalizeBaseUrl:
 
         assert "https://ftp://" not in str(excinfo.value)
 
+    @pytest.mark.parametrize("raw", ["https://[::1", "https://[not-an-ip]:8000"])
+    def test_a_host_urlsplit_cannot_parse_is_a_config_error(self, raw: str) -> None:
+        """urlsplit raises ValueError here, which is not a TriplError: a traceback and exit 1."""
+        with pytest.raises(TriplConfigError) as excinfo:
+            normalize_base_url(raw, "$TRIPL_BASE_URL")
+
+        message = str(excinfo.value)
+        assert "$TRIPL_BASE_URL" in message
+        assert "not a valid tripl URL" in message
+        assert excinfo.value.exit_code == EXIT_USAGE
+
+    def test_an_unparseable_base_url_exits_two_without_a_traceback(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from tripl_cli.cli import main
+
+        monkeypatch.setenv("TRIPL_BASE_URL", "https://[::1")
+        monkeypatch.setenv("TRIPL_API_KEY", "tk_r_test-key")
+
+        code = main(["whoami"])
+
+        captured = capsys.readouterr()
+        assert code == EXIT_USAGE
+        assert "Traceback" not in captured.err
+        assert "not a valid tripl URL" in captured.err
+
     @pytest.mark.parametrize(
         "raw",
         [
