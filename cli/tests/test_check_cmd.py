@@ -1894,6 +1894,24 @@ def test_a_stderr_that_cannot_be_written_still_gets_the_json_document_through(
     assert document["summary"]["calls"] > 0
 
 
+@pytest.mark.parametrize("stderr", [None, _FullDisk], ids=["closed", "full"])
+def test_plain_check_json_survives_a_stderr_that_cannot_be_written(
+    repo: Path,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stderr: type[_FullDisk] | None,
+) -> None:
+    # The human lines go to stderr first; `2>&-` or `2>/dev/full` used to end the
+    # run there, before the document reached stdout.
+    monkeypatch.setattr(sys, "stderr", None if stderr is None else stderr())
+    assert main(["check", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["command"] == "check"
+    assert document["summary"]["checked"] == 2
+
+
 def test_a_closed_stdout_is_no_failure_but_one_that_cannot_be_written_is(
     listed: Path, offline: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
