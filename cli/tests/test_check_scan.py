@@ -330,6 +330,40 @@ def test_shorthand_shared_by_two_enums_is_disambiguated_by_the_field(tmp_path: P
     assert dict(item.fields) == {"category": "home_category", "action": "go_home"}
 
 
+def test_a_function_is_looked_up_only_in_its_own_language(tmp_path: Path) -> None:
+    """A Kotlin `genericName()` must not read a Swift `func genericName()` elsewhere."""
+    root = _repo(
+        tmp_path,
+        {
+            "ios/Names.swift": """
+                func genericName() -> String {
+                    return "swift_screen"
+                }
+                func show() {
+                    track(genericName())
+                }
+            """,
+            "android/Screen.kt": """
+                fun send() {
+                    track(genericName())
+                }
+            """,
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name]}]}
+        """,
+    )
+
+    names = {item.origin.path: item.name for item in scan(config).items}
+
+    assert names == {"ios/Names.swift": "swift_screen", "android/Screen.kt": None}
+
+
 @pytest.mark.parametrize(
     ("language", "source", "readable", "mutable"),
     [
