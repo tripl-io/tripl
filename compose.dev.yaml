@@ -302,7 +302,10 @@ services:
       CHOKIDAR_INTERVAL: "200"
     depends_on:
       - api
-    mem_limit: 768m
+    # Vite's dependency pre-bundling peaks right after "ready": under 768m the
+    # kernel SIGKILLed it, intermittently, from vite 8.3.8 on (tripl-o30d), and
+    # the E2E job then waited out its 7.5 minutes for a frontend that was gone.
+    mem_limit: 1536m
     mem_reservation: 256m
     develop:
       watch:
