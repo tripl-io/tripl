@@ -233,11 +233,14 @@ against a file written by a newer one. `--config PATH` overrides discovery
 entirely: a missing *default* file is fine, a missing `--config` path is an
 error.
 
-One run reads none of this: [`tripl check --list`](#tripl-check-list) talks to
-no instance, so it does not look at the flags, the environment variables or the
-config file. A malformed URL, a config file that is not valid TOML or a
-`--config` path that does not exist is exit 2 for every other command and does
-not stop that one.
+Three runs read none of this: [`tripl check --list`](#tripl-check-list),
+[`tripl reproduce`](#tripl-reproduce) and
+[`tripl journey-capture`](#tripl-journey-capture) talk to no instance, so they
+do not look at the flags, the environment variables or the config file. A
+malformed URL, a config file that is not valid TOML or a `--config` path that
+does not exist is exit 2 for a command that resolves the settings, and does not
+stop these three. Neither does it stop a flag that acts as soon as it is parsed
+and runs no command: `--help`, `--version` and `tripl check --print-preset`.
 
 :::warning Permissions on a file holding a key
 On POSIX, a config file that contains an `api_key` and is readable by other
@@ -5078,6 +5081,10 @@ suspect counts or a verified fix exits 0. Malformed captures exit 2. Capture siz
 is limited to 1 MiB per file. Share the JSON report and the same capture files
 with the incident so another engineer can run the quoted command locally.
 
+The command reads the capture files and nothing else. It talks to no instance
+and does not read the [connection settings](#config-file), so a
+malformed `TRIPL_BASE_URL` or config file does not stop it.
+
 ## `tripl journey-capture`
 
 Run the same local synthetic test command for each build, using its build ID,
@@ -5086,6 +5093,9 @@ journey name, fixture revision and output path.
 ```sh
 tripl journey-capture --build v1 --journey checkout --fixture synthetic-order-v1 --output healthy.json --allow-event purchase -- ./checkout-test
 ```
+
+Like `tripl reproduce`, it talks to no instance and does not read the
+[connection settings](#config-file).
 
 See the [runnable checkout example](https://github.com/tripl-io/tripl/tree/main/cli/examples/checkout).
 

@@ -103,10 +103,11 @@ def _settings(args: argparse.Namespace) -> Config:
     only on a malformed file, a bad URL or a --config that does not exist. Each
     command asks for what it needs with require_base_url / require_api_key.
 
-    A run that says it is offline (``tripl check --list``) is the exception. It
-    would never use the settings, so they are not read: a malformed
-    ``TRIPL_BASE_URL`` exported for another job, or a ``--config`` path that
-    is not there, must not fail a scan that sends nothing.
+    A run that says it is offline (``tripl check --list``, ``tripl reproduce``,
+    ``tripl journey-capture``) is the exception. It would never use the
+    settings, so they are not read: a malformed ``TRIPL_BASE_URL`` exported for
+    another job, or a ``--config`` path that is not there, must not fail a run
+    that sends nothing.
     """
     offline: Offline | None = getattr(args, "offline", None)
     if offline is not None and offline(args):

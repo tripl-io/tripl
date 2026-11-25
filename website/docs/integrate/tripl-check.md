@@ -948,8 +948,8 @@ write `.tripl/check.yml`: run it after each change to the file.
 Because it talks to no instance, it does not read the connection settings at
 all: `--url`, `--api-key`, `--config`, `TRIPL_BASE_URL`, `TRIPL_API_KEY` and
 the config file. A `TRIPL_BASE_URL` without `https://`, a config file that is
-not valid TOML or a `--config` path that does not exist fails every other
-`tripl check` run with exit 2, and does not stop this one.
+not valid TOML or a `--config` path that does not exist fails a `tripl check`
+run that validates against the plan with exit 2, and does not stop this one.
 
 ```bash
 tripl check --list

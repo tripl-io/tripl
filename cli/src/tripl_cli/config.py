@@ -13,8 +13,9 @@ plausible-looking bug, so it has its own test.
 Nothing here touches the network, and absent values are never an error at
 resolution time — only a malformed file, a bad value, or an explicit ``--config``
 that does not exist. That is what lets ``main`` resolve before it knows whether
-the subcommand needs credentials at all. The one run it does not resolve for is
-one that says it talks to no instance (``tripl check --list``): that run gets
+the subcommand needs credentials at all. The runs it does not resolve for are
+the ones that say they talk to no instance (``tripl check --list``,
+``tripl reproduce``, ``tripl journey-capture``): such a run gets
 ``unresolved()``, so a setting it would never use cannot fail it.
 """
 
@@ -168,8 +169,8 @@ def _load_file(path: Path, *, explicit: bool) -> dict[str, Any] | None:
     A missing DEFAULT file is not an error — the CLI is fully usable from flags
     and environment alone. A missing ``--config`` path is: an explicit request
     that cannot be honoured must never be silently ignored. (A run that reads
-    no connection settings at all, ``tripl check --list``, never gets here: see
-    ``unresolved``.)
+    no connection settings at all, such as ``tripl check --list``, never gets
+    here: see ``unresolved``.)
     """
     try:
         raw = path.read_bytes()
