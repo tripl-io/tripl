@@ -636,7 +636,9 @@ def test_check_text_sample_with_suppression() -> None:
         )
         return CheckResult(item=item, status="error", findings=(finding,))
 
-    waiver = Suppression("app/src/Debug.kt", 6, 8, (("unknown_event", None),), "debug menu only")
+    waiver = Suppression(
+        "app/src/Debug.kt", 6, 8, (("unknown_event", None, None),), "debug menu only"
+    )
     used = Marker(
         "app/src/Debug.kt",
         6,
@@ -718,7 +720,7 @@ def test_check_text_sample_with_a_gate() -> None:
         9,
         8,
         "tripl-check-ignore[unknown_event]",
-        (("unknown_event", None),),
+        (("unknown_event", None, None),),
         None,
         "no_reason",
     )
@@ -727,7 +729,7 @@ def test_check_text_sample_with_a_gate() -> None:
         3,
         4,
         "tripl-check-ignore[unknown_event] -- fixed",
-        (("unknown_event", None),),
+        (("unknown_event", None, None),),
         "fixed",
     )
     results = (

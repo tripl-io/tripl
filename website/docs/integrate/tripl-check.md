@@ -390,7 +390,7 @@ message text.
 | `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the property the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
-| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
+| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …), as in the [validate API](./agent-api-guide.md#plan-validation), and every report shows it: the text listing prints `policy_violation@naming.event`, the name a [marker](#suppress) waives that one rule by. Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
 
@@ -445,6 +445,14 @@ tripl-check-ignore[<code>(,<code>)*] -- <reason>
 - **Codes.** Each is a finding code (`unknown_event`), or a code and a field
   (`value_not_allowed:plan`) to waive it on that field only. Codes are not
   checked against a list: a misspelled one waives nothing and shows as unused.
+- **Rules.** A policy reports every rule it has under the one code
+  `policy_violation`, so `policy_violation` alone waives all of them on the
+  call. Add `@` and the rule to waive one and keep the others failing:
+  `policy_violation@naming.event`, or with a field too,
+  `policy_violation@forbidden_field:email`. The rule is written as the report
+  prints it and may hold letters, digits, `.`, `_` and `-`; a rule the call
+  does not break waives nothing and shows as unused, and a marker with
+  anything else after the `@` (or nothing) is malformed.
 - **Reason.** Everything after `--` to the end of the comment line (or to
   `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
   JUnit show it with the finding.
@@ -1180,6 +1188,8 @@ tripl check --report codequality=gl-code-quality-report.json --report junit=trip
 ```
 
 **SARIF.** Each finding is one result and its code is the rule (`ruleId`).
+A `policy_violation` result keeps that `ruleId` and names the policy's rule in
+`properties.rule` and in its message.
 Errors are `level: "error"`, warnings `level: "warning"` and info findings
 `level: "note"`. A static finding carries a `physicalLocation` with a `region`
 for its line and column. Its path is relative to the scan root, the `root` of
@@ -1202,7 +1212,9 @@ rule `invalid_suppression` at `level: "warning"`, and an unused one rule
 **Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
 (`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
 warning and `info` for an info finding; `location` names the file and the
-call's lines. A [suppressed](#suppress) finding stays in the report with the
+call's lines. The `description` of a `policy_violation` names the policy's
+rule (`(rule naming.event)`); its `check_name` stays `tripl/policy_violation`.
+A [suppressed](#suppress) finding stays in the report with the
 same fingerprint, at `severity: info` and with its description starting
 `Suppressed: <reason> — `, so GitLab shows it as neither new nor resolved. A
 marker that suppresses nothing is a `tripl/invalid_suppression` issue
@@ -1218,6 +1230,7 @@ gate and the [baseline](#baseline), as Code Quality does. A call where nothing w
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
 with its findings as the case's output. A [suppressed](#suppress) finding fails
 no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
+A `policy_violation` is listed as `policy_violation@<rule>`.
 
 **Paths.** In Code Quality and JUnit, paths are relative to the repository root
 (the nearest directory that holds `.git`), the way a CI system resolves them
@@ -1228,7 +1241,8 @@ The text, JSON and SARIF formats keep paths relative to the scan root.
 (`findings[].fingerprint`), SARIF (`partialFingerprints["triplCheck/v2"]`) and
 Code Quality (`fingerprint`). It is built from what the call is (its file,
 callee, event type, name and field values, and the finding's code and field),
-never from its line and never from what the plan says. So a CI system comparing
+never from its line, never from what the plan says and never from the rule of
+a `policy_violation`. So a CI system comparing
 two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.

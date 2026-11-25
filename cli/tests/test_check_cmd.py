@@ -287,11 +287,83 @@ def test_strict_reports_values_only_known_at_runtime(
         "code": "dynamic_value",
         "severity": "warning",
         "field": "label",
+        "rule": None,
         "message": "the value of 'label' is not known until runtime",
     }
     assert document["exit_code"] == 1
     assert document["strict"] is True
     assert json.loads(validator.calls.last.request.content)["strict"] is True
+
+
+def _policy_respond(request: httpx.Request) -> httpx.Response:
+    """A validator whose policy has two rules, both broken by the event ``trial_started``."""
+    verdicts = []
+    for item in json.loads(request.content)["items"]:
+        verdict = _verdict(item)
+        if item.get("name") == "trial_started":
+            verdict["status"] = "error"
+            verdict["findings"] = [
+                {**_finding("policy_violation", "error", None, "bad name"), "rule": "naming.event"},
+                {
+                    **_finding("policy_violation", "error", "name", "forbidden"),
+                    "rule": "forbidden_field",
+                },
+            ]
+        verdicts.append(verdict)
+    return httpx.Response(200, json={"items": verdicts, "summary": {}})
+
+
+def _policy_call(marker: str) -> dict[str, str]:
+    return {
+        "Sources/Trial.swift": "func t() {\n"
+        f"    // tripl-check-ignore[{marker}] -- renamed next release\n"
+        '    Analytics.shared.logEvent("trial_started")\n'
+        "}\n"
+    }
+
+
+def test_the_rule_of_a_policy_finding_is_reported_and_a_marker_can_waive_one_rule(
+    repo: Path, tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.handler(VALIDATE_URL, _policy_respond, method="POST")
+    # One rule waived: the other rule's finding still fails the run.
+    _write(repo, _policy_call("policy_violation@naming.event"))
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    assert "    error  policy_violation@forbidden_field [name]: forbidden" in out
+    assert "policy_violation@naming.event" not in out
+    assert "1 finding suppressed" in out
+    assert main(["check", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    [failed] = [r for r in document["results"] if r["status"] == "error"]
+    assert [(f["rule"], f["suppression"] is not None, f["fails"]) for f in failed["findings"]] == [
+        ("naming.event", True, False),
+        ("forbidden_field", False, True),
+    ]
+    [marker] = document["suppressions"]
+    assert marker["targets"] == [
+        {"code": "policy_violation", "field": None, "rule": "naming.event"}
+    ]
+    assert marker["used"] is True
+
+    # A rule the policy did not raise waives nothing, and the marker is unused.
+    _write(repo, _policy_call("policy_violation@naming.field"))
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    assert "    error  policy_violation@naming.event: bad name" in out
+    assert (
+        "Unused suppression: Sources/Trial.swift:2 "
+        "tripl-check-ignore[policy_violation@naming.field] matched no finding." in out
+    )
+
+    # Both rules named, or the bare code: nothing is left to fail.
+    for listed in (
+        "policy_violation@naming.event,policy_violation@forbidden_field:name",
+        "policy_violation",
+    ):
+        _write(repo, _policy_call(listed))
+        assert main(["check"]) == 0, listed
+        assert "2 findings suppressed" in capsys.readouterr().out
 
 
 def test_info_findings_only_count_under_strict() -> None:

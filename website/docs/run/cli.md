@@ -2335,7 +2335,9 @@ Findings use the codes in the guide's
 `oversize_value` and `no_verdict`.
 
 A comment at the call, `// tripl-check-ignore[unknown_event] -- <reason>`,
-suppresses one finding: it no longer fails the run. The text listing counts it
+suppresses one finding: it no longer fails the run. A `policy_violation` is
+listed with the rule it breaks, `policy_violation@naming.event`, and a marker
+that names it that way waives that rule only. The text listing counts a suppressed finding
 in the summary (`; 1 finding suppressed`) instead of listing it; the JSON, SARIF,
 Code Quality and JUnit reports keep it, marked as suppressed with its reason. A
 marker without a reason suppresses nothing. A malformed marker and an unused
@@ -4529,7 +4531,7 @@ by status the way the exit code does.
       "event_id": null,
       "identity": "checkout:tap:pay_buton",
       "findings": [
-        { "code": "unknown_event", "severity": "error", "field": null,
+        { "code": "unknown_event", "severity": "error", "field": null, "rule": null,
           "message": "The plan has no event of type 'se' 'checkout:tap:pay_buton'",
           "fingerprint": "4c7e…" }
       ]
@@ -4558,7 +4560,7 @@ by status the way the exit code does.
 | `results[].complete` | `true` for a payload (a whole event, so a missing required field is an error), `false` for a call site. |
 | `results[].dynamic` | The targets whose value was only known at runtime: `name`, `properties`, or field names. A field named like a reserved target is `field:<name>` (`field:name`, `field:properties`), as in a call spec and in `check --list`, so it is never read as the event's name or its properties. |
 | `results[].event_id` / `identity` | The plan event the item resolved to, and the identity it was matched by, with `${…}` holes for parts only known at runtime. `event_id` is `null` when nothing matched; both are `null` for a row that was never sent. |
-| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
+| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`), `rule` (the policy rule a `policy_violation` breaks, such as `naming.event`; `null` for every other code), a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
 
 **Suppression keys.** When the static scan read at least one
 [`tripl-check-ignore` marker](../integrate/tripl-check.md#suppress), the
@@ -4568,7 +4570,7 @@ is present, and the document is the one above.
 
 | Key | Meaning |
 |-----|---------|
-| `suppressions[]` | Every marker the scan read, in file order: `location` (`path`, `line`, `column` of the keyword), `targets` (`[{code, field}]`, `field` `null` for any field), `reason` (the text after `--`, or `null`), `used` (whether it covers a finding with a code it lists in this run; two markers on one call can both be used, though a finding's `suppression` names only the first) and `problem` (`null`, or why it suppresses nothing: `no_codes`, `not_suppressible` for `no_verdict`, or `no_reason`). |
+| `suppressions[]` | Every marker the scan read, in file order: `location` (`path`, `line`, `column` of the keyword), `targets` (`[{code, field, rule}]`, `field` `null` for any field, `rule` `null` unless the marker names one as `code@rule`), `reason` (the text after `--`, or `null`), `used` (whether it covers a finding with a code it lists in this run; two markers on one call can both be used, though a finding's `suppression` names only the first) and `problem` (`null`, or why it suppresses nothing: `no_codes`, `not_suppressible` for `no_verdict`, or `no_reason`). |
 | `summary.suppressed` | How many findings a marker waives. |
 | `summary.failing` | How many rows fail the run. |
 | `results[].fails` | Whether the row fails the run. `status` stays the plan's verdict: an `error` row whose findings are all suppressed has `fails: false`. |

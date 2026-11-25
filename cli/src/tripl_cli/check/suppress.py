@@ -4,7 +4,13 @@ A marker waives the codes it lists on the calls it covers, and only with a
 reason. The grammar is the same in every language the scan reads::
 
     tripl-check-ignore[<target>(,<target>)*] -- <reason>
-    target := code [":" field]      code := [a-z][a-z0-9_]*      field := [^,\\]]+
+    target := code ["@" rule] [":" field]
+    code   := [a-z][a-z0-9_]*      rule := [A-Za-z0-9_.-]+      field := [^,\\]]+
+
+``@rule`` narrows a target to the findings one rule raised: a workspace policy
+raises every violation as ``policy_violation``, so ``policy_violation@naming.event``
+waives the naming rule's and leaves the others failing. Without it the target
+waives the code whichever rule raised it.
 
 It must begin a comment line: right after ``//``, ``/*`` or a block comment's
 leading ``*``, so a comment that only mentions the keyword mid-sentence is not
@@ -39,6 +45,7 @@ from tripl_cli.check.model import (
     Marker,
     MarkerState,
     Suppression,
+    Target,
 )
 
 KEYWORD = "tripl-check-ignore"
@@ -47,7 +54,7 @@ KEYWORD = "tripl-check-ignore"
 # stars), whitespace, then the keyword as a whole word.
 _MARKER_LINE = re.compile(r"[ \t]*(?:/\*+|//+|\*+(?!/))?[ \t]*(tripl-check-ignore)(?![\w-])")
 _TARGETS = re.compile(r"\[([^\]]*)\]")
-_TARGET = re.compile(r"([a-z][a-z0-9_]*)(?::([^,\]]+))?")
+_TARGET = re.compile(r"([a-z][a-z0-9_]*)(?:@([A-Za-z0-9_.-]+))?(?::([^,\]]+))?")
 _REASON = re.compile(r"\s*--(.*)", re.DOTALL)
 
 # How each problem reads after the marker's location.
@@ -161,7 +168,7 @@ def markers(
 
 def _marker(path: str, line: int, column: int, rest: str) -> Marker:
     text = " ".join(f"{KEYWORD}{rest}".split())
-    targets: tuple[tuple[str, str | None], ...] = ()
+    targets: tuple[Target, ...] = ()
     tail = rest
     listed = _TARGETS.match(rest)
     if listed is not None:
@@ -172,22 +179,22 @@ def _marker(path: str, line: int, column: int, rest: str) -> Marker:
     problem: str | None = None
     if not targets:
         problem = MARKER_NO_CODES
-    elif any(code == CODE_NO_VERDICT for code, _ in targets):
+    elif any(code == CODE_NO_VERDICT for code, _, _ in targets):
         problem = MARKER_NOT_SUPPRESSIBLE
     elif reason is None or not any(char.isalnum() for char in reason):
         problem = MARKER_NO_REASON
     return Marker(path, line, column, text, targets, reason, problem)
 
 
-def _targets(listed: str) -> tuple[tuple[str, str | None], ...]:
-    """The ``(code, field)`` pairs of a marker's brackets; empty when any one is malformed."""
-    targets: list[tuple[str, str | None]] = []
+def _targets(listed: str) -> tuple[Target, ...]:
+    """The ``(code, field, rule)`` of each bracketed entry; empty when any one is malformed."""
+    targets: list[Target] = []
     for part in listed.split(","):
         match = _TARGET.fullmatch(part.strip())
         if match is None:
             return ()
-        field = match.group(2).strip() if match.group(2) is not None else None
-        targets.append((match.group(1), field or None))
+        field = match.group(3).strip() if match.group(3) is not None else None
+        targets.append((match.group(1), field or None, match.group(2)))
     return tuple(targets)
 
 
@@ -238,8 +245,12 @@ def marker_states(
 
 
 def label(marker: Marker) -> str:
-    """The marker as its targets read: ``tripl-check-ignore[unknown_event,unknown_field:x]``."""
+    """The marker as its targets read: ``tripl-check-ignore[unknown_event,unknown_field:x]``.
+
+    A target naming a rule reads as it is written, ``policy_violation@naming.event:x``.
+    """
     targets = ",".join(
-        code if field is None else f"{code}:{field}" for code, field in marker.targets
+        code + ("" if rule is None else f"@{rule}") + ("" if field is None else f":{field}")
+        for code, field, rule in marker.targets
     )
     return f"{KEYWORD}[{targets}]"

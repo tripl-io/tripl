@@ -268,7 +268,7 @@ def _case_body(case: ET.Element, report: CheckReport, result: CheckResult) -> No
         waived = ""
         if finding.suppression is not None:
             waived = f" [suppressed: {finding.suppression.reason}]"
-        lines.append(f"{finding.severity} {finding.code}{field}: {finding.message}{waived}")
+        lines.append(f"{finding.severity} {finding.label}{field}: {finding.message}{waived}")
     details = _x("\n".join(lines))
     if failing(report, result):
         first = _first_failure(result.findings)

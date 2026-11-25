@@ -37,6 +37,7 @@ from tripl_cli.check.reports import (
     junit_document,
     repo_paths,
 )
+from tripl_cli.check.summary import markdown_document
 from tripl_cli.model import Instance, Run
 from tripl_cli.report import check_document
 
@@ -393,7 +394,7 @@ def test_without_a_repository_every_path_is_used_as_it_is(tmp_path: Path) -> Non
 
 
 # --- suppression -------------------------------------------------------------------------
-WAIVER = Suppression("Sources/Pay.swift", 11, 5, (("unknown_event", None),), "staged rollout")
+WAIVER = Suppression("Sources/Pay.swift", 11, 5, (("unknown_event", None, None),), "staged rollout")
 
 
 def _waived(line: int = 12) -> CheckResult:
@@ -404,7 +405,7 @@ def _waived(line: int = 12) -> CheckResult:
 def _marker(
     line: int, *, problem: str | None = None, text: str = "tripl-check-ignore[x] -- r"
 ) -> Marker:
-    return Marker("Sources/Pay.swift", line, 5, text, (("x", None),), "r", problem)
+    return Marker("Sources/Pay.swift", line, 5, text, (("x", None, None),), "r", problem)
 
 
 def _marked(*results: CheckResult, strict: bool = False) -> CheckReport:
@@ -529,7 +530,7 @@ def test_the_json_document_says_what_each_marker_did() -> None:
     assert [entry["used"] for entry in document["suppressions"]] == [True, False, False]
     assert document["suppressions"][1] == {
         "location": {"path": "Sources/Pay.swift", "line": 30, "column": 5},
-        "targets": [{"code": "x", "field": None}],
+        "targets": [{"code": "x", "field": None, "rule": None}],
         "reason": "r",
         "used": False,
         "problem": "no_reason",
@@ -542,7 +543,15 @@ def test_with_no_marker_the_json_document_has_no_suppression_keys() -> None:
     assert set(document["summary"]) == {"checked", "ok", "warnings", "errors", "dynamic"}
     [result] = document["results"]
     assert "fails" not in result
-    assert set(result["findings"][0]) == {"code", "severity", "field", "message", "fingerprint"}
+    assert set(result["findings"][0]) == {
+        "code",
+        "severity",
+        "field",
+        "rule",
+        "message",
+        "fingerprint",
+    }
+    assert result["findings"][0]["rule"] is None
 
 
 def test_a_result_that_still_fails_is_listed_even_with_its_findings_suppressed() -> None:
@@ -557,6 +566,94 @@ def test_a_result_that_still_fails_is_listed_even_with_its_findings_suppressed()
 # --- no marker, no change ----------------------------------------------------------------
 # Written by the CLI as it was before markers existed, from the report below:
 # with no marker these formats must not gain a key, a value or a byte.
+# --- the rule of a policy finding ----------------------------------------------
+NAMING = CheckFinding(
+    "policy_violation", "error", "Event names are snake_case", rule="naming.event"
+)
+FORBIDDEN = CheckFinding(
+    "policy_violation", "error", "'email' may not be sent", field="email", rule="forbidden_field"
+)
+
+
+def _policy() -> CheckReport:
+    return _report(_result(12, name="PayTapped", findings=(NAMING, FORBIDDEN)))
+
+
+def test_the_listing_names_the_rule_as_a_marker_would() -> None:
+    text = render_text(_policy())
+    assert "    error  policy_violation@naming.event: Event names are snake_case" in text
+    assert "    error  policy_violation@forbidden_field [email]: 'email' may not be sent" in text
+    # A finding with no rule reads as it did.
+    assert "    error  unknown_event: The plan has no event" in render_text(_report(_result(12)))
+
+
+def test_the_json_document_carries_the_rule() -> None:
+    [result] = check_document(_policy())["results"]
+    assert [(f["code"], f["field"], f["rule"]) for f in result["findings"]] == [
+        ("policy_violation", None, "naming.event"),
+        ("policy_violation", "email", "forbidden_field"),
+    ]
+
+
+def test_the_json_document_carries_the_rule_a_marker_names() -> None:
+    marker = Marker(
+        "Sources/Pay.swift", 11, 5, "t", (("policy_violation", "email", "forbidden_field"),), "r"
+    )
+    report = replace(_policy(), markers=(MarkerState(marker, used=True),))
+    [listed] = check_document(report)["suppressions"]
+    assert listed["targets"] == [
+        {"code": "policy_violation", "field": "email", "rule": "forbidden_field"}
+    ]
+
+
+def test_sarif_keeps_the_code_as_the_rule_id_and_carries_the_rule_beside_it() -> None:
+    [run] = sarif_document(_policy(), root=None)["runs"]
+    naming, forbidden = run["results"]
+    assert naming["ruleId"] == forbidden["ruleId"] == "policy_violation"
+    assert naming["properties"]["rule"] == "naming.event"
+    assert forbidden["properties"]["rule"] == "forbidden_field"
+    assert naming["message"]["text"].startswith("Event names are snake_case (rule naming.event) - ")
+    assert "(rule forbidden_field) (field email)" in forbidden["message"]["text"]
+    # A finding with no rule has no such property.
+    [plain] = sarif_document(_report(_result(12)), root=None)["runs"][0]["results"]
+    assert "rule" not in plain["properties"]
+
+
+def test_code_quality_names_the_rule_and_keeps_its_check_name_and_fingerprint() -> None:
+    report = _policy()
+    naming, forbidden = codequality_document(report)
+    assert naming["check_name"] == forbidden["check_name"] == "tripl/policy_violation"
+    assert "(rule naming.event)" in naming["description"]
+    assert "(rule forbidden_field)" in forbidden["description"]
+    # The rule is not part of a finding's identity: a report written before
+    # the rule was carried names the same findings.
+    bare = _report(
+        _result(
+            12,
+            name="PayTapped",
+            findings=(replace(NAMING, rule=None), replace(FORBIDDEN, rule=None)),
+        )
+    )
+    assert finding_fingerprints(report) == finding_fingerprints(bare)
+    assert [naming["fingerprint"], forbidden["fingerprint"]] == list(finding_fingerprints(bare)[0])
+
+
+def test_junit_names_the_rule_in_the_failure_and_its_lines() -> None:
+    _, [case] = _cases(junit_document(_policy()))
+    [failure] = case.findall("failure")
+    assert failure.get("type") == "policy_violation"
+    assert "(rule naming.event)" in (failure.get("message") or "")
+    lines = (failure.text or "").split("\n")
+    assert "error policy_violation@naming.event: Event names are snake_case" in lines
+    assert "error policy_violation@forbidden_field [email]: 'email' may not be sent" in lines
+
+
+def test_the_markdown_summary_names_the_rule() -> None:
+    text = markdown_document(_policy())
+    assert "error `policy_violation@naming.event`: Event names are snake_case" in text
+    assert "error `policy_violation@forbidden_field` [email]: 'email' may not be sent" in text
+
+
 GOLDEN = Path(__file__).parent / "check_golden"
 
 

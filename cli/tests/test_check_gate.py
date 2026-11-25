@@ -46,7 +46,7 @@ RUN = Run(
     duration_ms=10,
     requests=1,
 )
-WAIVER = Suppression("Sources/Pay.swift", 11, 8, (("unknown_event", None),), "staged rollout")
+WAIVER = Suppression("Sources/Pay.swift", 11, 8, (("unknown_event", None, None),), "staged rollout")
 STATUSES = ("ok", "warning", "error", "dynamic")
 SEVERITIES = ("error", "warning", "info")
 
@@ -128,7 +128,7 @@ def test_every_severe_finding_suppressed_passes() -> None:
 
 
 def test_a_suppressed_strict_dynamic_value_does_not_fail() -> None:
-    waiver = Suppression("Sources/Pay.swift", 11, 8, (("dynamic_value", "label"),), "runtime")
+    waiver = Suppression("Sources/Pay.swift", 11, 8, (("dynamic_value", "label", None),), "runtime")
     item = _item(waiver, dynamic=("label",))
     result = result_for(item, {"ref": "i0", "status": "ok", "findings": []}, strict=True, sent=True)
     assert result.status == "warning"
@@ -138,7 +138,7 @@ def test_a_suppressed_strict_dynamic_value_does_not_fail() -> None:
 
 
 def test_no_verdict_always_fails_whatever_a_marker_says() -> None:
-    waiver = Suppression("Sources/Pay.swift", 11, 8, (("no_verdict", None),), "never")
+    waiver = Suppression("Sources/Pay.swift", 11, 8, (("no_verdict", None, None),), "never")
     result = result_for(_item(waiver), None, strict=False, sent=True)
     [finding] = result.findings
     assert finding.code == "no_verdict"
@@ -188,15 +188,17 @@ def test_two_markers_on_one_call_are_both_used() -> None:
     ]
     assert [state.used for state in marker_states(markers, [result])] == [True, True]
     # A marker on the call that targets another code is still unused.
-    other = Suppression(WAIVER.path, 12, 60, (("unknown_field", None),), "other")
+    other = Suppression(WAIVER.path, 12, 60, (("unknown_field", None, None),), "other")
     result = result_for(_item(WAIVER, other), verdict, strict=False, sent=True)
     marker = Marker(other.path, other.line, other.column, "t", other.targets, other.reason)
     assert [state.used for state in marker_states([marker], [result])] == [False]
 
 
 def test_an_unused_or_malformed_marker_never_fails_the_run() -> None:
-    unused = Marker("a.ts", 1, 4, "t", (("unknown_event", None),), "r")
-    malformed = Marker("a.ts", 2, 4, "t", (("unknown_event", None),), None, problem="no_reason")
+    unused = Marker("a.ts", 1, 4, "t", (("unknown_event", None, None),), "r")
+    malformed = Marker(
+        "a.ts", 2, 4, "t", (("unknown_event", None, None),), None, problem="no_reason"
+    )
     for strict in (False, True):
         report = replace(
             _report(CheckResult(_item(), "ok"), strict=strict),
@@ -303,6 +305,19 @@ def test_an_item_key_is_what_it_sends_never_its_line_or_file() -> None:
     assert item_key(replace(_at(3), dynamic=("a", "b"))) == item_key(
         replace(_at(3), dynamic=("b", "a"))
     )
+
+
+def test_an_item_key_counts_the_rule_a_marker_names() -> None:
+    def waived(rule: str | None) -> CheckItem:
+        marker = Suppression("Sources/Pay.swift", 2, 8, (("policy_violation", None, rule),), "r")
+        return replace(_at(3), suppressions=(marker,))
+
+    # Narrowing a marker to one rule, or naming another, waives something else.
+    assert item_key(waived(None)) != item_key(waived("naming.event"))
+    assert item_key(waived("naming.event")) != item_key(waived("forbidden_field"))
+    assert item_key(waived("naming.event")) == item_key(waived("naming.event"))
+    # The baseline's key leaves markers out, rule and all.
+    assert item_key(waived("naming.event"), markers=False) == item_key(_at(3), markers=False)
 
 
 def test_an_item_key_is_the_call_as_matched_and_its_holes_unnamed() -> None:

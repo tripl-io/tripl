@@ -9,6 +9,7 @@ finding nobody chose to waive.
 from __future__ import annotations
 
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -18,10 +19,13 @@ from tripl_cli.check.calls import find_calls
 from tripl_cli.check.config import parse
 from tripl_cli.check.lexer import LineIndex, tokenize
 from tripl_cli.check.model import (
+    CODE_UNUSED_SUPPRESSION,
     MARKER_NO_CODES,
     MARKER_NO_REASON,
     MARKER_NOT_SUPPRESSIBLE,
     CheckFinding,
+    CheckItem,
+    CheckResult,
     Marker,
     Origin,
     Suppression,
@@ -100,7 +104,7 @@ def test_an_own_line_marker_skips_blank_and_comment_lines_to_the_next_code_line(
 )
 def test_every_comment_form_reads_the_marker(language: str, text: str) -> None:
     [marker] = _markers(text, language)
-    assert marker.targets == (("unknown_event", None),)
+    assert marker.targets == (("unknown_event", None, None),)
     assert marker.problem is None
     assert _covered(text, language)["log"] == [marker.line]
 
@@ -242,7 +246,7 @@ def test_targets_and_fields_are_read_in_order() -> None:
     [marker] = _markers(
         "// tripl-check-ignore[unknown_event, unknown_field:ab variant ] -- two codes\n", "ts"
     )
-    assert marker.targets == (("unknown_event", None), ("unknown_field", "ab variant"))
+    assert marker.targets == (("unknown_event", None, None), ("unknown_field", "ab variant", None))
     assert marker.reason == "two codes"
 
 
@@ -270,7 +274,9 @@ def test_a_malformed_marker_is_read_and_suppresses_nothing(text: str, problem: s
 
 
 def test_code_field_narrows_the_waiver_to_that_field() -> None:
-    waiver = Suppression("f", 1, 4, (("value_not_allowed", "plan"), ("unknown_event", None)), "r")
+    waiver = Suppression(
+        "f", 1, 4, (("value_not_allowed", "plan", None), ("unknown_event", None, None)), "r"
+    )
     assert waiver.covers(CheckFinding("value_not_allowed", "error", "x", field="plan"))
     assert not waiver.covers(CheckFinding("value_not_allowed", "error", "x", field="tier"))
     assert waiver.covers(CheckFinding("unknown_event", "error", "x"))
@@ -279,13 +285,100 @@ def test_code_field_narrows_the_waiver_to_that_field() -> None:
 
 
 def test_no_verdict_is_never_covered_whatever_the_marker_lists() -> None:
-    waiver = Suppression("f", 1, 4, (("no_verdict", None),), "r")
+    waiver = Suppression("f", 1, 4, (("no_verdict", None, None),), "r")
     assert not waiver.covers(CheckFinding("no_verdict", "error", "x"))
+
+
+@pytest.mark.parametrize(
+    ("listed", "targets"),
+    [
+        ("policy_violation@naming.event", (("policy_violation", None, "naming.event"),)),
+        ("policy_violation@naming.event:plan", (("policy_violation", "plan", "naming.event"),)),
+        ("policy_violation@Forbidden-Field_2", (("policy_violation", None, "Forbidden-Field_2"),)),
+        (
+            "unknown_event, policy_violation@naming.field: ab variant ,policy_violation:plan",
+            (
+                ("unknown_event", None, None),
+                ("policy_violation", "ab variant", "naming.field"),
+                ("policy_violation", "plan", None),
+            ),
+        ),
+        # After the colon everything is the field, an at sign included.
+        ("unknown_field:user@home", (("unknown_field", "user@home", None),)),
+    ],
+)
+def test_a_target_can_name_the_rule_it_waives(
+    listed: str, targets: tuple[tuple[str, str | None, str | None], ...]
+) -> None:
+    [marker] = _markers(f"// tripl-check-ignore[{listed}] -- agreed with the data team\n", "ts")
+    assert marker.problem is None
+    assert marker.targets == targets
+
+
+@pytest.mark.parametrize(
+    "listed",
+    [
+        "policy_violation@",
+        "policy_violation@:plan",
+        "policy_violation@naming event",
+        "policy_violation @naming.event",
+        "policy_violation@naming.event@forbidden_field",
+        "policy_violation@naming/event",
+        "@naming.event",
+        "unknown_event,policy_violation@",
+    ],
+)
+def test_a_malformed_rule_makes_the_whole_marker_invalid(listed: str) -> None:
+    source = f'// tripl-check-ignore[{listed}] -- agreed\nlog("a")\n'
+    [marker] = _markers(source, "ts")
+    assert marker.problem == MARKER_NO_CODES
+    assert marker.targets == ()
+    assert _covered(source, "ts") == {"log": []}
+
+
+def test_code_rule_narrows_the_waiver_to_that_rule() -> None:
+    naming = CheckFinding("policy_violation", "error", "x", rule="naming.event")
+    forbidden = CheckFinding(
+        "policy_violation", "error", "x", field="email", rule="forbidden_field"
+    )
+    one_rule = Suppression("f", 1, 4, (("policy_violation", None, "naming.event"),), "r")
+    assert one_rule.covers(naming)
+    assert not one_rule.covers(forbidden)
+    # A rule on a target never matches a finding that carries none.
+    assert not one_rule.covers(CheckFinding("policy_violation", "error", "x"))
+    # Without a rule the target waives the code whichever rule raised it, as it always did.
+    any_rule = Suppression("f", 1, 4, (("policy_violation", None, None),), "r")
+    assert any_rule.covers(naming)
+    assert any_rule.covers(forbidden)
+    # The rule and the field narrow together.
+    both = Suppression("f", 1, 4, (("policy_violation", "email", "forbidden_field"),), "r")
+    assert both.covers(forbidden)
+    assert not both.covers(replace(forbidden, field="phone"))
+    assert not both.covers(replace(forbidden, rule="naming.field"))
+
+
+def test_a_marker_naming_another_rule_is_unused() -> None:
+    finding = CheckFinding("policy_violation", "error", "x", rule="forbidden_field")
+    states = {}
+    for rule in ("naming.event", "forbidden_field"):
+        marker = Marker("f", 1, 4, "t", (("policy_violation", None, rule),), "r")
+        waiver = marker.suppression()
+        assert waiver is not None
+        item = CheckItem(Origin("f", 2, 1), "legacy", "a", {}, None, False, suppressions=(waiver,))
+        [state] = suppress.marker_states([marker], [CheckResult(item, "error", (finding,))])
+        states[rule] = state.code
+    assert states == {"naming.event": CODE_UNUSED_SUPPRESSION, "forbidden_field": None}
+
+
+def test_a_label_reads_as_the_targets_were_written() -> None:
+    listed = "unknown_event,policy_violation@naming.event,policy_violation@forbidden_field:email"
+    [marker] = _markers(f"// tripl-check-ignore[{listed}] -- agreed\n", "ts")
+    assert suppress.label(marker) == f"tripl-check-ignore[{listed}]"
 
 
 # --- scan ------------------------------------------------------------------------------
 def test_every_expanded_item_of_a_call_carries_its_suppressions() -> None:
-    waiver = Suppression("f", 1, 4, (("unknown_event", None),), "r")
+    waiver = Suppression("f", 1, 4, (("unknown_event", None, None),), "r")
     collected = _Collected(
         name=Value("choices", choices=tuple(f"event_{n}" for n in range(MAX_EXPANSION + 10))),
         fields={},

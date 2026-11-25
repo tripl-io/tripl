@@ -109,27 +109,35 @@ class Origin:
     snippet: str = ""
 
 
+# What one entry of a marker's brackets waives: ``(code, field, rule)``. The
+# field is None to waive the code on any field; the rule is None to waive it
+# whichever rule raised it, and otherwise names the one policy rule waived.
+Target = tuple[str, str | None, str | None]
+
+
 @dataclass(frozen=True)
 class Suppression:
     """A valid ``tripl-check-ignore`` marker, as attached to the calls it covers.
 
     ``path``, ``line`` and ``column`` are where the marker's keyword is (the
-    marker's identity in the run); each target is a ``(code, field)`` pair,
-    the field None to waive the code on any field.
+    marker's identity in the run); each target is a ``(code, field, rule)``
+    triple (``Target``).
     """
 
     path: str
     line: int
     column: int
-    targets: tuple[tuple[str, str | None], ...]
+    targets: tuple[Target, ...]
     reason: str
 
     def covers(self, finding: CheckFinding) -> bool:
         if finding.code == CODE_NO_VERDICT:
             return False
         return any(
-            code == finding.code and (field is None or field == finding.field)
-            for code, field in self.targets
+            code == finding.code
+            and (field is None or field == finding.field)
+            and (rule is None or rule == finding.rule)
+            for code, field, rule in self.targets
         )
 
 
@@ -146,7 +154,7 @@ class Marker:
     line: int
     column: int
     text: str
-    targets: tuple[tuple[str, str | None], ...]
+    targets: tuple[Target, ...]
     reason: str | None
     problem: str | None = None
 
@@ -209,6 +217,11 @@ class CheckFinding:
     severity: str
     message: str
     field: str | None = None
+    # The rule that raised the finding, as the validator names it
+    # (``naming.event``); None for a code that is its own rule. A workspace
+    # policy raises every violation under one code, so the rule is what tells
+    # two of them apart.
+    rule: str | None = None
     # The marker that waives this finding; the finding is still reported.
     suppression: Suppression | None = None
     # Under a gate (``--new-from-rev``/``--new-from-patch``): whether the
@@ -220,6 +233,11 @@ class CheckFinding:
     # baseline file holds this finding, so it does not fail the run; None
     # with no baseline.
     baselined: bool | None = None
+
+    @property
+    def label(self) -> str:
+        """The code as a marker names it: ``policy_violation@naming.event``, or the bare code."""
+        return self.code if self.rule is None else f"{self.code}@{self.rule}"
 
 
 def severe(finding: CheckFinding, strict: bool) -> bool:

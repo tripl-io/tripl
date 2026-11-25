@@ -115,7 +115,7 @@ def test_a_key_is_what_the_call_sends_never_its_place_or_its_markers() -> None:
     assert baseline_key(_item(3)) != baseline_key(_item(3, "other"))
     marked = replace(
         _item(3),
-        suppressions=(Suppression("Sources/A.swift", 2, 1, (("unknown_field", None),), "x"),),
+        suppressions=(Suppression("Sources/A.swift", 2, 1, (("unknown_field", None, None),), "x"),),
     )
     assert baseline_key(marked) == baseline_key(_item(3))
 
@@ -184,7 +184,8 @@ def test_a_finding_more_severe_than_its_entry_is_new() -> None:
 
 def test_markers_win_and_no_verdict_is_never_held() -> None:
     waived = replace(
-        _error(), suppression=Suppression("Sources/A.swift", 2, 1, (("unknown_event", None),), "x")
+        _error(),
+        suppression=Suppression("Sources/A.swift", 2, 1, (("unknown_event", None, None),), "x"),
     )
     blank = CheckFinding(CODE_NO_VERDICT, "error", "no verdict")
     entries = [_entry(_item()), Entry(baseline_key(_item()), CODE_NO_VERDICT, None, "error", 1)]

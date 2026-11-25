@@ -110,7 +110,7 @@ def item_key(item: CheckItem, *, markers: bool = True) -> str:
     so reordering named arguments or object keys changes nothing. The waived
     part is the targets of the valid markers on the call, not their reasons:
     removing a marker, dropping its reason (so it waives nothing) or
-    changing a code it lists changes the call, and so does pasting an
+    changing a code or a rule it lists changes the call, and so does pasting an
     unmarked copy of a marked call, which cannot take the marked one's place
     at the base; rewording a reason does not.
 
@@ -122,9 +122,9 @@ def item_key(item: CheckItem, *, markers: bool = True) -> str:
     waived = (
         sorted(
             {
-                (code, field or "")
+                (code, field or "", rule or "")
                 for suppression in item.suppressions
-                for code, field in suppression.targets
+                for code, field, rule in suppression.targets
             }
         )
         if markers
