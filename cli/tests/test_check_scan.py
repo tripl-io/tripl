@@ -1180,6 +1180,64 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
     ]
 
 
+@pytest.mark.parametrize(
+    ("path", "source"),
+    [
+        (
+            "app/Tracking.kt",
+            """
+            fun track(event: String, screen: String) {
+                Analytics.log(event, screen)
+            }
+            fun open() {
+                track("screen_view", "home")
+            }
+            """,
+        ),
+        (
+            "app/Tracking.java",
+            """
+            class Tracking {
+                void track(String event, String screen) throws IOException {
+                    Analytics.log(event, screen);
+                }
+                void open() {
+                    track("screen_view", "home");
+                }
+            }
+            """,
+        ),
+    ],
+    ids=["kotlin", "java"],
+)
+def test_a_function_declaration_is_not_sent_as_a_call(
+    tmp_path: Path, path: str, source: str
+) -> None:
+    """``find_calls`` reads ``fun track(event: String, ...) {`` as a call to ``track``.
+
+    The spec names ``track``, so plain check used to send the declaration as a
+    tracking call whose name was the parameter ``event`` - a dynamic row, or
+    under --strict a warning, for a line that tracks nothing.
+    """
+    root = _repo(tmp_path, {path: source})
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name, "field:screen"]}]}
+        """,
+    )
+
+    items = scan(config).items
+
+    assert [(item.name, dict(item.fields)) for item in items] == [
+        ("screen_view", {"screen": "home"})
+    ]
+    # --list agrees: one call site, the real one.
+    assert [call.items[0].name for call in inventory(config).calls] == ["screen_view"]
+
+
 # --- function scopes -----------------------------------------------------------------
 def _scope_at(language: str, source: str, marker: str = "log") -> FunctionScope | None:
     """The innermost function scope around the first ``marker(`` call in ``source``."""
