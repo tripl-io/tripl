@@ -267,6 +267,115 @@ def test_model_and_branch_together_are_refused(
     assert "drop --branch" in capsys.readouterr().err
 
 
+def test_codegen_branch_if_exists_uses_an_open_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    assert main(["codegen", "--branch-if-exists", "checkout-redesign", "--json"]) == 0
+    assert route.calls.last.request.url.params["branch"] == "b-9f21"
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["plan_branch"] == {
+        "requested": "checkout-redesign",
+        "status": "draft",
+        "used": "branch",
+    }
+    assert "Plan branch" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("rows", "note"),
+    [
+        ([], "Plan branch checkout-redesign not found: used the main plan."),
+        (
+            [make_branch(status="merged")],
+            "Plan branch checkout-redesign is merged: used the main plan.",
+        ),
+    ],
+)
+def test_codegen_branch_if_exists_reads_main_and_says_so(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    rows: list[dict[str, Any]],
+    note: str,
+) -> None:
+    tripl_api.branches("demo", rows)
+    route = _exporter(tripl_api)
+    # The environment variable means the flag, for codegen as for check.
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["codegen", "--json"]) == 0
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert note in captured.err
+    document = json.loads(captured.out)
+    assert document["branch"] is None
+    assert document["plan_branch"]["used"] == "main"
+    header = (repo / "generated/swift/AppEvents.swift").read_text(encoding="utf-8")
+    assert "branch main" in header
+
+
+def test_codegen_branch_on_a_merged_branch_warns(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch(status="merged")])
+    route = _exporter(tripl_api)
+    assert main(["codegen", "--branch", "checkout-redesign"]) == 0
+    assert route.calls.last.request.url.params["branch"] == "b-9f21"
+    assert "Warning: plan branch checkout-redesign is merged" in capsys.readouterr().out
+
+
+def test_codegen_refuses_both_branch_flags(
+    repo: Path, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["codegen", "--branch", "a", "--branch-if-exists", "b"]) == 2
+    assert "both name the plan branch" in capsys.readouterr().err
+
+
+def test_model_refuses_the_flag_and_ignores_the_environment(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["codegen", "--model", "model.json", "--branch-if-exists", "x"]) == 2
+    assert "drop --branch-if-exists" in capsys.readouterr().err
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["codegen", "--model", "model.json"]) == 0
+    assert "Plan branch" not in capsys.readouterr().out
+
+
+def test_export_honours_the_config_key_but_not_the_environment(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    listing = tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["export", "--format", "codegen_model"]) == 0
+    assert not listing.called
+    capsys.readouterr()
+    monkeypatch.delenv("TRIPL_PLAN_BRANCH")
+    config = repo / ".tripl" / "check.yml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\nbranch_if_exists: feature/login\n",
+        encoding="utf-8",
+    )
+    assert main(["export", "--format", "codegen_model"]) == 0
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert "Plan branch feature/login not found: used the main plan." in captured.err
+    assert json.loads(captured.out)["revision"] == REVISION
+
+
 # --- export ------------------------------------------------------------------------------
 def test_safe_names_never_leave_the_output_directory() -> None:
     assert safe_name("home:open:card") == "home_open_card"

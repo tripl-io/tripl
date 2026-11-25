@@ -653,3 +653,24 @@ def render_whoami(whoami: Whoami) -> str:
     if whoami.is_platform_admin:
         lines.append("platform admin: yes (operator settings; browser sessions only)")
     return "\n".join(lines)
+
+
+def plan_branch_note(requested: str, status: str | None, *, used_main: bool) -> str | None:
+    """What a run says about the plan branch it asked for; None when there is nothing to say.
+
+    Three cases are worth a line. Under ``--branch-if-exists`` the run read main
+    because no branch has that name, or because the branch is merged or closed.
+    Under ``--branch`` the run read a merged or closed branch: the instance
+    answers that from the copy the branch held when it ended, so the verdicts
+    are not the main plan's, and nobody chose that on purpose.
+    """
+    if used_main:
+        if status is None:
+            return f"Plan branch {requested} not found: used the main plan."
+        return f"Plan branch {requested} is {status}: used the main plan."
+    if status in ("merged", "closed"):
+        return (
+            f"Warning: plan branch {requested} is {status}, so this run read its frozen copy, "
+            "not the main plan. Name no branch to read main, or use --branch-if-exists."
+        )
+    return None

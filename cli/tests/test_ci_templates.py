@@ -152,6 +152,7 @@ def _stub(tmp_path: Path, name: str) -> Path:
         'for a in "$@"; do printf "%s\\n" "$a"; done > "$STUB_OUT"\n'
         'pwd > "$STUB_OUT.cwd"\n'
         'printf "%s\\n%s\\n" "${TRIPL_BASE_URL:-}" "${TRIPL_API_KEY:-}" > "$STUB_OUT.env"\n'
+        'printf "%s\\n" "${TRIPL_PLAN_BRANCH-unset}" > "$STUB_OUT.plan_branch"\n'
         'for a in "$@"; do case "$a" in sarif=*) : > "${a#sarif=}" ;; esac; done\n'
         'exit "${STUB_EXIT:-0}"\n',
         encoding="utf-8",
@@ -168,6 +169,10 @@ class Ran:
         self.argv = out.read_text(encoding="utf-8").splitlines() if self.called else []
         self.cwd = Path(out.with_suffix(".cwd").read_text().strip()) if self.called else None
         self.env = out.with_suffix(".env").read_text().splitlines() if self.called else []
+        # What the CLI would read as --branch-if-exists; "unset" when not exported.
+        self.plan_branch = (
+            out.with_suffix(".plan_branch").read_text().rstrip("\n") if self.called else None
+        )
 
     def after(self, flag: str) -> str:
         return self.argv[self.argv.index(flag) + 1]
@@ -355,6 +360,11 @@ def _action(clone: Path, tmp_path: Path, **env: str) -> tuple[Ran, dict[str, str
         "INPUT_BASELINE": BASELINE,
         "INPUT_GATE": "true",
         "INPUT_STRICT": "false",
+        "INPUT_PLAN_BRANCH": "none",
+        "HEAD_REF": "",
+        "REF_NAME": "main",
+        "REF_TYPE": "branch",
+        "DEFAULT_BRANCH": "main",
         "INPUT_PASS_ON_OUTAGE": "true",
         "INPUT_SARIF": "true",
         "INPUT_ARGS": "",
@@ -506,4 +516,99 @@ def test_action_refuses_a_version_that_is_not_a_release(origin: Path, tmp_path: 
     clone = _clone(origin, "main", tmp_path / "clone")
     ran, _ = _action(clone, tmp_path, INPUT_VERSION="1.2.3; rm -rf /")
     assert ran.code == 2
+    assert not ran.called
+
+
+# --- the plan branch named like the git branch ------------------------------------------
+@needs_git
+@pytest.mark.parametrize(
+    ("mode", "env", "exported"),
+    [
+        # Off unless asked for: the variable is not exported at all, so the
+        # input's own value can never be read as a branch name.
+        ("plan_branch=none", {"CI_COMMIT_BRANCH": "feature"}, "unset"),
+        ("", {"CI_COMMIT_BRANCH": "feature"}, "unset"),
+        ("plan_branch=git_branch", {"CI_COMMIT_BRANCH": "feature"}, "feature"),
+        # A merge request pipeline has no CI_COMMIT_BRANCH; a merge train still
+        # carries the source branch.
+        (
+            "plan_branch=git_branch",
+            {"CI_MERGE_REQUEST_SOURCE_BRANCH_NAME": "checkout v2 *"},
+            "checkout v2 *",
+        ),
+        # The default branch is checked against the main plan.
+        ("plan_branch=git_branch", {"CI_COMMIT_BRANCH": "main"}, "unset"),
+        # A tag pipeline has neither variable.
+        ("plan_branch=git_branch", {}, "unset"),
+    ],
+)
+def test_gitlab_plan_branch_input_exports_the_git_branch_name(
+    origin: Path, tmp_path: Path, mode: str, env: dict[str, str], exported: str
+) -> None:
+    clone = _clone(origin, "main", tmp_path / "clone")
+    ran = _gitlab(
+        clone,
+        tmp_path,
+        TRIPL_CHECK_MODE=f"pipelines=branches gate=false strict=false {mode}",
+        **env,
+    )
+    assert ran.code == 0, ran.log
+    assert ran.plan_branch == exported
+    # The name reaches the CLI through the environment, never as an argument:
+    # a pinned run then ignores it instead of exiting 2.
+    assert "--branch-if-exists" not in ran.argv
+
+
+def test_gitlab_plan_branch_input_is_not_a_variable_the_cli_reads() -> None:
+    job = GITLAB.read_text(encoding="utf-8").split("\n---\n")[1]
+    variables = job.split("\n  variables:\n")[1].split("\n  rules:\n")[0]
+    assert "inputs.plan_branch" in variables
+    assert "TRIPL_PLAN_BRANCH" not in variables
+
+
+@needs_git
+@pytest.mark.parametrize(
+    ("env", "exported"),
+    [
+        ({"INPUT_PLAN_BRANCH": "none", "HEAD_REF": "feature"}, "unset"),
+        (
+            {
+                "INPUT_PLAN_BRANCH": "git_branch",
+                "EVENT_NAME": "pull_request",
+                "HEAD_REF": "checkout v2 *",
+            },
+            "checkout v2 *",
+        ),
+        ({"INPUT_PLAN_BRANCH": "git_branch", "REF_NAME": "feature"}, "feature"),
+        # The default branch is checked against the main plan.
+        ({"INPUT_PLAN_BRANCH": "git_branch", "REF_NAME": "main"}, "unset"),
+        # A tag is not a branch.
+        ({"INPUT_PLAN_BRANCH": "git_branch", "REF_NAME": "v1", "REF_TYPE": "tag"}, "unset"),
+        # A merge queue run has no head branch: its ref is the queue's own.
+        (
+            {
+                "INPUT_PLAN_BRANCH": "git_branch",
+                "EVENT_NAME": "merge_group",
+                "REF_NAME": "gh-readonly-queue/main/pr-7-abc",
+            },
+            "unset",
+        ),
+    ],
+)
+def test_action_plan_branch_input_exports_the_git_branch_name(
+    origin: Path, tmp_path: Path, env: dict[str, str], exported: str
+) -> None:
+    clone = _clone(origin, "main", tmp_path / "clone")
+    ran, _ = _action(clone, tmp_path, **{"INPUT_GATE": "false", **env})
+    assert ran.code == 0, ran.log
+    assert ran.plan_branch == exported
+    assert "--branch-if-exists" not in ran.argv
+
+
+@needs_git
+def test_action_refuses_a_plan_branch_value_it_does_not_know(origin: Path, tmp_path: Path) -> None:
+    clone = _clone(origin, "main", tmp_path / "clone")
+    ran, _ = _action(clone, tmp_path, INPUT_PLAN_BRANCH="merge_request")
+    assert ran.code == 2
+    assert "plan-branch: 'merge_request' is not none or git_branch." in ran.log
     assert not ran.called

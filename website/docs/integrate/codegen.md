@@ -2004,6 +2004,14 @@ Notes:
 - The check compares against the **main** plan unless you pass `--branch` (or
   set `branch` in the file). A plan change on a branch fails the check once the
   branch merges, which is the moment the code has to follow.
+- To generate from the plan branch named like the git branch when there is one,
+  pass `--branch-if-exists "$BRANCH_NAME"` (or export `TRIPL_PLAN_BRANCH`, or set
+  `branch_if_exists` in the file). The run reads that plan branch while it exists
+  and is open, and main otherwise, printing `Plan branch NAME not found: used the
+  main plan.` (or `is merged`, `is closed`); `--json` carries the same in
+  `plan_branch`. `--branch` on a merged or closed branch still reads the copy
+  the branch held when it ended, and prints a `Warning:` line saying so. See
+  [Plan branches in CI](tripl-check.md#plan-branch-ci).
 - The header carries the plan's content hash, not its revision, so a new
   revision alone does not fail the check. A content change does change the
   hash, and with it every generated file's header, even when the change does
