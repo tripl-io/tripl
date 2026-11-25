@@ -1180,8 +1180,20 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "function": "logEvent",
         "location": {"path": "app/Screen.kt", "line": 2},
         "parameters": [
-            {"name": "event", "index": 0, "label": "event", "targets": ["name"]},
-            {"name": "params", "index": 1, "label": "params", "targets": ["properties"]},
+            {
+                "name": "event",
+                "index": 0,
+                "label": "event",
+                "targets": ["name"],
+                "object_argument": False,
+            },
+            {
+                "name": "params",
+                "index": 1,
+                "label": "params",
+                "targets": ["properties"],
+                "object_argument": False,
+            },
         ],
         "calls": 1,
         # By name, its own body left out: the call it forwards to is no caller.
@@ -1560,7 +1572,8 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "app/A.kt:3:5  st  tracker.trackStructured\n"
         "    name: not passed\n"
         "web/t.ts:2:3  se  trackStructEvent\n"
-        "    name: not passed, object argument evt is not a literal\n"
+        "    name: not passed, object argument evt is not a literal: "
+        "parameter evt of send (line 1)\n"
         "web/t.ts:5:3  se  trackStructEvent  category=checkout action=tap\n"
         "web/t.ts:6:3  se  trackStructEvent\n"
         "    name: not passed\n"
@@ -1576,10 +1589,18 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "(no argument or object key the spec maps to one, only null ones, or an object "
         "argument that is not a literal)\n"
         "\n"
+        # Both functions pass their own parameter on as the object argument,
+        # the second into a call whose name is read.
+        "Functions that forward their own parameter into a tracking call "
+        "(add a call spec for each, so their calls are read):\n"
+        "  opened  web/t.ts:8  forwards props (#0) as the object argument  no calls found\n"
+        "  send    web/t.ts:1  forwards evt (#0) as the object argument    no calls found\n"
+        "\n"
         "Calls that look like tracking but match no call spec: none.\n"
     )
     assert main(["check", "--list", "--json"]) == 0
-    calls = json.loads(capsys.readouterr().out)["calls"]
+    document = json.loads(capsys.readouterr().out)
+    calls = document["calls"]
     assert [call["dynamic"] for call in calls] == [
         {"name": "not_passed"},
         {"name": "not_passed"},
@@ -1590,22 +1611,42 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     ]
     # The document names the object argument the text does: one the scan could
     # not read. A literal one, or null, is no such argument. It names one on a
-    # call whose name is read too, where the text says nothing of it.
+    # call whose name is read too, where the text has no reason line for it.
+    # Its reason is refined from the function around the call.
     unread = {
         "kind": "dynamic",
         "text": None,
         "choices": [],
         "entries": None,
-        "reason": "variable",
-        "declared": None,
+        "reason": "parameter",
     }
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt"},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
         None,
         None,
-        {**unread, "expression": "props"},
+        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+    ]
+    assert [
+        (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
+    ] == [
+        (
+            "opened",
+            [
+                {
+                    "name": "props",
+                    "index": 0,
+                    "label": None,
+                    "targets": [],
+                    "object_argument": True,
+                }
+            ],
+        ),
+        (
+            "send",
+            [{"name": "evt", "index": 0, "label": None, "targets": [], "object_argument": True}],
+        ),
     ]
 
 

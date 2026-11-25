@@ -30,7 +30,14 @@ from tripl_cli.check import inventory as inventory_module
 from tripl_cli.check import yamlish
 from tripl_cli.check.calls import find_calls
 from tripl_cli.check.config import CheckConfig, parse
-from tripl_cli.check.inventory import Inventory, ListedCall, Location, inventory, summarize
+from tripl_cli.check.inventory import (
+    ForwardedParameter,
+    Inventory,
+    ListedCall,
+    Location,
+    inventory,
+    summarize,
+)
 from tripl_cli.check.lexer import STRING, Interp, Token, tokenize
 from tripl_cli.check.model import REASON_CODES, CheckItem
 from tripl_cli.check.scan import Snapshot, base_items, glob_regex, scan
@@ -1185,15 +1192,13 @@ def test_a_dynamic_target_with_no_dynamic_value_says_why(tmp_path: Path) -> None
         {"name": "not_passed"},
         {"name": "not_passed"},
     ]
-    # The object argument is kept, as the evaluator read it: it is why nothing was.
+    # The object argument is kept: it is why nothing was. At the top level of
+    # a file no function explains it, so its reason is the evaluator's own.
     objects = [call.read.unread_object for call in found.calls]
     assert objects[:2] == [None, None]
     assert objects[2] is not None
-    assert (objects[2].kind, objects[2].reason, objects[2].expression) == (
-        "dynamic",
-        "variable",
-        "props",
-    )
+    assert (objects[2].value.kind, objects[2].value.expression) == ("dynamic", "props")
+    assert (objects[2].reason, objects[2].declared) == ("variable", None)
 
 
 def test_every_dynamic_target_has_exactly_one_reason(tmp_path: Path) -> None:
@@ -3112,3 +3117,128 @@ def test_base_items_reads_the_snapshot_in_place_of_the_tree(tmp_path: Path) -> N
         ("src/added.ts", "brand_new"),
         ("src/renamed.ts", None),
     }
+
+
+# --- a parameter passed on as the object argument -----------------------------------
+OBJECT_SPECS = """
+    project: demo
+    event_types:
+      se: {preset: snowplow_structured}
+      ev:
+        calls:
+          - {function: "track", positional: [name], object_arg: 1}
+"""
+
+
+def _objects(found: Inventory) -> list[tuple[str, str, int] | tuple[str] | None]:
+    """Per call, its unread object argument: the reason, and the function and line it names."""
+    listed: list[tuple[str, str, int] | tuple[str] | None] = []
+    for call in found.calls:
+        unread = call.read.unread_object
+        if unread is None:
+            listed.append(None)
+        elif unread.declared is None:
+            listed.append((unread.reason,))
+        else:
+            listed.append((unread.reason, unread.declared.function, unread.declared.line))
+    return listed
+
+
+def test_a_function_that_passes_its_parameter_on_as_the_object_is_a_forwarder(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/t.ts": """
+                export function send(evt: StructuredEvent) {
+                  trackStructEvent(evt);
+                }
+                export function inner(evt: Wrapper) {
+                  trackStructEvent(evt.inner);
+                }
+                export function built() {
+                  const made = build();
+                  trackStructEvent(made);
+                }
+                export function constant(EVT: StructuredEvent) {
+                  trackStructEvent(EVT);
+                }
+                export function both(name: string, props: Props) {
+                  track(name, props);
+                  track("opened", props);
+                }
+                trackStructEvent(loose);
+            """,
+            "web/use.ts": """
+                send({ category: "checkout", action: "tap" });
+                send(other);
+            """,
+        },
+    )
+    found = inventory(_config(root, OBJECT_SPECS))
+    # The object argument is explained from the function the call sits in, as
+    # a target's value is. A parameter named like a constant is that parameter.
+    assert _objects(found) == [
+        ("parameter", "send", 1),
+        ("parameter_property", "inner", 4),
+        ("local", "built", 8),
+        ("parameter", "constant", 11),
+        ("parameter", "both", 14),
+        ("parameter", "both", 14),
+        ("variable",),
+    ]
+    # The reason stays `not_passed`, on the name: the counts do not move.
+    assert _dynamic_reasons(found)[:4] == [{"name": "not_passed"}] * 4
+    assert _dynamic_reasons(found)[4:] == [{"name": "parameter"}, {}, {"name": "not_passed"}]
+    # Only a bare parameter makes a forwarder: a property of one is set where
+    # its object is built, and a local is not the callers' to give.
+    forwarders = {forwarder.function: forwarder for forwarder in found.forwarders}
+    assert sorted(forwarders) == ["both", "constant", "send"]
+    assert forwarders["send"].parameters == (
+        ForwardedParameter("evt", 0, None, (), object_argument=True),
+    )
+    assert forwarders["constant"].parameters == (
+        ForwardedParameter("EVT", 0, None, (), object_argument=True),
+    )
+    # One parameter as the name, another as the object; two calls forward one.
+    assert forwarders["both"].parameters == (
+        ForwardedParameter("name", 0, None, ("name",)),
+        ForwardedParameter("props", 1, None, (), object_argument=True),
+    )
+    assert forwarders["both"].calls == 2
+    # Its callers are counted like any forwarder's, and it is listed first.
+    assert found.forwarders[0].function == "send"
+    callers = forwarders["send"].callers
+    assert (callers.same_file, callers.other_files, callers.other_files_matched) == (0, 2, 0)
+    assert callers.first_unmatched == Location("web/use.ts", 1, 1)
+
+
+def test_an_initializer_that_passes_its_parameter_on_as_the_object_is_listed_by_its_type(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/page.ts": """
+                export class PageView {
+                  constructor(evt: StructuredEvent) {
+                    trackStructEvent(evt);
+                  }
+                }
+                export const Untyped = class {
+                  constructor(evt: StructuredEvent) {
+                    trackStructEvent(evt);
+                  }
+                }
+                new PageView({ category: "page", action: "view" });
+            """,
+        },
+    )
+    found = inventory(_config(root, OBJECT_SPECS))
+    assert _objects(found) == [("parameter", "constructor", 2), ("parameter", "constructor", 7)]
+    # Under the name its callers write; one in an anonymous class has none.
+    [forwarder] = found.forwarders
+    assert (forwarder.function, forwarder.location) == ("PageView", Location("web/page.ts", 2))
+    assert forwarder.parameters == (ForwardedParameter("evt", 0, None, (), object_argument=True),)
+    assert forwarder.callers.same_file == 1
