@@ -599,15 +599,17 @@ def plan_branch_causes(
     """Per result, per finding: whether the plan branch caused it.
 
     A finding is the branch's when main's verdict on the same item has no
-    finding with the same code and field at the same severity or a higher one,
-    counted as multisets: an event the branch archives turns main's warning
-    into the branch's error, and that error is new.
+    finding with the same code, field and rule at the same severity or a
+    higher one, counted as multisets: an event the branch archives turns
+    main's warning into the branch's error, and that error is new. So is a
+    policy rule the branch makes a call break, even where main's policy
+    already failed the call on another rule.
     """
     causes: list[tuple[bool, ...]] = []
     for on_branch, on_main in zip(branch, main, strict=True):
-        pool: dict[tuple[str, str | None], list[int]] = defaultdict(list)
+        pool: dict[tuple[str, str | None, str | None], list[int]] = defaultdict(list)
         for finding in on_main.findings:
-            pool[(finding.code, finding.field)].append(_RANK.get(finding.severity, 0))
+            pool[(finding.code, finding.field, finding.rule)].append(_RANK.get(finding.severity, 0))
         for ranks in pool.values():
             ranks.sort(reverse=True)
         caused = [False] * len(on_branch.findings)
@@ -617,7 +619,7 @@ def plan_branch_causes(
         )
         for index in order:
             finding = on_branch.findings[index]
-            ranks = pool[(finding.code, finding.field)]
+            ranks = pool[(finding.code, finding.field, finding.rule)]
             # The most severe of main's left: it matches this one if any does,
             # and the branch's findings after this one are no more severe.
             if ranks and ranks[0] >= _RANK.get(finding.severity, 0):

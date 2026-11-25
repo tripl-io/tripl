@@ -439,7 +439,8 @@ reads the same in Swift, Objective-C, Kotlin, Java and TypeScript or
 JavaScript:
 
 ```
-tripl-check-ignore[<code>(,<code>)*] -- <reason>
+tripl-check-ignore[<target>(,<target>)*] -- <reason>
+<target> is <code>, <code>:<field>, <code>@<rule> or <code>@<rule>:<field>
 ```
 
 - **Codes.** Each is a finding code (`unknown_event`), or a code and a field
@@ -450,9 +451,12 @@ tripl-check-ignore[<code>(,<code>)*] -- <reason>
   call. Add `@` and the rule to waive one and keep the others failing:
   `policy_violation@naming.event`, or with a field too,
   `policy_violation@forbidden_field:email`. The rule is written as the report
-  prints it and may hold letters, digits, `.`, `_` and `-`; a rule the call
-  does not break waives nothing and shows as unused, and a marker with
-  anything else after the `@` (or nothing) is malformed.
+  prints it, right after the code. A rule the call does not break waives
+  nothing and shows as unused. A rule cannot hold a space, `,`, `:`, `@` or
+  `]`: a marker with one of those in its rule, or with nothing after the `@`,
+  suppresses nothing, and the job log says it names a rule it cannot read. A
+  policy rule whose own name holds one of them can only be waived with
+  `policy_violation` alone.
 - **Reason.** Everything after `--` to the end of the comment line (or to
   `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
   JUnit show it with the finding.
@@ -490,7 +494,7 @@ A covered call is waived on every item it expands into (a name function that
 returns several names, for example).
 
 **A marker without a reason suppresses nothing.** Nor does one that names no
-code or names `no_verdict`, which cannot be suppressed because nothing was
+code, has a rule it cannot read after an `@`, or names `no_verdict`, which cannot be suppressed because nothing was
 decided about the call. The finding fails the run as usual, so the required
 reason is enforced by the check itself, and the marker is reported as
 `invalid_suppression`:
@@ -593,7 +597,8 @@ minus `exclude:`), nothing is scanned twice and nothing is new.
 the change left alone, for example an event the branch archives. Those calls
 are validated against main too, in one more batch: a finding main does not
 have, or has at a lower severity, was caused by the branch, and it is new
-(`cause: "plan_branch"` in JSON).
+(`cause: "plan_branch"` in JSON). A `policy_violation` of a rule main's
+policy did not report on the call counts as one main does not have.
 
 **What it changes.** The exit code, the text listing (only what is new or
 fails, with a `Gate:` line counting the rest; a marker problem is listed only
@@ -806,8 +811,8 @@ tripl check --baseline .tripl/check-baseline.json         # in CI: fail only on 
 **What it holds.** An entry is a finding without its place: the call it is
 on, by what the call sends, the same key the gate compares (callee, event
 type, name, field values, what was only known at runtime; never the line or
-the file), plus the finding's code and field, the most severe severity seen
-and how many there were. So:
+the file), plus the finding's code and field, the rule of a
+`policy_violation`, the most severe severity seen and how many there were. So:
 
 - a call moved to another line or file, or reformatted, stays in the
   baseline;
@@ -816,6 +821,14 @@ and how many there were. So:
 - an edited call is new: it sends something else;
 - a finding more severe than its entry (a warning that became an error) is
   new;
+- a `policy_violation` is held only by an entry of its own rule (the entry's
+  `rule` key, written only for a finding that has one): a call baselined for
+  `naming.event` fails once it also breaks `forbidden_field`, and
+  [waiving one rule](#suppress) with a marker does not pass its entry on to
+  another rule. A baseline written by a tripl that did not record the rule
+  has no `rule` keys; such an entry holds a `policy_violation` of any rule on
+  its call, as it did then, until you rewrite the file with
+  `--write-baseline`;
 - a finding a [marker](#suppress) suppresses is not written and takes up no
   count, and `no_verdict` is never baselined: nothing was decided about the
   call.
@@ -1242,7 +1255,8 @@ The text, JSON and SARIF formats keep paths relative to the scan root.
 Code Quality (`fingerprint`). It is built from what the call is (its file,
 callee, event type, name and field values, and the finding's code and field),
 never from its line, never from what the plan says and never from the rule of
-a `policy_violation`. So a CI system comparing
+a `policy_violation` (the [baseline](#baseline) does tell rules apart; a
+fingerprint does not, so the ones a CI system already stored still match). So a CI system comparing
 two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.

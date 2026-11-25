@@ -563,9 +563,6 @@ def test_a_result_that_still_fails_is_listed_even_with_its_findings_suppressed()
     assert "Sources/Pay.swift:12:9  error  se  pay_tapped" in render_text(report)
 
 
-# --- no marker, no change ----------------------------------------------------------------
-# Written by the CLI as it was before markers existed, from the report below:
-# with no marker these formats must not gain a key, a value or a byte.
 # --- the rule of a policy finding ----------------------------------------------
 NAMING = CheckFinding(
     "policy_violation", "error", "Event names are snake_case", rule="naming.event"
@@ -654,6 +651,9 @@ def test_the_markdown_summary_names_the_rule() -> None:
     assert "error `policy_violation@forbidden_field` [email]: 'email' may not be sent" in text
 
 
+# --- no marker, no change ----------------------------------------------------------------
+# Written by the CLI as it was before markers existed, from the report below:
+# with no marker these formats must not gain a key, a value or a byte.
 GOLDEN = Path(__file__).parent / "check_golden"
 
 

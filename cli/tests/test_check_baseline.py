@@ -32,6 +32,7 @@ from tripl_cli.check.model import (
     Suppression,
 )
 from tripl_cli.cli import main
+from tripl_cli.errors import TriplConfigError
 from tripl_cli.model import Instance, Run
 
 from .conftest import FakeInstance
@@ -206,6 +207,88 @@ def test_prune_lowers_counts_and_severities_and_drops_what_is_gone() -> None:
     entries = [_entry(_item(), count=3), gone]
     matching = match([_result(_item(), _error(severity="warning"))], entries)
     assert pruned(entries, matching) == (replace(_entry(_item()), severity="warning"),)
+
+
+# --- the rule of a policy finding ------------------------------------------------------------
+NAMING = CheckFinding("policy_violation", "error", "bad name", rule="naming.event")
+OWNER = CheckFinding("policy_violation", "error", "owner required", rule="required_field")
+
+
+def test_an_entry_written_for_one_rule_does_not_hold_another_rule() -> None:
+    entries = collect(_report(_result(_item(), NAMING)))
+    assert [(entry.code, entry.rule, entry.count) for entry in entries] == [
+        ("policy_violation", "naming.event", 1)
+    ]
+    # The call breaks a second rule: the first stays held, the second is new.
+    both = match([_result(_item(), NAMING, OWNER)], entries)
+    assert [f.baselined for f in both.results[0].findings] == [True, False]
+    # The first rule fixed and another broken: nothing is held, the entry is stale.
+    swapped = match([_result(_item(), OWNER)], entries)
+    assert [f.baselined for f in swapped.results[0].findings] == [False]
+    assert swapped.stale(entries) == 1
+
+
+def test_waiving_one_rule_does_not_hand_its_entry_to_another_rule() -> None:
+    entries = collect(_report(_result(_item(), NAMING)))
+    marker = Suppression(
+        "Sources/A.swift", 2, 4, (("policy_violation", None, "naming.event"),), "x"
+    )
+    item = replace(_item(), suppressions=(marker,))
+    matching = match([_result(item, replace(NAMING, suppression=marker), OWNER)], entries)
+    assert [f.baselined for f in matching.results[0].findings] == [False, False]
+    assert matching.seen == (0,)
+
+
+def test_two_rules_on_one_call_are_two_entries_and_the_file_reads_back(tmp_path: Path) -> None:
+    report = _report(_result(_item(), NAMING, OWNER, _error()))
+    entries = collect(report)
+    assert sorted((entry.code, entry.rule or "") for entry in entries) == [
+        ("policy_violation", "naming.event"),
+        ("policy_violation", "required_field"),
+        ("unknown_event", ""),
+    ]
+    text = render_file(entries, project="demo", mode=MODE_STATIC)
+    written = json.loads(text)["entries"]
+    # The rule is written only where there is one.
+    assert sorted(e.get("rule", "-") for e in written) == ["-", "naming.event", "required_field"]
+    [named] = [e for e in written if e.get("rule") == "naming.event"]
+    assert list(named) == ["code", "field", "rule", "severity", "count", "example", "key"]
+    path = tmp_path / "b.json"
+    path.write_text(text, encoding="utf-8")
+    loaded = load(str(path), project="demo", mode=MODE_STATIC).entries
+    assert loaded == entries
+    matching = match(report.results, loaded)
+    assert all(f.baselined for f in matching.results[0].findings)
+    assert pruned(loaded, matching) == entries
+
+
+def test_an_entry_with_no_rule_holds_a_finding_of_any_rule() -> None:
+    # A file written before the rule was recorded: it keeps holding what it held.
+    old = Entry(baseline_key(_item()), "policy_violation", None, "error", 1)
+    matching = match([_result(_item(), OWNER)], [old])
+    assert matching.results[0].findings[0].baselined is True
+    assert pruned([old], matching) == (old,)
+    # An entry of the finding's own rule comes first.
+    own = replace(old, rule="required_field")
+    matching = match([_result(_item(), OWNER)], [old, own])
+    assert matching.seen == (0, 1)
+
+
+def test_a_file_without_a_policy_finding_names_no_rule() -> None:
+    text = render_file(collect(_report(_result(_item(), _error()))), project="demo", mode="static")
+    assert '"rule"' not in text
+
+
+@pytest.mark.parametrize("rule", ["", 3, ["naming.event"]])
+def test_a_rule_that_is_not_a_name_is_refused(tmp_path: Path, rule: Any) -> None:
+    document = json.loads(
+        render_file(collect(_report(_result(_item(), NAMING))), project="demo", mode="static")
+    )
+    document["entries"][0]["rule"] = rule
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(TriplConfigError, match="entry 1: rule must be a rule's name"):
+        load(str(path), project="demo", mode=MODE_STATIC)
 
 
 # --- the file --------------------------------------------------------------------------------

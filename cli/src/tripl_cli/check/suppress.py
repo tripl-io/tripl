@@ -5,19 +5,23 @@ reason. The grammar is the same in every language the scan reads::
 
     tripl-check-ignore[<target>(,<target>)*] -- <reason>
     target := code ["@" rule] [":" field]
-    code   := [a-z][a-z0-9_]*      rule := [A-Za-z0-9_.-]+      field := [^,\\]]+
+    code   := [a-z][a-z0-9_]*      rule := [^\\s,:@\\]]+      field := [^,\\]]+
 
 ``@rule`` narrows a target to the findings one rule raised: a workspace policy
 raises every violation as ``policy_violation``, so ``policy_violation@naming.event``
 waives the naming rule's and leaves the others failing. Without it the target
-waives the code whichever rule raised it.
+waives the code whichever rule raised it. A rule is whatever the server names
+it, so the grammar takes every character that does not end the rule or the
+target: a rule holding whitespace, ``,``, ``:``, ``@`` or ``]`` cannot be
+named, and only the bare code waives it.
 
 It must begin a comment line: right after ``//``, ``/*`` or a block comment's
 leading ``*``, so a comment that only mentions the keyword mid-sentence is not
 one. Codes are not checked against a list (a misspelled one simply waives
-nothing, and shows as unused). A marker that names no code, names
-``no_verdict`` or gives no reason suppresses nothing; it is reported, never
-refused, so the finding it meant to waive still fails the run.
+nothing, and shows as unused). A marker that names no code, has an ``@`` not
+followed by a rule, names ``no_verdict`` or gives no reason suppresses
+nothing; it is reported, never refused, so the finding it meant to waive still
+fails the run.
 
 Comments are found in the GAPS between the lexer's tokens: every character the
 lexer does not drop is part of a token, so a gap holds whitespace and comments
@@ -38,6 +42,7 @@ from tripl_cli.check.calls import Call
 from tripl_cli.check.lexer import LineIndex, Token
 from tripl_cli.check.model import (
     CODE_NO_VERDICT,
+    MARKER_BAD_RULE,
     MARKER_NO_CODES,
     MARKER_NO_REASON,
     MARKER_NOT_SUPPRESSIBLE,
@@ -54,12 +59,20 @@ KEYWORD = "tripl-check-ignore"
 # stars), whitespace, then the keyword as a whole word.
 _MARKER_LINE = re.compile(r"[ \t]*(?:/\*+|//+|\*+(?!/))?[ \t]*(tripl-check-ignore)(?![\w-])")
 _TARGETS = re.compile(r"\[([^\]]*)\]")
-_TARGET = re.compile(r"([a-z][a-z0-9_]*)(?:@([A-Za-z0-9_.-]+))?(?::([^,\]]+))?")
+_RULE = r"[^\s,:@\]]+"
+_TARGET = re.compile(rf"([a-z][a-z0-9_]*)(?:@({_RULE}))?(?::([^,\]]+))?")
+# A target that is a code and an at sign: what follows, up to the field's
+# colon, is meant as a rule whether or not it reads as one.
+_RULE_PART = re.compile(r"[a-z][a-z0-9_]*(\s*)@([^:]*)")
 _REASON = re.compile(r"\s*--(.*)", re.DOTALL)
 
 # How each problem reads after the marker's location.
 PROBLEM_TEXT: Mapping[str, str] = {
     MARKER_NO_CODES: f"{KEYWORD} needs the codes it waives, as {KEYWORD}[<code>]",
+    MARKER_BAD_RULE: (
+        f"{KEYWORD} names a rule it cannot read: write it right after the code, as "
+        f"{KEYWORD}[<code>@<rule>], with no space, comma, colon or second @ in the rule"
+    ),
     MARKER_NOT_SUPPRESSIBLE: f"{KEYWORD} cannot waive {CODE_NO_VERDICT}",
     MARKER_NO_REASON: f'{KEYWORD} needs "-- <reason>"',
 }
@@ -169,16 +182,17 @@ def markers(
 def _marker(path: str, line: int, column: int, rest: str) -> Marker:
     text = " ".join(f"{KEYWORD}{rest}".split())
     targets: tuple[Target, ...] = ()
+    bad_rule = False
     tail = rest
     listed = _TARGETS.match(rest)
     if listed is not None:
-        targets = _targets(listed.group(1))
+        targets, bad_rule = _targets(listed.group(1))
         tail = rest[listed.end() :]
     said = _REASON.match(tail)
     reason = said.group(1).strip() if said is not None else None
     problem: str | None = None
     if not targets:
-        problem = MARKER_NO_CODES
+        problem = MARKER_BAD_RULE if bad_rule else MARKER_NO_CODES
     elif any(code == CODE_NO_VERDICT for code, _, _ in targets):
         problem = MARKER_NOT_SUPPRESSIBLE
     elif reason is None or not any(char.isalnum() for char in reason):
@@ -186,16 +200,25 @@ def _marker(path: str, line: int, column: int, rest: str) -> Marker:
     return Marker(path, line, column, text, targets, reason, problem)
 
 
-def _targets(listed: str) -> tuple[Target, ...]:
-    """The ``(code, field, rule)`` of each bracketed entry; empty when any one is malformed."""
+def _targets(listed: str) -> tuple[tuple[Target, ...], bool]:
+    """The ``(code, field, rule)`` of each bracketed entry; empty when any one is malformed.
+
+    The flag says the first malformed entry is one whose rule is what cannot
+    be read (``code@``, ``code @rule``, ``code@a b``), so the report can say that instead of
+    asking for a code that is there.
+    """
     targets: list[Target] = []
     for part in listed.split(","):
         match = _TARGET.fullmatch(part.strip())
         if match is None:
-            return ()
+            meant = _RULE_PART.match(part.strip())
+            # The rule's fault: a space before the at sign, or no readable rule after it.
+            return (), meant is not None and (
+                bool(meant.group(1)) or re.fullmatch(_RULE, meant.group(2)) is None
+            )
         field = match.group(3).strip() if match.group(3) is not None else None
         targets.append((match.group(1), field or None, match.group(2)))
-    return tuple(targets)
+    return tuple(targets), False
 
 
 def attach(

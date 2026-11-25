@@ -210,7 +210,7 @@ def register(
             "With --list, only scan, and list what was read from each call and why a "
             "value was not; nothing is sent. "
             "A finding can be suppressed by a comment at its call, "
-            "tripl-check-ignore[CODE] -- REASON. "
+            "tripl-check-ignore[CODE] -- REASON (CODE@RULE for one rule of a policy). "
             "With --new-from-rev or --new-from-patch, only findings new in that change "
             "fail the run; with --baseline, only findings the baseline file does not hold "
             "(write it with --write-baseline). "

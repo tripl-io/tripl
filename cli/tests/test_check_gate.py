@@ -362,6 +362,19 @@ def test_plan_branch_causes_counts_code_field_and_severity() -> None:
     ) == ((True,), (True,), (False,), (False, True))
 
 
+def test_plan_branch_causes_tells_one_policy_rule_from_another() -> None:
+    def result(*findings: CheckFinding) -> CheckResult:
+        return CheckResult(_item(), "error", findings)
+
+    naming = CheckFinding("policy_violation", "error", "x", rule="naming.event")
+    owner = CheckFinding("policy_violation", "error", "x", rule="required_field")
+    # Main already failed the call on one rule; the branch's other rule is the branch's.
+    assert plan_branch_causes(
+        [result(owner), result(naming, owner), result(naming)],
+        [result(naming), result(naming), result(naming)],
+    ) == ((True,), (False, True), (False,))
+
+
 def test_candidates_are_the_unchanged_results_that_would_fail() -> None:
     results = [
         CheckResult(_at(1), "error", (_finding("unknown_event", "error"),)),

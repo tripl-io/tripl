@@ -38,8 +38,10 @@ CODE_OVERSIZE_VALUE = "oversize_value"
 CODE_NO_VERDICT = "no_verdict"
 
 # Why a ``tripl-check-ignore`` marker suppresses nothing (``check/suppress.py``):
-# it names no code, names ``no_verdict``, or gives no reason.
+# it names no code, names a rule that cannot be read after a code's ``@``,
+# names ``no_verdict``, or gives no reason.
 MARKER_NO_CODES = "no_codes"
+MARKER_BAD_RULE = "bad_rule"
 MARKER_NOT_SUPPRESSIBLE = "not_suppressible"
 MARKER_NO_REASON = "no_reason"
 # The two codes a report gives a marker it lists (SARIF rules, Code Quality
@@ -236,7 +238,11 @@ class CheckFinding:
 
     @property
     def label(self) -> str:
-        """The code as a marker names it: ``policy_violation@naming.event``, or the bare code."""
+        """The code as a marker names it: ``policy_violation@naming.event``, or the bare code.
+
+        A rule holding a character a marker cannot (``suppress.py``'s grammar)
+        is printed all the same, for the reader; only the bare code waives it.
+        """
         return self.code if self.rule is None else f"{self.code}@{self.rule}"
 
 

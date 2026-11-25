@@ -381,6 +381,28 @@ def test_info_findings_only_count_under_strict() -> None:
     assert result_for(item, verdict, strict=True, sent=True).status == "warning"
 
 
+def test_the_rule_is_read_without_the_spaces_around_it() -> None:
+    def rules(*sent: object) -> list[str | None]:
+        findings = [
+            {"code": "policy_violation", "severity": "error", "message": "x", "rule": rule}
+            for rule in sent
+        ]
+        verdict = {"ref": "i0", "status": "error", "findings": findings}
+        return [
+            f.rule for f in result_for(_item(1, "a"), verdict, strict=False, sent=True).findings
+        ]
+
+    # A marker names the rule as the report prints it, and cannot name a space.
+    assert rules(" naming.event ", "naming.event", "  ", "", None, 3) == [
+        "naming.event",
+        "naming.event",
+        None,
+        None,
+        None,
+        None,
+    ]
+
+
 def test_strict_names_a_field_called_name_as_that_field_not_the_event_name() -> None:
     item = replace(_item(1, "screen_view"), dynamic=("field:name", "properties"))
     verdict = {"ref": "i0", "status": "ok", "findings": []}
