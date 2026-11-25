@@ -612,7 +612,7 @@ def test_every_sample_is_ascii(
     for section in (
         "Why (call sites",
         "Functions that forward",
-        "    ignore: tripl-check-ignore[too_dynamic] -- filled in by the SDK (line 11)\n",
+        "    tripl-check-ignore[too_dynamic] -- filled in by the SDK (line 11)\n",
         "Suppression markers: 2 read, covering 1 call site.\n",
         "Suppression ignored: app/Screen.kt:15 ",
         "Calls that look like tracking",

@@ -183,9 +183,13 @@ def _reason_lines(call: ListedCall) -> list[str]:
 
 
 def _suppression_lines(call: ListedCall) -> list[str]:
-    """Under a call, read or not: one line per valid marker covering it, with its reason."""
+    """Under a call, read or not: one line per valid marker covering it, with its reason.
+
+    The line starts with the marker as written, not with a ``word:`` prefix: a
+    reason line starts with a target's name, and a field can have any name.
+    """
     return [
-        f"    ignore: {label(suppression)} -- {_flat(suppression.reason)} (line {suppression.line})"
+        f"    {label(suppression)} -- {_flat(suppression.reason)} (line {suppression.line})"
         for suppression in call.suppressions
     ]
 

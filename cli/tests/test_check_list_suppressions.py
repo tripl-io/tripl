@@ -78,9 +78,9 @@ def test_the_text_names_the_markers_on_each_call_and_the_ones_that_suppress_noth
         "\n"
         "src/a.ts:2:1  legacy  track  name=one\n"
         # A fully read call shows its markers too.
-        "    ignore: tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n"
+        "    tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n"
         "src/a.ts:3:1  legacy  track  name=two\n"
-        "    ignore: tripl-check-ignore[deprecated_event,unknown_field:plan] -- gone in 5.0 "
+        "    tripl-check-ignore[deprecated_event,unknown_field:plan] -- gone in 5.0 "
         "(line 3)\n"
         # The marker above it has no reason, so nothing covers this call.
         "src/a.ts:6:1  legacy  track  name=three\n"
@@ -116,7 +116,7 @@ def test_the_json_document_carries_the_markers_per_call_and_as_a_whole(
     # The document alone is on stdout; the listing, marker lines included, on stderr.
     document = json.loads(captured.out)
     assert "Suppression markers: 6 read, covering 2 call sites.\n" in captured.err
-    assert "    ignore: tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n" in (
+    assert "    tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n" in (
         captured.err
     )
 
@@ -239,7 +239,7 @@ def test_with_no_check_config_valid_markers_are_counted_not_listed(
     assert "Suppression markers: 6 read.\n" in text
     assert text.count("Suppression ignored: ") == 3
     assert "Suppression on no matched call" not in text
-    assert "ignore: " not in text
+    assert "    tripl-check-ignore[" not in text
     assert main(["check", "--list", "--json"]) == 0
     document = json.loads(capsys.readouterr().out)
     assert document["calls"] == []
@@ -262,3 +262,30 @@ def test_the_listed_items_carry_the_suppressions_the_scan_attaches(tmp_path: Pat
     summary = summarize(found)
     assert (summary.markers, summary.markers_invalid, summary.markers_no_call) == (6, 3, 1)
     assert summary.calls_covered == 2
+
+
+def test_a_marker_line_cannot_be_taken_for_the_reason_of_a_field_named_ignore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A reason line is ``<target>: <why>``; a marker line starts with the marker itself."""
+    config = """
+    project: demo
+    sources: ["src/**"]
+    event_types:
+      legacy:
+        calls: [{function: "ignore", name_arg: 0, positional: [null, ignore]}]
+    """
+    source = """
+    class C { void f(String v) {
+      ignore("j3", v); // tripl-check-ignore[unknown_event] -- field named ignore
+    }}
+    """
+    _checkout(tmp_path, {".tripl/check.yml": config, "src/C.java": source}, monkeypatch)
+    assert main(["check", "--list"]) == 0
+    text = capsys.readouterr().out
+    assert (
+        "src/C.java:2:3  legacy  ignore  name=j3 ignore=?\n"
+        "    ignore: parameter v of f (line 1)\n"
+        "    tripl-check-ignore[unknown_event] -- field named ignore (line 2)\n"
+    ) in text
+    assert text.count("    ignore: ") == 1

@@ -228,8 +228,8 @@ def register(
         action="store_true",
         help=(
             "only scan: list what the scan reads from each call the check config matches, "
-            "why a value is not read, and the calls that look like tracking; needs no "
-            "key and sends nothing"
+            "why a value is not read, the tripl-check-ignore markers on it, and the calls "
+            "that look like tracking; needs no key and sends nothing"
         ),
     )
     mode.add_argument(

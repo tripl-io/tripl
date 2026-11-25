@@ -1134,13 +1134,13 @@ List the labels in `args:`, and map the ones that are not fields to `null`.
 ### Suppression markers {#list-suppressions}
 
 `--list` is also where to audit the [`tripl-check-ignore` markers](#suppress).
-Each matched call a valid marker covers gets an `ignore:` line with the codes
-the marker waives, its reason and its line. After the summary, one line counts
+Under each matched call a valid marker covers, a line shows the marker with
+the codes it waives, its reason and its line. After the summary, one line counts
 the markers, and the ones that suppress nothing follow:
 
 ```text
 app/src/Cart.kt:12:9  event  analytics.track  name=cart_opened
-    ignore: tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (line 11)
+    tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (line 11)
 
 Suppression markers: 3 read, covering 1 call site.
 Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
