@@ -945,6 +945,12 @@ present.
 what it found. It needs no URL and no API key, and it sends nothing. Use it to
 write `.tripl/check.yml`: run it after each change to the file.
 
+Because it talks to no instance, it does not read the connection settings at
+all: `--url`, `--api-key`, `--config`, `TRIPL_BASE_URL`, `TRIPL_API_KEY` and
+the config file. A `TRIPL_BASE_URL` without `https://`, a config file that is
+not valid TOML or a `--config` path that does not exist fails every other
+`tripl check` run with exit 2, and does not stop this one.
+
 ```bash
 tripl check --list
 ```
@@ -1254,7 +1260,8 @@ error (exit 2), an instance that refused a request (exit 1) or was unavailable
 (exit 4), or a crash. Nothing goes to stdout or to any `--report` file, and a
 file an earlier run left at a `--report` path is removed, so it cannot pass for
 this run's. That includes connection settings that do not resolve, such as a
-`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist.
+`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist
+(`--list` does not read them, so they cannot fail it).
 Only a regular file is ever replaced or removed: a `--report` path that is or
 names a directory (`reports/`), a link or a special file is refused (exit 2). A
 command line the parser rejects outright, such as an unknown flag, leaves every

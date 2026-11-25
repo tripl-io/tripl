@@ -46,6 +46,11 @@ Handler = Callable[[argparse.Namespace, Config], int]
 # as ``abandon``: called with the parsed arguments when the run fails before
 # the handler starts, so an earlier run's files never pass for this one's.
 Abandon = Callable[[argparse.Namespace], None]
+# What a command with a mode that talks to no instance (check's --list) sets as
+# ``offline``: asked with the parsed arguments before the connection settings
+# are resolved, and a True answer means they are not read at all, so a URL or a
+# config file this run would never use cannot fail it.
+Offline = Callable[[argparse.Namespace], bool]
 
 
 def register_all(
