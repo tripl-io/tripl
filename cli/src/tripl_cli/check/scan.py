@@ -53,6 +53,7 @@ from tripl_cli.check.model import (
     SkippedFile,
     Suppression,
 )
+from tripl_cli.check.scopes import ScopeIndex
 from tripl_cli.check.suppress import attach, markers
 from tripl_cli.check.symbols import SymbolIndex
 from tripl_cli.check.values import Evaluator, Value
@@ -430,14 +431,42 @@ def second_pass(config: CheckConfig, tree: Tree, *, explain: bool = False) -> It
     for source, text, tokens in tree.parsed:
         language = source.language
         calls = find_calls(tokens, language, text)
+        pairs = [(call, _first_match(config.event_types, call, language)) for call in calls]
         yield FileCalls(
             source,
             text,
             tokens,
             LineIndex(text),
             Evaluator(tree.symbols, language, explain=explain),
-            tuple((call, _first_match(config.event_types, call, language)) for call in calls),
+            tuple(_unmatch_declarations(pairs, tokens, language, text)),
         )
+
+
+def _unmatch_declarations(
+    pairs: list[tuple[Call, tuple[EventTypeSpec, CallSpec] | None]],
+    tokens: list[Token],
+    language: str,
+    text: str,
+) -> list[tuple[Call, tuple[EventTypeSpec, CallSpec] | None]]:
+    """``pairs`` with every function DECLARATION a call spec matched left unmatched.
+
+    ``find_calls`` reads some declarations as calls (``fun track(event: String) {``,
+    Swift ``init(...) {``, Java ``void f(...) throws X {``), and a spec naming
+    the function then matched its own declaration, so plain ``tripl check``
+    sent it as a tracking call with its parameter names as values. A bare call
+    whose ``end`` is a parameter list's end is that declaration, by the rule
+    ``--list`` uses (``scopes.FunctionScope.signature_end`` and
+    ``ScopeIndex.bodiless``). The scope index is built only for a file where a
+    bare call matched, so a file with no candidate pays nothing.
+    """
+    if not any(hit is not None and call.selector is None for call, hit in pairs):
+        return pairs
+    scopes = ScopeIndex(tokens, language, text)
+    declarations = scopes.bodiless.union(scope.signature_end for scope in scopes.functions)
+    return [
+        (call, None if call.selector is None and call.end in declarations else hit)
+        for call, hit in pairs
+    ]
 
 
 def _first_match(
