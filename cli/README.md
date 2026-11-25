@@ -81,6 +81,7 @@ prints that group's help on stderr and exits 2.
 tripl doctor              # check the instance and report what is broken
 tripl doctor --json       # one JSON document on stdout, human lines on stderr
 tripl doctor --strict     # exit 3 on warnings too (never on skipped checks)
+tripl doctor --support-report ./tripl-support.json   # privacy-safe file to attach to a support request
 tripl status              # projects, events, scans, signals, coverage
 tripl whoami              # the account, organization and scope the API key acts as
 tripl watch               # follow jobs, signals and delivery failures live

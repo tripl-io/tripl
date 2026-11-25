@@ -388,7 +388,12 @@ async def health() -> JSONResponse:
             status_code=503,
             content={"status": "error", "component": "database"},
         )
-    return JSONResponse(content={"status": "ok"})
+    # The version is already public through the unauthenticated OpenAPI
+    # document's `info.version`; repeating it here lets `tripl doctor
+    # --support-report` name the server version from the probe it makes anyway,
+    # instead of downloading a 2 MB spec for one string. Nothing else is added:
+    # this endpoint is unauthenticated.
+    return JSONResponse(content={"status": "ok", "version": __version__})
 
 
 if settings.prometheus_metrics_enabled:

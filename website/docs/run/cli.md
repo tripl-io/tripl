@@ -279,7 +279,8 @@ role behind the key still matters for two things:
 ```
 usage: tripl doctor [-h] [--url URL] [--api-key KEY] [--config PATH]
                     [--project SLUG] [--include-demo] [--json] [--strict]
-                    [--timeout SECONDS] [--max-event-types N]
+                    [--timeout SECONDS] [--support-report PATH]
+                    [--max-event-types N]
 ```
 
 | Flag | Meaning |
@@ -289,6 +290,7 @@ usage: tripl doctor [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--json` | One JSON document on stdout, every human line on stderr. |
 | `--strict` | Exit 3 on warnings too — never on skipped checks. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+| `--support-report PATH` | Also write a privacy-safe JSON report to share with support. See [Support report](#support-report). |
 | `--max-event-types N` | Event-type budget for the drift scan, default `200`, range 1–10000. |
 
 A healthy instance:
@@ -341,6 +343,67 @@ The six checks always run **in this order and exactly once each**; per-project
 results are *findings inside* a check, never repeated checks. `SKIP` means "I
 could not look", which is never the same thing as a pass — a run where nothing
 reached a verdict is reported as `fail`, not as "0 failures".
+
+### Support report
+
+`tripl doctor --support-report PATH` runs the same checks and also writes a
+JSON file you can attach to a support request or a public issue without
+reviewing it line by line:
+
+```bash
+tripl doctor --support-report ./tripl-support.json
+```
+
+It is built from an **allowlist**: client and server versions, the API key's
+scope (`instance`, `project` or `unknown`), each check's id and status, whether
+it could run, and how many findings of each code it produced. It never contains
+the instance URL, project slugs, object ids or names, finding messages or
+evidence, headers, credentials, SQL, event payloads, raw exception text or
+logs.
+
+The file is written only to the path you give, is never uploaded, and is never
+overwritten: an existing file or a missing directory is a usage error (exit
+`2`), refused before any request is made. It is still written when the instance
+is unreachable — `connectivity` then reports `instance_unreachable`, the other
+checks are listed under `checks_not_run`, and the server version is `null`.
+The server version comes from the `/health` probe; an instance older than the
+CLI's server answers without it, so it is `null` there too.
+
+A sample, for an instance with a failing scan config:
+
+```json
+{
+  "api_key_scope": "instance",
+  "checks": [
+    {"could_run": true, "error_categories": [], "id": "connectivity", "status": "pass"},
+    {"could_run": true, "error_categories": [], "id": "auth", "status": "pass"},
+    {"could_run": true, "error_categories": [], "id": "projects", "status": "pass"},
+    {"could_run": true, "error_categories": [], "id": "data_sources", "status": "pass"},
+    {
+      "could_run": true,
+      "error_categories": [
+        {"code": "scan_backoff_active", "count": 1},
+        {"code": "scan_config_failing", "count": 1}
+      ],
+      "id": "scans",
+      "status": "fail"
+    },
+    {"could_run": true, "error_categories": [], "id": "drifts", "status": "pass"}
+  ],
+  "checks_not_run": [],
+  "client": {"os": "Linux", "python": "3.12.8", "tool": "tripl", "version": "0.3.3"},
+  "exit_code": 3,
+  "generated_at": "2026-11-25T09:30:00Z",
+  "kind": "tripl-support-report",
+  "server": {"version": "0.3.3"},
+  "status": "fail",
+  "summary": {"fail": 1, "pass": 5, "skip": 0, "warn": 0},
+  "support_report_version": 1
+}
+```
+
+`support_report_version` changes only when a key is removed or changes
+meaning; new keys may be added within a version.
 
 ### 1. `connectivity` — instance reachability
 

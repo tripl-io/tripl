@@ -14,6 +14,7 @@ import json
 import sys
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 
@@ -30,6 +31,12 @@ from tripl_cli.model import Report, Snapshot, exit_code_for
 from tripl_cli.render import render_check, render_footer, render_header
 from tripl_cli.report import doctor_document
 from tripl_cli.runner import run_async
+from tripl_cli.support_report import (
+    build_support_report,
+    check_destination,
+    safe_version,
+    write_support_report,
+)
 
 
 def register(
@@ -72,6 +79,18 @@ def register(
     )
     add_timeout(parser)
     parser.add_argument(
+        "--support-report",
+        dest="support_report",
+        metavar="PATH",
+        type=Path,
+        default=None,
+        help=(
+            "also write a privacy-safe JSON report for a support request to PATH "
+            "(versions, check ids, statuses and error categories only; no URLs, "
+            "ids, credentials, SQL or messages). Never uploaded, never overwrites."
+        ),
+    )
+    parser.add_argument(
         "--max-event-types",
         dest="max_event_types",
         metavar="N",
@@ -97,6 +116,9 @@ def run(args: argparse.Namespace, config: Config) -> int:
         max_event_types=int(args.max_event_types),
         timeout=float(args.timeout),
     )
+    support_path: Path | None = args.support_report
+    if support_path is not None:
+        check_destination(support_path)
     base_url = require_base_url(config)
     human = sys.stderr if as_json else sys.stdout
 
@@ -127,6 +149,17 @@ def run(args: argparse.Namespace, config: Config) -> int:
         print(render_check(check), file=human)
     print(file=human)
     print(render_footer(report, exit_code), file=human)
+
+    if support_path is not None:
+        health = snapshot.health.value or {}
+        write_support_report(
+            support_path,
+            build_support_report(
+                report, exit_code=exit_code, server_version=safe_version(health.get("version"))
+            ),
+        )
+        # Always stderr: with --json, stdout must stay exactly one document.
+        print(f"support report written to {support_path} (not uploaded)", file=sys.stderr)
 
     if as_json:
         # Exactly one object on stdout, newline-terminated, and nothing else —

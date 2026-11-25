@@ -289,13 +289,20 @@ leave it at `false`, so the direct socket peer (`request.client.host`) is used.
 The app exposes `GET /health` — an unauthenticated liveness + DB-reachability
 probe. It runs `SELECT 1` against PostgreSQL with a 1-second timeout:
 
-- **Healthy:** HTTP `200` with body `{"status":"ok"}`.
+- **Healthy:** HTTP `200` with body `{"status":"ok","version":"0.3.3"}` — the
+  running server version, the same one the public OpenAPI document names.
 - **DB unreachable:** HTTP `503` with body `{"status":"error","component":"database"}`.
 
 ```bash
 curl -fsS http://localhost:8000/health
-# {"status":"ok"}
+# {"status":"ok","version":"0.3.3"}
 ```
+
+Asking for help with a broken installation? Run
+`tripl doctor --support-report ./tripl-support.json` and attach the file: it
+holds versions, check ids, statuses and error categories only — no URLs,
+identifiers, credentials, SQL or messages. See
+[CLI → Support report](./cli.md#support-report).
 
 :::note
 The `app` service has **no Docker healthcheck** in `compose.yaml`, and the
@@ -399,7 +406,7 @@ After any `docker compose up -d` (deploy, rollback, or recovery):
 3. **API health probe passes.**
 
    ```bash
-   curl -fsS http://localhost:8000/health   # {"status":"ok"}
+   curl -fsS http://localhost:8000/health   # {"status":"ok",...}
    ```
 
 4. **Workers are processing.** Confirm the worker connected to the broker and
