@@ -61,6 +61,7 @@ from tripl_cli.check.model import (
     CheckResult,
     MarkerState,
     Origin,
+    PlanPin,
     SkippedFile,
     severe,
 )
@@ -188,6 +189,8 @@ def render_text(report: CheckReport) -> str:
     if lines:
         lines.append("")
     lines.append(tally + ".")
+    if report.plan is not None:
+        lines.append(plan_line(report.plan))
     if report.gate is not None:
         lines.extend(gate_lines(report, held))
     if report.baseline is not None:
@@ -198,6 +201,19 @@ def render_text(report: CheckReport) -> str:
     if report.coverage is not None:
         lines.extend(coverage_lines(report.coverage))
     return "\n".join(lines)
+
+
+def plan_line(plan: PlanPin) -> str:
+    """Which stored plan judged a pinned run: the verdicts above do not follow the live plan."""
+    detail = ", ".join(
+        part
+        for part in (
+            f"hash {plan.plan_hash[:12]}" if plan.plan_hash else "",
+            f"taken {plan.created_at}" if plan.created_at else "",
+        )
+        if part
+    )
+    return f"Plan: revision {plan.revision}" + (f" ({detail})" if detail else "") + "."
 
 
 def gate_lines(report: CheckReport, held: dict[str, int]) -> list[str]:

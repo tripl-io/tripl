@@ -8,6 +8,7 @@ flat events through a third::
 
     project: my-app
     branch: null                 # optional; --branch overrides
+    revision: null               # optional: a plan revision id to pin; --revision overrides
     sources: ["Sources/**", "web/src/**"]
     exclude: ["**/Generated/**"]
     enums:
@@ -173,7 +174,17 @@ DEFAULT_EXCLUDES = (
 )
 
 _TOP_KEYS = frozenset(
-    {"project", "branch", "root", "sources", "exclude", "enums", "event_types", "codegen"}
+    {
+        "project",
+        "branch",
+        "revision",
+        "root",
+        "sources",
+        "exclude",
+        "enums",
+        "event_types",
+        "codegen",
+    }
 )
 _TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map", "codegen"})
 _CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package", "vars"})
@@ -374,6 +385,9 @@ class CheckConfig:
     root: Path
     project: str | None = None
     branch: str | None = None
+    # A stored plan revision the check is pinned to, so its verdicts do not
+    # follow the live plan; moving it is a commit of its own.
+    revision: str | None = None
     sources: tuple[str, ...] = DEFAULT_SOURCES
     exclude: tuple[str, ...] = DEFAULT_EXCLUDES
     enums: tuple[EnumSource, ...] = ()
@@ -509,11 +523,13 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
     exclude = DEFAULT_EXCLUDES + tuple(_names(top.get("exclude"), f"{where}: exclude"))
     project = top.get("project")
     branch = top.get("branch")
+    revision = top.get("revision")
     return CheckConfig(
         path=path,
         root=root,
         project=_text(project, f"{where}: project") if project is not None else None,
         branch=_text(branch, f"{where}: branch") if branch is not None else None,
+        revision=_text(revision, f"{where}: revision") if revision is not None else None,
         sources=sources,
         exclude=exclude,
         enums=tuple(enums),

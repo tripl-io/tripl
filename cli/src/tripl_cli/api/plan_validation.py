@@ -5,7 +5,9 @@ included, may call it. It is still a POST because a batch of up to
 ``MAX_ITEMS`` items does not fit in a query string.
 
 ``?branch=`` follows the rule every plan read follows (see ``api/branches.py``):
-omitted means the live main plan.
+omitted means the live main plan. ``?revision=`` names a stored plan revision
+to validate against instead (never with ``branch``); the answer's ``plan`` then
+says which revision judged the calls (``answering_plan``).
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ def validate(
     items: Sequence[Mapping[str, Any]],
     *,
     branch: str | None = None,
+    revision: str | None = None,
     strict: bool = False,
 ) -> ApiRequest:
     """One batch. ``items`` is sent as given, so it must already be at most ``MAX_ITEMS``.
@@ -55,7 +58,7 @@ def validate(
     return ApiRequest(
         "POST",
         VALIDATE.format(slug=slug),
-        params={"branch": branch},
+        params={"branch": branch, "revision": revision},
         json_body=body,
     )
 
@@ -65,6 +68,16 @@ def batches[T](items: Sequence[T], size: int = MAX_ITEMS) -> list[Sequence[T]]:
     if size < 1:
         raise ValueError("batch size must be at least 1")
     return [items[start : start + size] for start in range(0, len(items), size)]
+
+
+def answering_plan(payload: Any) -> JsonDict:
+    """The response's ``plan``: ``revision``, ``plan_hash``, ``created_at``; ``{}`` when absent.
+
+    Absent means an instance older than the ``revision`` parameter, which
+    ignored it and judged the calls by the live plan.
+    """
+    plan = payload.get("plan") if isinstance(payload, dict) else None
+    return plan if isinstance(plan, dict) else {}
 
 
 def verdicts(payload: Any) -> JsonList:

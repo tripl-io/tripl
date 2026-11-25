@@ -86,6 +86,7 @@ import os
 import stat
 import sys
 import time
+import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -122,6 +123,7 @@ from tripl_cli.check.model import (
     GateInfo,
     Marker,
     PlanBranchComparison,
+    PlanPin,
     SkippedFile,
 )
 from tripl_cli.check.presets import PRESETS, preset_yaml
@@ -142,7 +144,7 @@ from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import Reader, instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
 from tripl_cli.install.shell import Runner, subprocess_runner
-from tripl_cli.model import JsonList, Run, as_list, page_items, page_total, to_rfc3339
+from tripl_cli.model import JsonDict, JsonList, Run, as_list, page_items, page_total, to_rfc3339
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
@@ -161,6 +163,8 @@ FORMATS = (
     FORMAT_JUNIT,
     FORMAT_MARKDOWN,
 )
+# `--revision live`: the live plan, whatever the check config pins.
+REVISION_LIVE = "live"
 # What `--list` with no check config leaves out beyond the default excludes:
 # every hidden directory (see `_discovery_config`).
 DISCOVERY_EXCLUDE = "**/.*/**"
@@ -302,6 +306,16 @@ def register(
     )
     add_project_flag(parser)
     add_branch(parser)
+    parser.add_argument(
+        "--revision",
+        dest="revision",
+        metavar="ID",
+        help=(
+            "validate against the stored plan revision ID instead of the live plan, so the "
+            "verdicts do not change when the plan does; overrides `revision` in the check "
+            f"config, and {REVISION_LIVE} unpins it for this run"
+        ),
+    )
     parser.add_argument(
         "--strict",
         action="store_true",
@@ -514,6 +528,10 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
+    if args.revision is not None:
+        return (
+            "--revision names the plan to check against, and --list sends nothing; drop --revision."
+        )
     if args.coverage:
         return (
             "--coverage compares the scan with the plan, and --list sends nothing; "
@@ -766,6 +784,13 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     selector: str | None = args.branch
     if selector is None and check_config is not None:
         selector = check_config.branch
+    pin = _pinned_revision(args, check_config, selector)
+    if pin is not None and args.coverage:
+        raise TriplConfigError(
+            "--coverage reads the events of the live plan, and this run is pinned to plan "
+            f"revision {pin}; run it with --revision {REVISION_LIVE}."
+        )
+    answered: list[JsonDict] = []
     files = 0
     skipped: tuple[SkippedFile, ...] = ()
     markers: tuple[Marker, ...] = ()
@@ -799,7 +824,13 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         results: tuple[CheckResult, ...] = ()
         if items:
             results = await validate(
-                reader, project, items, branch_id=branch.id, strict=args.strict
+                reader,
+                project,
+                items,
+                branch_id=branch.id,
+                strict=args.strict,
+                revision=pin,
+                answered=answered,
             )
         if gated is not None:
             info, changed = gated
@@ -830,7 +861,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             gated = info, changed
         if summarised and gated is not None and base_items is not None:
             compared = summary_mod.compare(
-                await _base_results(reader, project, branch, base_items, items, results),
+                await _base_results(reader, project, branch, pin, base_items, items, results),
                 results,
             )
         if args.coverage:
@@ -874,6 +905,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         gate=None if gated is None else gated[0],
         coverage=covered,
         changes=compared,
+        plan=_plan_pin(pin, answered),
     )
     report, written = _with_baseline(args, report, baseline)
     # Every file before anything is printed: a report that cannot be written
@@ -900,10 +932,56 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     return report.exit_code
 
 
+def _pinned_revision(
+    args: argparse.Namespace, check_config: CheckConfig | None, branch: str | None
+) -> str | None:
+    """The plan revision this run is pinned to, or None for the live plan.
+
+    ``--revision`` wins over ``revision:`` in the check config, and
+    ``--revision live`` unpins. Refused with a plan branch, from either place:
+    a revision is one fixed plan, a branch a plan that moves.
+    """
+    flag: str | None = args.revision
+    if flag is not None and flag.strip() == REVISION_LIVE:
+        return None
+    source = "--revision"
+    raw = flag
+    if raw is None and check_config is not None and check_config.revision is not None:
+        raw, source = check_config.revision, "`revision` in the check config"
+    if raw is None:
+        return None
+    try:
+        pin = str(uuid.UUID(raw.strip()))
+    except ValueError:
+        raise TriplConfigError(
+            f"{source} is not a plan revision id: {raw!r}. Use the id of a revision of the "
+            f"project (its History page lists them), or {REVISION_LIVE} for the live plan."
+        ) from None
+    if branch is not None:
+        raise TriplConfigError(
+            f"{source} pins plan revision {pin}, and plan branch {branch!r} is asked for too; "
+            f"a run checks against one plan. Drop the branch, or pass --revision {REVISION_LIVE}."
+        )
+    return pin
+
+
+def _plan_pin(pin: str | None, answered: Sequence[JsonDict]) -> PlanPin | None:
+    if pin is None:
+        return None
+    plan = answered[0] if answered else {}
+    plan_hash, created_at = plan.get("plan_hash"), plan.get("created_at")
+    return PlanPin(
+        revision=pin,
+        plan_hash=plan_hash if isinstance(plan_hash, str) else None,
+        created_at=created_at if isinstance(created_at, str) else None,
+    )
+
+
 async def _base_results(
     reader: Reader,
     project: str,
     branch: Branch,
+    pin: str | None,
     base: Sequence[CheckItem],
     items: Sequence[CheckItem],
     results: Sequence[CheckResult],
@@ -921,7 +999,9 @@ async def _base_results(
     known = {sent(result.item): result for result in results}
     gone = [item for item in base if sent(item) not in known]
     asked = iter(
-        await validate(reader, project, gone, branch_id=branch.id, strict=False) if gone else ()
+        await validate(reader, project, gone, branch_id=branch.id, strict=False, revision=pin)
+        if gone
+        else ()
     )
     return tuple(
         replace(known[sent(item)], item=item) if sent(item) in known else next(asked)

@@ -343,6 +343,15 @@ SKIP_UNREADABLE = "unreadable"
 
 
 @dataclass(frozen=True)
+class PlanPin:
+    """The stored plan revision that judged a pinned run, as the instance named it."""
+
+    revision: str
+    plan_hash: str | None = None
+    created_at: str | None = None
+
+
+@dataclass(frozen=True)
 class CheckReport:
     run: Run
     project: str
@@ -372,6 +381,9 @@ class CheckReport:
     # Set under a gate when a Markdown summary was asked for and the base tree
     # could be rebuilt: the events the change adds, removes or changes.
     changes: ChangeSummary | None = None
+    # Set when the run was pinned to a plan revision (``--revision``, or
+    # ``revision:`` in the check config); None for the live plan.
+    plan: PlanPin | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)
