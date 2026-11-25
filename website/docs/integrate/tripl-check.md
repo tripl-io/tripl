@@ -669,6 +669,68 @@ message names the command that marks the checkout safe,
 `git config --global --add safe.directory "<dir>"`, or run the container as the
 checkout's owner (`docker run -u "$(id -u):$(id -g)" …`).
 
+## Summarise a change {#summary}
+
+A reviewer wants to know what a code change does to the analytics. With a
+gate, `--format markdown` (or `--report markdown=PATH`) writes that as a note:
+
+```bash
+tripl check --new-from-rev "$(git merge-base origin/main HEAD)" --report markdown=tripl-check.md
+```
+
+```markdown
+### tripl check: analytics changes
+
+Project `demo`.
+
+Compared with the base of the patch `change.patch`.
+
+**2 events added, 1 changed, 1 removed.**
+
+| Change | Event type | Event | In the plan | Details |
+|--------|------------|-------|-------------|---------|
+| Added | `legacy` | `brand_new` | **no** | `Sources/New.swift:3` |
+| Added | `legacy` | `trial_started` | yes | `Sources/New.swift:2` |
+| Changed | `se` | `home:open:card` | yes | now sends `value` |
+| Removed | `se` | `map:open:x` | **no** | was at `Sources/Legacy.swift:3` |
+
+**Check failed:** 5 call sites, 4 ok, 0 warnings, 1 error, 1 call failing the run.
+- `Sources/New.swift:3` error `unknown_event`: no such event
+```
+
+The table compares what the base tree and the working tree send, event by
+event. An event is its event type and the identity the plan matched the call
+by, or the name as the call spells it.
+
+- **Added**: no call at the base sent the event, and one does now.
+- **Removed**: a call at the base sent it, and none does now.
+- **Changed**: calls on both sides send it, and the field and property keys
+  they send differ. Values are not compared.
+- **In the plan** says whether the plan has the event. An added event the plan
+  does not have is also an `unknown_event` error below the table.
+
+A call that only moved, to another file too, changes nothing. A call whose
+event the scan could not read is counted under the table and not compared.
+The table shows at most 50 events and the list at most 20 findings. To name a
+removed event, the run validates the calls the change removed as well: one
+more request, to the same plan.
+
+Without a gate (or with an empty `--new-from-rev ""`) there is no base, and
+the note holds the check result alone. When the base cannot be rebuilt from
+the change (a patch of another tree, say), the note says so and has no table.
+
+The CLI writes the file and posts nothing. To put it on a GitLab merge
+request, post it with a token that has the `api` scope:
+
+```yaml
+script:
+  - tripl check --new-from-rev "$CI_MERGE_REQUEST_DIFF_BASE_SHA" --report markdown=tripl-check.md || status=$?
+  - 'curl --fail --request POST --header "PRIVATE-TOKEN: $TRIPL_NOTE_TOKEN" --form "body=<tripl-check.md" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes"'
+  - exit ${status:-0}
+```
+
+On GitHub, `gh pr comment "$PR" --body-file tripl-check.md` does the same.
+
 ## Baseline {#baseline}
 
 The [gate](#new-findings) needs a diff base, and some runs have none: a
@@ -1073,6 +1135,7 @@ one validation, the same verdicts in every file.
 | `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
 | `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
 | `junit` | JUnit XML, for GitLab's test summary and the test reports of most other CI systems. |
+| `markdown` | A note for a merge request: under a [gate](#new-findings), the events the change adds, removes or changes; then the findings that fail the run. See [Summarise a change](#summary). |
 
 ```bash
 tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
