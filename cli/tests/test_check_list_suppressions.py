@@ -116,9 +116,7 @@ def test_the_json_document_carries_the_markers_per_call_and_as_a_whole(
     # The document alone is on stdout; the listing, marker lines included, on stderr.
     document = json.loads(captured.out)
     assert "Suppression markers: 6 read, covering 2 call sites.\n" in captured.err
-    assert "    tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n" in (
-        captured.err
-    )
+    assert "    tripl-check-ignore[unknown_event] -- staged rollout (line 1)\n" in (captured.err)
 
     assert document["summary"]["suppressions"] == {
         "markers": 6,
