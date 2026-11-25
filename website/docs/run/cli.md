@@ -2273,8 +2273,8 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
                    [--write-baseline FILE] [--prune-baseline] [--project SLUG]
                    [--branch REF] [--strict]
                    [--format {text,json,sarif,codequality,junit}]
-                   [--report FORMAT=PATH] [--allow-empty] [--json]
-                   [--timeout SECONDS]
+                   [--report FORMAT=PATH] [--allow-empty] [--coverage]
+                   [--json] [--timeout SECONDS]
 ```
 
 | Flag | Meaning |
@@ -2294,6 +2294,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--format FORMAT` | What goes to stdout: `text` (the default), `json`, `sarif` for a SARIF 2.1.0 log, `codequality` for a GitLab Code Quality report, or `junit` for JUnit XML. See [Output formats](../integrate/tripl-check.md#output). |
 | `--report FORMAT=PATH` | Also write the result in `FORMAT` (any of the five) to the file `PATH`. Repeat it for more files: one run, one validation, the same verdicts in each, for example `--report codequality=gl-code-quality-report.json --report junit=tripl-check.xml`. A run that cannot finish writes none, and removes what an earlier run left at those paths; only a command line the parser rejects outright, such as an unknown flag, leaves them. |
 | `--allow-empty` | Exit 0 when there is nothing to check. Without it, a configuration that matches no call, or a `--payloads` file with no events, is exit 2: a check that checked nothing must not read as a pass. Refused with `--list`, which never fails because nothing matched. |
+| `--coverage` | Also report [plan coverage](#tripl-check-coverage): the planned events (status `ready_for_dev`, `implemented` or `live`) that no scanned call sends. It adds two reads to the run and never changes the exit code. Refused with `--payloads` and `--list`. |
 | `--json` | One JSON document on stdout, every human line on stderr. The same as `--format json`. With `--list`, the [`check --list` document](#check---list-document). |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. `--list` ignores it: it sends no request. |
 
@@ -2460,6 +2461,48 @@ hidden directories (`.venv`, `.gradle`, `.next`), and lists the calls that
 look like tracking: a place to start the configuration. It reads at most 20000 source
 files (`MAX_DISCOVERY_FILES`) and says so when it stops there. Outside a git
 repository it is exit 2.
+
+### Plan coverage {#tripl-check-coverage}
+
+`tripl check` reports the calls that do not match the plan. `--coverage` adds
+the opposite list to the same run: the events the plan expects in the code
+that no scanned call sends.
+
+```bash
+tripl check --coverage
+```
+
+```text
+3 call sites in 2 files: 2 ok, 0 warnings, 0 errors, 1 only known at runtime (listed with --strict).
+
+Plan coverage (ready_for_dev, implemented, live): 5 planned events of the scanned event types, 2 found in code, 2 not found, 1 possibly sent by a call the scan did not read.
+
+Not found in the scanned files:
+  se  profile:open:*        live
+  se  checkout:submit:card  ready_for_dev
+
+Possibly sent: 1 call matches no event and could not be fully read (`tripl check --list` shows why):
+  legacy  trial_started  implemented
+
+Not scanned: 2 planned events of event types the check config has no calls for: screen (2).
+```
+
+Only events with status `ready_for_dev`, `implemented` or `live` are counted:
+a draft is not expected in the code yet, and a deprecated or archived event is
+expected to leave it. The events are read from the plan the check ran against,
+`--branch` included. An event is found when a call of this run matched it.
+Every other one is in exactly one of three groups:
+
+| Group | Meaning | What to do |
+|-------|---------|------------|
+| Not found | No call matched the event, and every call of its event type that matched no event was fully read. | The scanned files do not send it. Implement it, widen `sources`, or change its status in the plan. |
+| Possibly sent | A call of its event type matched no event and has a value the scan did not read, so that call may send this event. A call with a templated name (`promo_${id}_shown`) counts only for the events whose name it could spell; a call with an unread name or field counts for every event of its type. | Run [`tripl check --list`](#tripl-check-list) and add the call spec it suggests, so the value is read. |
+| Not scanned | The event's type has no call spec in the check configuration. Counted per event type, not listed. | Add the event type to the configuration if this repository sends it. |
+
+The report covers the files under `sources` only: an event sent from another
+repository, or from a file a `sources` pattern leaves out, is listed as not
+found. It never changes the exit code. In the JSON document it is the
+[`coverage`](#check-document) key; the other formats do not carry it.
 
 ### In CI {#tripl-check-in-ci}
 
@@ -4560,6 +4603,17 @@ a baseline even with no marker and no gate.
 | `baseline` | What the baseline held and this run matched: `path` (the file as given), `action` (`"check"`, `"prune"` or `"write"`), `entries` and `findings` (the file's entries and the findings they hold, counts summed: as read, or as written), `baselined` (this run's findings the file holds), `stale` (the file's findings this run did not have), `pruned` (under `--prune-baseline`, the findings dropped from the file, `0` when none, else `null`) and `not_pruned` (why `--prune-baseline` left the file alone, else `null`). |
 | `results[].findings[].baselined` | Whether the baseline holds the finding, so it does not fail the run. Always `false` for a suppressed finding and for `no_verdict`. |
 | `results[].findings[].fails` | With a baseline: severe, not suppressed, not baselined, and, under a gate too, new in the change. |
+
+With `--coverage`, and only then, the document has a `coverage` key:
+
+| Key | Meaning |
+|-----|---------|
+| `coverage.statuses` | The event statuses counted: `["ready_for_dev", "implemented", "live"]`. |
+| `coverage.planned` / `coverage.found` | The planned events of the scanned event types, and how many of them a call of this run matched. `planned` is `found` plus the lengths of the next two lists. |
+| `coverage.not_found[]` | The events no call sends: `{event_id, name, event_type, status}`, in plan order. |
+| `coverage.maybe_dynamic[]` | The events a call the scan could not fully read may send, in the same shape. See [Plan coverage](#tripl-check-coverage). |
+| `coverage.not_scanned` | Event type name to its number of planned events, for the types the check configuration has no call spec for. |
+| `coverage.unread_calls` | The calls that matched no event and have a value the scan did not read. |
 
 With `--format sarif` stdout carries a SARIF 2.1.0 log instead, and none of the
 keys above: each finding is a result whose `ruleId` is its `code`.
