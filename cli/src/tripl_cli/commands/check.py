@@ -837,7 +837,10 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             "No tracking calls matched the check config; check `sources:` and the call specs."
         )
     lines.append(render_text(report))
-    _say("\n".join(lines), human)
+    # Through _emit like --list: under --json/--format the human lines are the
+    # SECONDARY stream, and a closed or full stderr (2>&-, 2>/dev/full) must not
+    # end the run before the document reaches stdout.
+    _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code

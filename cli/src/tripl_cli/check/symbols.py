@@ -10,11 +10,14 @@ per language:
 
 * Swift — ``enum Category: String { case home, map = "map_screen" }``. A case
   with no ``=`` in a ``String`` enum has its own name as its raw value. Also
-  ``static let x = "y"`` inside any type and ``let x = "y"`` at file scope.
+  ``static let x = "y"`` inside any type and ``let x = "y"`` at file scope;
+  never a ``var``, which can change before the call.
 * Kotlin / Java — ``enum class Category(val value: String) { HOME("home") }``
-  (the first string argument), ``const val X = "y"``, ``static final String X = "y"``.
+  (the first string argument), ``const val X = "y"``, ``val X = "y"``,
+  ``static final String X = "y"``; never a Kotlin ``var`` or a Java field
+  that is not ``final``.
 * TypeScript — ``enum Category { Home = "home" }``, ``const Category = { Home: "home" }``
-  and ``const X = "y"``.
+  and ``const X = "y"``; never ``let`` or ``var``.
 * Objective-C — ``NSString *const X = @"y";`` and ``#define X @"y"``.
 
 Every entry is keyed by its qualified path (``Events.Category.home``). A dotted
@@ -336,11 +339,30 @@ def _index_scoped(
             if language == "swift" and scopes and scopes[-1].is_enum and token.is_ident("case"):
                 position = _swift_cases(index, tokens, position + 1, scopes)
                 continue
-            if token.is_ident("let", "var", "val") or (
-                language == "java" and token.is_ident("String")
+            # Only what cannot be reassigned: Swift `let`, Kotlin `val` / `const val`,
+            # a Java `final` String. A `var` or a non-final field holds whatever was
+            # last assigned at runtime; reading its initial value checked
+            # `var currentScreen = ""` as an empty event name.
+            if token.is_ident("let", "val") or (
+                language == "java" and token.is_ident("String") and _java_final(tokens, position)
             ):
                 _constant(index, tokens, position + 1, scopes, member=member)
         position += 1
+
+
+def _java_final(tokens: list[Token], position: int) -> bool:
+    """Whether the Java ``String`` at ``position`` follows a ``final`` among its modifiers.
+
+    Walks back over the identifiers before the type (``public static final``),
+    stopping at the first token that is no identifier: the end of the previous
+    statement, a brace, an annotation.
+    """
+    index = position - 1
+    while index >= 0 and tokens[index].kind == IDENT:
+        if tokens[index].text == "final":
+            return True
+        index -= 1
+    return False
 
 
 def _type_header(
@@ -499,7 +521,8 @@ def _index_ts(index: SymbolIndex, tokens: list[Token]) -> None:
                         index.add((name, pair[0]), pair[1], member=True)
                 position = close + 1
                 continue
-        elif depth == 0 and token.is_ident("const", "let", "var") and position + 3 < len(tokens):
+        # `const` only: an exported `let` or `var` can be reassigned before the call.
+        elif depth == 0 and token.is_ident("const") and position + 3 < len(tokens):
             name_token = tokens[position + 1]
             probe = position + 2
             if name_token.kind == IDENT and tokens[probe].is_punct(":"):

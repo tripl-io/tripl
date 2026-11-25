@@ -322,10 +322,11 @@ enum AppEvents {
 `const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
 `#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
 as the constant's value. A bare name (`PlayStart`, from inside the class that
-declares it) resolves only for a constant declared at file scope. A `var` (or a
-TypeScript `let`) set to a string at file or type scope, and a Java `String`
-field that is not `final`, are read the same way, as their initial value, even
-though the code can change them before the call.
+declares it) resolves only for a constant declared at file scope. Only
+declarations that cannot be reassigned are read: a `var` (Swift or Kotlin), a
+TypeScript `let` or `var`, and a Java `String` field that is not `final` are
+not, because the code can change them before the call, so a reference to one is
+dynamic rather than checked against its initial value.
 
 **Functions** declared to return a string, whose every `return` is a string
 literal, resolve to that set of strings, and the call is checked once for each
