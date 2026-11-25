@@ -336,8 +336,11 @@ def render_plan_read(read: PlanRead, rows: Sequence[Sequence[str]], *, empty: st
     """
     lines = [_plan_scope(read)]
     lines.extend(f"  {line}" for line in columns(rows))
+    skipped = read.offset or 0
     if not rows:
-        lines.append(f"  ({empty})")
+        # A page past the end is empty too, and must not read as an empty
+        # resource: someone looking for an id would be told there are none.
+        lines.append(f"  ({empty} at --offset {skipped})" if skipped else f"  ({empty})")
     lines.append("")
     if read.truncated and read.total is not None:
         # Named and counted, like the drift budget's truncation line: a page
@@ -356,6 +359,13 @@ def render_plan_read(read: PlanRead, rows: Sequence[Sequence[str]], *, empty: st
             f"{plural(len(read.items), read.noun)} shown — the most this page holds, "
             f"and more may have matched; {_more(read)}."
         )
+    elif skipped and read.total is not None:
+        # The last page, or one past it: the rows above are not the whole
+        # resource, so the footer counts them against the total.
+        lines.append(
+            f"{len(read.items)} of {plural(read.total, read.noun)} shown, "
+            f"starting after the first {skipped}."
+        )
     else:
         lines.append(f"{plural(len(read.items), read.noun)}.")
     return "\n".join(lines).rstrip()
@@ -368,8 +378,19 @@ def _flat(text: str | None) -> str:
     and may carry a newline; one of those inside a padded cell breaks every
     column below it, and the table is the artifact an operator pastes into a
     ticket. Collapsed rather than truncated, so nothing is silently lost.
+
+    Text that is only whitespace is no text, so it prints ``-`` like a missing
+    one. Characters a terminal acts on instead of showing (escape, NUL, the
+    bidirectional overrides) are printed as their escape codes, so the text
+    cannot recolour or rewrite the line it is printed on.
     """
-    return " ".join(text.split()) if text else "-"
+    collapsed = " ".join(text.split()) if text else ""
+    if not collapsed:
+        return "-"
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode("ascii")
+        for char in collapsed
+    )
 
 
 def _seen(event: JsonDict) -> str:
@@ -487,14 +508,19 @@ def _revision_counts(revision: JsonDict) -> str:
     """``4 event types, 23 events, 9 fields``: what the stored plan holds.
 
     Zero counts are left out so the cell stays short; a plan with nothing in it
-    prints ``empty``.
+    prints ``empty``. A count that is present but is not a whole number of zero
+    or more makes the whole cell ``-``: leaving that one count out would print
+    a believable cell that describes a different plan.
     """
     counts = revision.get("entity_counts")
     if not isinstance(counts, dict):
         return "-"
-    parts = [
-        plural(int_of(counts, key), noun) for key, noun in _REVISION_COUNTS if int_of(counts, key)
-    ]
+    known = [(counts[key], noun) for key, noun in _REVISION_COUNTS if key in counts]
+    if any(
+        not isinstance(value, int) or isinstance(value, bool) or value < 0 for value, _ in known
+    ):
+        return "-"
+    parts = [plural(value, noun) for value, noun in known if value]
     return ", ".join(parts) if parts else "empty"
 
 

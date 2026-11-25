@@ -9,6 +9,7 @@ whether the semantic index answered.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 
@@ -368,6 +369,76 @@ def test_revisions_page_and_report_what_they_left_behind(
         "1 of 7 revisions shown; raise --limit or pass --offset to read the rest."
         in capsys.readouterr().out
     )
+
+
+def test_a_page_past_the_last_revision_does_not_say_the_project_has_none(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [], total=7)
+    assert main(["plan", "revisions", "--project", "prod", "--offset", "50"]) == 0
+    out = capsys.readouterr().out
+    assert "(no revisions)" not in out
+    assert "  (no revisions at --offset 50)\n" in out
+    assert out.endswith("0 of 7 revisions shown, starting after the first 50.\n")
+
+
+def test_the_last_page_of_revisions_says_how_many_came_before_it(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [make_revision(), make_revision("r-2")], total=7)
+    assert main(["plan", "revisions", "--project", "prod", "--offset", "5"]) == 0
+    out = capsys.readouterr().out
+    assert out.endswith("2 of 7 revisions shown, starting after the first 5.\n")
+
+
+def test_a_blank_revision_summary_prints_a_dash(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [make_revision(summary="   "), make_revision("r-2", summary="x")])
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    assert "1 relation  -\n" in out
+    assert "1 relation  x\n" in out
+
+
+def test_control_characters_in_a_revision_summary_are_printed_escaped(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [make_revision(summary="a\x1b[31mred\x00 b\tc\x7f \u202e")])
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "\x00" not in out
+    assert "  a\\x1b[31mred\\x00 b c\\x7f \\u202e\n" in out
+
+
+def test_ordinary_non_ascii_text_in_a_summary_is_left_alone(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [make_revision(summary="Перед релизом — café")])
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    assert "  Перед релизом — café\n" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"events": 3, "relations": -1},
+        {"events": 3, "fields": "3"},
+        {"events": 3, "event_types": True},
+        {"events": None, "variables": 1},
+    ],
+)
+def test_revision_counts_that_are_not_counts_print_a_dash(
+    counts: dict[str, Any],
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A wrong number is worse than none: the cell is what the row is picked by."""
+    tripl_api.revisions("prod", [make_revision(entity_counts=counts)])
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    assert "  snapshot  -  -  Before the checkout redesign\n" in capsys.readouterr().out
 
 
 def test_revisions_json_is_the_shared_document_with_the_rows_verbatim(

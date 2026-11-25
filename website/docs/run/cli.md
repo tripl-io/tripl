@@ -1768,6 +1768,11 @@ said nothing".
 `--offset 200` walks to the next page; `--limit 10000` asks for the lot in one
 request. The JSON carries `total`, `offset`, `limit` and a derived `truncated`
 so a consumer never has to do that arithmetic itself.
+
+The last page says where it started, `12 of 412 events shown, starting after
+the first 400.`, and a page past the end prints `(no events at --offset 500)`
+rather than `(no events)`, which is kept for a catalog that has none. Every
+verb that takes `--offset` does the same.
 :::
 
 :::note `--silent-since-days` is the one filter worth a runbook entry
@@ -2116,7 +2121,9 @@ prod
 
 Newest first. The columns are the revision id, when it was stored, its kind,
 the plan branch behind it, what the stored plan holds, and the summary its
-author gave it, on one line.
+author gave it, on one line (`-` when it is blank). A character in the summary
+that a terminal would act on instead of show, such as an escape, is printed as
+its code (`\x1b`).
 
 The kind says what made the revision: `snapshot` is one a person took,
 `branch_base` is the copy a plan branch started from, and `merge` is the plan
@@ -2126,7 +2133,13 @@ shows `-` there.
 
 The counts leave out whatever the plan has none of: event types, events,
 fields, properties, meta fields and relations, in that order. A plan with
-nothing in it prints `empty`.
+nothing in it prints `empty`, and counts that are not whole numbers of zero or
+more print `-`.
+
+`(no revisions)` means the project has none. A page past the last one prints
+`(no revisions at --offset 50)`, and the footer of any page after the first
+counts it against the total: `2 of 7 revisions shown, starting after the first
+5.`
 
 This command exists mostly to give you the id to pass to
 [`tripl check --revision`](#tripl-check), or to put under `revision:` in the
