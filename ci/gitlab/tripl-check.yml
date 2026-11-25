@@ -60,8 +60,9 @@ spec:
         git_branch checks against the plan branch named like the git branch (the
         merge request's source branch, or the branch of a branch pipeline) while
         that plan branch exists and is open, and against the main plan otherwise.
-        none always checks against the main plan, unless the check config or
-        args name a branch.
+        It replaces a branch named in the check config; a --branch in args
+        still wins. none always checks against the main plan, unless the check
+        config or args name a branch.
       options: [none, git_branch]
       default: none
     strict:

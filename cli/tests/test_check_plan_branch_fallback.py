@@ -325,6 +325,65 @@ def test_a_pinned_run_ignores_the_environment_variable_and_says_so(
     )
 
 
+def test_the_environment_variable_does_not_hide_a_config_that_contradicts_itself(
+    repo: Path,
+    tripl_api: FakeInstance,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # `branch` beside `revision` is refused; a variable the pipeline exports
+    # for every job must not turn that refusal into a passing run.
+    listing = tripl_api.branches("demo", [make_branch()])
+    _write(repo, {".tripl/check.yml": CONFIG + f"branch: old\nrevision: {REVISION}\n"})
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["check"]) == 2
+    assert "and plan branch 'old' is asked for too" in capsys.readouterr().err
+    assert not listing.called
+    assert not validator.called
+
+
+def test_the_environment_says_when_it_replaces_the_config_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    _write(repo, {".tripl/check.yml": CONFIG + "branch: checkout-redesign\n"})
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "feature/x")
+    assert main(["check"]) == 0
+    assert "branch" not in validator.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert (
+        "TRIPL_PLAN_BRANCH names plan branch feature/x, so `branch` in the check config "
+        "(checkout-redesign) is not used." in captured.err
+    )
+    assert "Plan branch feature/x not found: used the main plan." in captured.out
+
+
+def test_an_empty_flag_names_no_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # What `--branch-if-exists "$VARIABLE"` passes when the pipeline has no such
+    # variable: no branch is asked for, as with an empty TRIPL_PLAN_BRANCH.
+    listing = tripl_api.branches("demo", [make_branch()])
+    assert main(["check", "--branch-if-exists", "", "--format", "json"]) == 0
+    assert not listing.called
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["plan_branch"] is None
+    assert "Plan branch" not in captured.err
+    # It still cannot stand beside --branch.
+    assert main(["check", "--branch", "checkout-redesign", "--branch-if-exists", " "]) == 2
+
+
 def test_list_ignores_the_environment_variable(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

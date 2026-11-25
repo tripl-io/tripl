@@ -1369,11 +1369,16 @@ action](../how-to/check-tracking-in-ci.md#plan-branch) set the variable for you
 with one input. In your own job, pass the branch name as data, never pasted
 into the script: on GitHub set `TRIPL_PLAN_BRANCH: ${{ github.head_ref }}` in
 the step's `env`, because a `${{ … }}` inside `run:` would execute a branch
-name as shell. An empty variable is no request.
+name as shell. An empty variable is no request, and neither is an empty
+`--branch-if-exists ""`, which is what the flag gets from a variable the
+pipeline did not set. When the variable replaces another branch named by
+`branch` or `branch_if_exists` in the check config, a line on stderr says so.
 
 `--branch-if-exists` is refused with `--branch`, with `--list` and with a
 [pinned](#pin) run (exit 2). The environment variable is never a refusal: under
-`--list` it is ignored, and a pinned run ignores it with a line on stderr.
+`--list` it is ignored, and a pinned run ignores it with a line on stderr. A
+check config that holds both `branch` and `revision` is still exit 2, whatever
+the variable says.
 
 **Plan merge and code merge: which first.** Take a plan branch `checkout-v2`
 that adds the event `checkout:pay:tap`, and a merge request from the git branch
@@ -1386,7 +1391,9 @@ that adds the event `checkout:pay:tap`, and a merge request from the git branch
    main now. The next run of the merge request finds the plan branch merged,
    checks against main, prints `Plan branch checkout-v2 is merged: used the
    main plan.` and stays green. After the code merges, the default branch is
-   green as well.
+   green as well. [`tripl codegen --check`](codegen.md#header) stays green
+   too: files generated from the plan branch differ from main's only by the
+   branch name in their header, which is not compared.
 3. *The code merges first.* The default branch is checked against main, where
    the event does not exist yet: `unknown_event`, and the default branch stays
    red until the plan branch merges. If your merge requests must be able to
@@ -1396,10 +1403,12 @@ that adds the event `checkout:pay:tap`, and a merge request from the git branch
    request is checked against main and fails on the event the plan does not
    have, which is the signal that the code should not ship it.
 
-Two things follow from how branches are named. A plan branch name is taken for
-good once used, in a project: a git branch that reuses the name of a merged
-plan branch is checked against main, and cannot get a plan branch of that name
-again. And a run that has no branch name of its own is checked against main:
+Two things follow from how branches are named. A merged or closed plan branch
+keeps its name, and a project cannot have two plan branches of one name: a git
+branch that reuses the name of a merged plan branch is checked against main,
+and cannot get a new plan branch of that name until the old one is deleted. A
+closed plan branch that is reopened is open again, and is read again. And a run
+that has no branch name of its own is checked against main:
 a GitLab tag pipeline, the default branch, and a GitHub merge queue run, whose
 ref is the queue's. A merge queue therefore checks the group against main even
 though the pull request was checked against its plan branch, so with a merge

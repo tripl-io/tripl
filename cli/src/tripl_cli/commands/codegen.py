@@ -218,6 +218,8 @@ def run(args: argparse.Namespace, config: Config) -> int:
             config_branch=check_config.branch,
             config_branch_if_exists=check_config.branch_if_exists,
         )
+        if asked is not None and asked.replaced is not None:
+            print(asked.replaced, file=sys.stderr)
         payload, branch, run_facts = fetch_export(
             config, project, asked, plan_export.FORMAT_CODEGEN_MODEL, timeout=args.timeout
         )

@@ -45,7 +45,8 @@ inputs:
     description: >-
       git_branch checks against the plan branch named like the git branch (the pull
       request's head branch, or the pushed branch) while that plan branch exists and is
-      open, and against the main plan otherwise. none always checks against the main
+      open, and against the main plan otherwise. It replaces a branch named in the
+      check config; a --branch in args still wins. none always checks against the main
       plan, unless the check config or args name a branch.
     default: none
   strict:

@@ -144,9 +144,10 @@ def run(args: argparse.Namespace, config: Config) -> int:
     )
     fmt: str = args.export_format
     payload, branch, run_facts = fetch_export(config, project, asked, fmt, timeout=args.timeout)
-    if branch.note is not None:
+    note = branch.describe(fallback_flag=False)
+    if note is not None:
         # On stderr always: stdout may be carrying the export itself.
-        print(branch.note, file=sys.stderr)
+        print(note, file=sys.stderr)
     revision = payload.get("revision")
     revision_text = None if revision is None or isinstance(revision, dict) else str(revision)
     schemas = len(as_dict(payload.get("schemas"))) if fmt == plan_export.FORMAT_JSONSCHEMA else 0

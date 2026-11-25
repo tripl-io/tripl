@@ -198,7 +198,8 @@ One more variable is read, by [`tripl check`](#tripl-check) and
 [`tripl codegen`](#tripl-codegen) only: `TRIPL_PLAN_BRANCH` names a plan branch
 the way `--branch-if-exists` does, so a pipeline can export its git branch name
 once. `--branch` and `--branch-if-exists` win over it, and it wins over `branch`
-and `branch_if_exists` in the check configuration. Empty counts as absent. Where
+and `branch_if_exists` in the check configuration; when it replaces another
+branch named there, a line on stderr says so. Empty counts as absent. Where
 the flag would be refused the variable is ignored instead: by `tripl check --list`
 and `tripl codegen --model` silently, and by a run pinned to a plan revision with
 a line on stderr.
@@ -1893,10 +1894,10 @@ and a read that is quietly wrong is worse than one that refuses. A selector
 matching nothing exits 2 and lists the candidates.
 
 A merged or closed branch still resolves: the instance answers a read of it
-from the copy the branch held when it ended. [`tripl check`](#tripl-check) and
-[`tripl codegen`](#tripl-codegen) print a `Warning:` line when `--branch` names
-one, because their answer then no longer follows the main plan. Those two
-commands, and no other, also take `--branch-if-exists REF`: the same matcher,
+from the copy the branch held when it ended. [`tripl check`](#tripl-check),
+[`tripl codegen`](#tripl-codegen) and [`tripl export`](#tripl-export) print a
+`Warning:` line when `--branch` names one, because their answer then no longer
+follows the main plan. The first two, and no other command, also take `--branch-if-exists REF`: the same matcher,
 but a selector matching nothing, or a merged or closed branch, reads main
 instead of failing. It is for a pipeline that passes its git branch name.
 
@@ -2300,7 +2301,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--check-config PATH` | The check configuration to read. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) in the current directory or a parent, up to the repository root. (`--config` is the connection config file, as on every other command.) |
 | `--project SLUG` | The project to check against. Overrides `project` in the check configuration. One of the two is required. |
 | `--branch REF` | Check against a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the check configuration. A branch nobody made is exit 2. A merged or closed branch is still read, from the copy it held when it ended, and the run says so in a `Warning:` line. |
-| `--branch-if-exists REF` | Check against the plan branch `REF` while it exists and is open (any status but merged or closed), and against the live main plan when no branch has that name or id, or the branch is merged or closed. Matched exactly, like `--branch`. For CI, where the job passes the git branch name without knowing whether a plan branch is named like it: see [Plan branches in CI](../integrate/tripl-check.md#plan-branch-ci). A run that read main instead says so in a `Plan branch …` line; the exit code is the main run's. Overrides `TRIPL_PLAN_BRANCH` and `branch_if_exists` in the check configuration. Refused with `--branch`, with `--list` and with a pinned `--revision` (exit 2). |
+| `--branch-if-exists REF` | Check against the plan branch `REF` while it exists and is open (any status but merged or closed), and against the live main plan when no branch has that name or id, or the branch is merged or closed. Matched exactly, like `--branch`. For CI, where the job passes the git branch name without knowing whether a plan branch is named like it: see [Plan branches in CI](../integrate/tripl-check.md#plan-branch-ci). A run that read main instead says so in a `Plan branch …` line; the exit code is the main run's. Overrides `TRIPL_PLAN_BRANCH` and `branch_if_exists` in the check configuration. Refused with `--branch`, with `--list` and with a pinned `--revision` (exit 2). An empty `REF` names no branch, as an empty `TRIPL_PLAN_BRANCH` does: it is what `--branch-if-exists "$VARIABLE"` passes when the pipeline did not set the variable. |
 | `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
 | `--payloads FILE` | Payload mode: validate the events in `FILE` (NDJSON, a JSON array, or one object; `-` reads stdin) instead of scanning source files. A missing required field is an error in this mode. |
 | `--list` | Scan only, to write the check configuration. It lists every call the configuration matches with what the scan read from it and why a value was not read, the functions that pass their own parameter into a tracking call, and the calls that look like tracking but match no call spec. It needs no URL and no key, opens no connection and sends nothing. With no check configuration found, it scans the whole git repository it runs in. It refuses `--report`, `--branch`, `--branch-if-exists`, `--strict`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` and a `--format` other than `text` or `json` (exit 2), and the parser refuses it together with `--payloads`. See [the example below](#tripl-check-list) and the guide's [List what the scan reads](../integrate/tripl-check.md#list). |
@@ -2624,7 +2625,7 @@ usage: tripl codegen [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--check-config PATH` | The configuration to read, as for [`tripl check`](#tripl-check). Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) at or above the current directory, up to the repository root. Only event types with a `codegen` block are generated. |
 | `--project SLUG` | The project to read the plan from. Overrides `project` in the configuration. One of the two is required. |
 | `--branch REF` | Generate from a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the configuration. Not allowed with `--model`. A merged or closed branch is still read, from the copy it held when it ended, with a `Warning:` line. |
-| `--branch-if-exists REF` | Generate from the plan branch `REF` while it exists and is open, and from the live main plan when no branch has that name or id, or the branch is merged or closed; the run then prints `Plan branch REF not found: used the main plan.` (or `is merged`, `is closed`). The same flag as on [`tripl check`](#tripl-check), with the same `TRIPL_PLAN_BRANCH` variable and `branch_if_exists` configuration key. `--json` carries `plan_branch`, the object [the check document](#check-document) has. Not allowed with `--branch` or `--model`. |
+| `--branch-if-exists REF` | Generate from the plan branch `REF` while it exists and is open, and from the live main plan when no branch has that name or id, or the branch is merged or closed; the run then prints `Plan branch REF not found: used the main plan.` (or `is merged`, `is closed`). The same flag as on [`tripl check`](#tripl-check), with the same `TRIPL_PLAN_BRANCH` variable and `branch_if_exists` configuration key. `--json` carries `plan_branch`, the object [the check document](#check-document) has. Not allowed with `--branch` or `--model`. An empty `REF` names no branch, as an empty `TRIPL_PLAN_BRANCH` does: it is what `--branch-if-exists "$VARIABLE"` passes when the pipeline did not set the variable. |
 | `--model FILE` | Read a saved `codegen_model` export (from [`tripl export --format codegen_model`](#tripl-export)) instead of asking the instance. No request is sent, and the header line reads `offline (from --model)`. |
 | `--check` | Write nothing. Render every file, compare it with what is on disk, and exit 1 when any file is missing, differs or is stale, naming each one. For CI. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
@@ -2734,9 +2735,9 @@ usage: tripl export [-h] [--url URL] [--api-key KEY] [--config PATH]
 |------|---------|
 | `--format FORMAT` | `jsonschema` or `codegen_model`. Required, so that a future format is never picked by default. |
 | `--out DIR` | Write into DIR (created when missing). Without it, the export is printed to stdout as JSON and nothing else is printed. |
-| `--check-config PATH` | Read `project` and `branch` from this configuration. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`), as for [`tripl check`](#tripl-check). Optional: without one, pass `--project`. |
+| `--check-config PATH` | Read `project`, and `branch` or `branch_if_exists`, from this configuration. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`), as for [`tripl check`](#tripl-check). Optional: without one, pass `--project`. |
 | `--project SLUG` | The project to export. Overrides `project` in the configuration. One of the two is required. |
-| `--branch REF` | Export a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the configuration. |
+| `--branch REF` | Export a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` and `branch_if_exists` in the configuration. A merged or closed branch is still read, from the copy it held when it ended, and a `Warning:` line on stderr says so. |
 | `--json` | One JSON document on stdout, every human line on stderr. Needs `--out`, because without it stdout holds the export. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
 
@@ -2758,6 +2759,14 @@ cleanly between revisions. It then prints one line:
 With `--json`, the document carries `project`, `branch`, `format`, `revision`,
 `files` (the paths written) and `schemas` (the number of event schemas, `0`
 for `codegen_model`).
+
+`branch_if_exists` in the configuration means here what it means to
+[`tripl check`](../integrate/tripl-check.md#plan-branch-ci): the plan branch is
+exported while it exists and is open, and main otherwise, with a
+`Plan branch NAME not found: used the main plan.` line (or `is merged`,
+`is closed`). That line and the `Warning:` line go to stderr, with or without
+`--out`, so stdout stays the export. `tripl export` has no
+`--branch-if-exists` flag and does not read `TRIPL_PLAN_BRANCH`.
 
 In a `jsonschema` export, archived events are left out and deprecated ones are
 marked. Each schema has the event type's fields as properties, required fields
@@ -2781,7 +2790,8 @@ from either `--project` or the configuration, or a configuration that does not
 parse. 4 when the instance was unavailable, so nothing was written. See
 [Exit codes](#exit-codes).
 
-**Cost:** one request, plus one to resolve `--branch` when you pass it.
+**Cost:** one request, plus one to resolve the branch when a flag or the
+configuration names one.
 
 ## `tripl docs`
 

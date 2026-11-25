@@ -797,12 +797,24 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         if args.baseline is None
         else baseline_mod.load(args.baseline, project=project, mode=mode)
     )
-    asked = branch_request(
+    config_branch = None if check_config is None else check_config.branch
+    config_branch_if_exists = None if check_config is None else check_config.branch_if_exists
+    # The pin is weighed against the flags and the check config alone, so a
+    # config that names both a branch and a revision is refused whatever the
+    # environment holds.
+    pin = _pinned_revision(
         args,
-        config_branch=None if check_config is None else check_config.branch,
-        config_branch_if_exists=None if check_config is None else check_config.branch_if_exists,
+        check_config,
+        branch_request(
+            args,
+            config_branch=config_branch,
+            config_branch_if_exists=config_branch_if_exists,
+            environment=False,
+        ),
     )
-    pin = _pinned_revision(args, check_config, asked)
+    asked = branch_request(
+        args, config_branch=config_branch, config_branch_if_exists=config_branch_if_exists
+    )
     if pin is not None and asked is not None:
         # Only the environment's request gets this far beside a pin: a variable
         # exported for the whole pipeline must not turn a pinned run into exit 2.
@@ -812,6 +824,8 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             primary=False,
         )
         asked = None
+    if asked is not None and asked.replaced is not None:
+        _emit(asked.replaced, sys.stderr, primary=False)
     if pin is not None and args.coverage:
         raise TriplConfigError(
             "--coverage reads the events of the live plan, and this run is pinned to plan "
@@ -969,7 +983,8 @@ def _pinned_revision(
     ``--revision`` wins over ``revision:`` in the check config, and
     ``--revision live`` unpins. Refused with a plan branch named by a flag or
     the check config: a revision is one fixed plan, a branch a plan that moves.
-    A branch named only by the environment is not a refusal; the caller drops it.
+    ``branch`` is that request, without the environment's: a branch named only
+    by ``TRIPL_PLAN_BRANCH`` is not a refusal, and the caller drops it.
     """
     flag: str | None = args.revision
     if flag is not None and flag.strip() == REVISION_LIVE:
@@ -987,7 +1002,7 @@ def _pinned_revision(
             f"{source} is not a plan revision id: {raw!r}. Use the id of a revision of the "
             f"project (its History page lists them), or {REVISION_LIVE} for the live plan."
         ) from None
-    if branch is not None and not branch.from_environment:
+    if branch is not None:
         raise TriplConfigError(
             f"{source} pins plan revision {pin}, and plan branch {branch.selector!r} is asked "
             f"for too; a run checks against one plan. Drop the branch, or pass --revision "

@@ -68,9 +68,15 @@ class Branch:
     @property
     def note(self) -> str | None:
         """The line a run prints about the branch it asked for, or None for nothing to say."""
+        return self.describe()
+
+    def describe(self, *, fallback_flag: bool = True) -> str | None:
+        """``note``, for a command with (the default) or without ``--branch-if-exists``."""
         if self.requested is None:
             return None
-        return plan_branch_note(self.requested, self.status, used_main=self.id is None)
+        return plan_branch_note(
+            self.requested, self.status, used_main=self.id is None, fallback_flag=fallback_flag
+        )
 
     @property
     def document(self) -> JsonDict | None:
@@ -136,10 +142,9 @@ class BranchRequest:
     selector: str
     fallback: bool
     source: str
-
-    @property
-    def from_environment(self) -> bool:
-        return self.source == ENV_PLAN_BRANCH
+    # Set when the environment variable took the place of another branch named
+    # in the check config: the line that says so, for stderr.
+    replaced: str | None = None
 
 
 def add_branch_if_exists(parser: argparse.ArgumentParser) -> None:
@@ -170,9 +175,12 @@ def branch_request(
     """Which plan branch this run asks for, or None for main.
 
     Highest first: ``--branch`` or ``--branch-if-exists`` (both is a refusal),
-    then ``TRIPL_PLAN_BRANCH`` (empty means unset), then ``branch`` or
-    ``branch_if_exists`` in the check config. ``environment`` false is for a
-    command that has no ``--branch-if-exists`` and so does not read the variable.
+    then ``TRIPL_PLAN_BRANCH``, then ``branch`` or ``branch_if_exists`` in the
+    check config. ``environment`` false is for a command that has no
+    ``--branch-if-exists`` and so does not read the variable.
+
+    An empty ``--branch-if-exists`` or variable names no branch: it is what a
+    pipeline passes when the variable it reads the git branch from is not set.
     """
     flag: str | None = getattr(args, "branch", None)
     flag_if_exists: str | None = getattr(args, "branch_if_exists", None)
@@ -184,20 +192,29 @@ def branch_request(
         )
     if flag is not None:
         return BranchRequest(flag, fallback=False, source=FLAG_BRANCH)
-    if flag_if_exists is not None:
-        return BranchRequest(flag_if_exists, fallback=True, source=FLAG_BRANCH_IF_EXISTS)
-    exported = os.environ.get(ENV_PLAN_BRANCH, "").strip() if environment else ""
-    if exported:
-        return BranchRequest(exported, fallback=True, source=ENV_PLAN_BRANCH)
+    if flag_if_exists is not None and flag_if_exists.strip():
+        return BranchRequest(flag_if_exists.strip(), fallback=True, source=FLAG_BRANCH_IF_EXISTS)
+    configured: BranchRequest | None = None
     if config_branch is not None:
-        return BranchRequest(config_branch, fallback=False, source="`branch` in the check config")
-    if config_branch_if_exists is not None:
-        return BranchRequest(
+        configured = BranchRequest(
+            config_branch, fallback=False, source="`branch` in the check config"
+        )
+    elif config_branch_if_exists is not None:
+        configured = BranchRequest(
             config_branch_if_exists,
             fallback=True,
             source="`branch_if_exists` in the check config",
         )
-    return None
+    exported = os.environ.get(ENV_PLAN_BRANCH, "").strip() if environment else ""
+    if not exported:
+        return configured
+    replaced = None
+    if configured is not None and configured.selector != exported:
+        replaced = (
+            f"{ENV_PLAN_BRANCH} names plan branch {exported}, so {configured.source} "
+            f"({configured.selector}) is not used."
+        )
+    return BranchRequest(exported, fallback=True, source=ENV_PLAN_BRANCH, replaced=replaced)
 
 
 async def resolve_branch(

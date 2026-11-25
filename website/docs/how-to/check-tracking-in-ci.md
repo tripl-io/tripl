@@ -369,8 +369,10 @@ log says which (`Plan branch checkout-v2 not found: used the main plan.`). The
 name is the merge request's source branch or the branch of a branch pipeline on
 GitLab, and the pull request's head branch or the pushed branch on GitHub. The
 default branch, a tag and a GitHub merge queue run are checked against main.
-It costs one more request per run. The default, `none`, leaves the variable
-alone.
+It costs one more request per run. The variable wins over `branch` and
+`branch_if_exists` in the check config (the job log says so when it replaces
+one), and loses to a `--branch` in `args`. The default, `none`, leaves the
+variable alone.
 
 Merge the plan branch before the code: the
 [worked sequence](../integrate/tripl-check.md#plan-branch-ci) shows what each
