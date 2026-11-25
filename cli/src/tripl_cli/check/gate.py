@@ -90,6 +90,9 @@ class Marking:
     unmapped: tuple[str, ...] = ()
     # Scanned files git does not track (generated, not added yet): new.
     untracked: tuple[str, ...] = ()
+    # Every item of the base tree's scan, for comparing what the two trees send
+    # (``summary.py``); None when the base could not be rebuilt as a whole.
+    base: tuple[CheckItem, ...] | None = None
 
 
 def item_key(item: CheckItem, *, markers: bool = True) -> str:
@@ -331,7 +334,8 @@ def mark(
             every, files, frozenset(paths), tuple(sorted(set(broken))), untracked=tuple(fresh)
         )
     if not paths and not deleted and not absent:
-        return Marking((False,) * len(items), files)
+        # Nothing the scan reads changed: the base sends what this tree does.
+        return Marking((False,) * len(items), files, base=tuple(items))
     found = [
         item
         for item in base_items(config, Snapshot(texts, tuple(deleted), tuple(absent)))
@@ -346,6 +350,7 @@ def mark(
         frozenset(paths),
         unreconstructable,
         untracked=tuple(fresh),
+        base=tuple(found),
     )
 
 

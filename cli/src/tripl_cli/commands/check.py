@@ -28,7 +28,9 @@ custom one from, and exits the moment it is parsed, the way ``--version`` does.
 One run, one set of verdicts, as many reports as a pipeline wants: ``--format``
 picks what goes to stdout, and each ``--report FORMAT=PATH`` writes the same
 result to a file — GitLab Code Quality and JUnit for a merge request, SARIF for
-code scanning, the JSON document for scripts. A failed run writes none of them
+code scanning, the JSON document for scripts, Markdown for a merge request
+note (``check/summary.py``: under a gate, the events the change adds, removes
+or changes). A failed run writes none of them
 and removes what an earlier run left at those paths, so a stale report can
 never pass for this run's. Only a command line the parser rejects outright (an
 unknown flag, or ``--list`` with ``--payloads``, say) leaves them, because then
@@ -100,6 +102,7 @@ from tripl_cli.check import coverage as coverage_mod
 from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
+from tripl_cli.check import summary as summary_mod
 from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
 from tripl_cli.check.inventory import inventory
 from tripl_cli.check.listing import render_listing
@@ -149,7 +152,15 @@ FORMAT_JSON = "json"
 FORMAT_SARIF = "sarif"
 FORMAT_CODEQUALITY = "codequality"
 FORMAT_JUNIT = "junit"
-FORMATS = (FORMAT_TEXT, FORMAT_JSON, FORMAT_SARIF, FORMAT_CODEQUALITY, FORMAT_JUNIT)
+FORMAT_MARKDOWN = "markdown"
+FORMATS = (
+    FORMAT_TEXT,
+    FORMAT_JSON,
+    FORMAT_SARIF,
+    FORMAT_CODEQUALITY,
+    FORMAT_JUNIT,
+    FORMAT_MARKDOWN,
+)
 # What `--list` with no check config leaves out beyond the default excludes:
 # every hidden directory (see `_discovery_config`).
 DISCOVERY_EXCLUDE = "**/.*/**"
@@ -303,7 +314,8 @@ def register(
         default=None,
         help=(
             "output format on stdout (default: text): json, sarif (SARIF 2.1.0, for code "
-            "scanning), codequality (GitLab Code Quality) or junit (JUnit XML)"
+            "scanning), codequality (GitLab Code Quality), junit (JUnit XML) or markdown "
+            "(a merge request note: the events the change adds, removes or changes)"
         ),
     )
     parser.add_argument(
@@ -668,8 +680,10 @@ def _change(
     check_config: CheckConfig,
     items: Sequence[CheckItem],
     skipped: Sequence[SkippedFile] = (),
-) -> tuple[GateInfo, tuple[bool, ...]] | None:
-    """The gate: what the change is, and which items it made new or changed. None for no gate.
+) -> tuple[GateInfo, tuple[bool, ...], tuple[CheckItem, ...] | None] | None:
+    """The gate: what the change is, which items it made new or changed, and the base's items.
+
+    None for no gate; the base's items are None when the base could not be rebuilt.
 
     Everything is read here, before any request: git, the patch, the base scan.
     """
@@ -717,7 +731,7 @@ def _change(
         unmapped=marking.unmapped,
         untracked=marking.untracked,
     )
-    return info, marking.changed
+    return info, marking.changed, marking.base
 
 
 def default_runner() -> Runner:
@@ -767,14 +781,19 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             # A gate that checked nothing must not read as one that passed: a
             # renamed wrapper or a moved directory would otherwise turn CI green.
             raise TriplConfigError(_nothing_matched(check_config, files))
-    gated = None
+    gated: tuple[GateInfo, tuple[bool, ...]] | None = None
+    base_items: tuple[CheckItem, ...] | None = None
     if check_config is not None and _gate_flag(args) is not None:
-        gated = _change(args, check_config, items, skipped)
+        change = _change(args, check_config, items, skipped)
+        if change is not None:
+            gated, base_items = change[:2], change[2]
+    summarised = FORMAT_MARKDOWN in (output, *(report_format for report_format, _ in targets))
+    compared: summary_mod.ChangeSummary | None = None
 
     covered: coverage_mod.Coverage | None = None
 
     async def body(client: httpx.AsyncClient) -> tuple[Branch, tuple[CheckResult, ...], int]:
-        nonlocal gated, covered
+        nonlocal gated, covered, compared
         reader = context.reader(client)
         branch = await resolve_branch(reader, project, selector)
         results: tuple[CheckResult, ...] = ()
@@ -809,6 +828,11 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
                 )
             results = gate_mod.apply_gate(results, changed, causes)
             gated = info, changed
+        if summarised and gated is not None and base_items is not None:
+            compared = summary_mod.compare(
+                await _base_results(reader, project, branch, base_items, items, results),
+                results,
+            )
         if args.coverage:
             assert check_config is not None  # --coverage is refused with --payloads
             covered = await _coverage(reader, project, branch, check_config, results)
@@ -849,6 +873,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         markers=marker_states(markers, results),
         gate=None if gated is None else gated[0],
         coverage=covered,
+        changes=compared,
     )
     report, written = _with_baseline(args, report, baseline)
     # Every file before anything is printed: a report that cannot be written
@@ -873,6 +898,35 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
+
+
+async def _base_results(
+    reader: Reader,
+    project: str,
+    branch: Branch,
+    base: Sequence[CheckItem],
+    items: Sequence[CheckItem],
+    results: Sequence[CheckResult],
+) -> tuple[CheckResult, ...]:
+    """The base tree's items with their verdicts, asking only about what this tree lacks.
+
+    An item this tree still sends has its verdict already; the others (what the
+    change removed or edited) are validated against the same plan, in the same
+    ``run_gate``, so the summary can name a removed event by its identity.
+    """
+
+    def sent(item: CheckItem) -> str:
+        return json.dumps(item.wire(), sort_keys=True, default=str)
+
+    known = {sent(result.item): result for result in results}
+    gone = [item for item in base if sent(item) not in known]
+    asked = iter(
+        await validate(reader, project, gone, branch_id=branch.id, strict=False) if gone else ()
+    )
+    return tuple(
+        replace(known[sent(item)], item=item) if sent(item) in known else next(asked)
+        for item in base
+    )
 
 
 def _coverage_refusal(args: argparse.Namespace) -> str | None:
@@ -1008,6 +1062,8 @@ def _render(report_format: str, report: CheckReport, root: Path | None) -> str:
         return json.dumps(sarif_document(report, root=root), indent=2) + "\n"
     if report_format == FORMAT_CODEQUALITY:
         return json.dumps(codequality_document(report), indent=2) + "\n"
+    if report_format == FORMAT_MARKDOWN:
+        return summary_mod.markdown_document(report)
     return junit_document(report)
 
 

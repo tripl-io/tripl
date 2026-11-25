@@ -10,6 +10,7 @@ from tripl_cli.model import JsonDict, Run
 
 if TYPE_CHECKING:
     from tripl_cli.check.coverage import Coverage
+    from tripl_cli.check.summary import ChangeSummary
 
 MODE_STATIC = "static"
 MODE_PAYLOADS = "payloads"
@@ -368,6 +369,9 @@ class CheckReport:
     baseline: BaselineInfo | None = None
     # Set with ``--coverage``: the planned events no call of this run sends.
     coverage: Coverage | None = None
+    # Set under a gate when a Markdown summary was asked for and the base tree
+    # could be rebuilt: the events the change adds, removes or changes.
+    changes: ChangeSummary | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)
