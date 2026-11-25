@@ -330,6 +330,74 @@ def test_shorthand_shared_by_two_enums_is_disambiguated_by_the_field(tmp_path: P
     assert dict(item.fields) == {"category": "home_category", "action": "go_home"}
 
 
+@pytest.mark.parametrize(
+    ("language", "source", "readable", "mutable"),
+    [
+        (
+            "kotlin",
+            """
+            object ScreenTracker {
+                var currentScreen = ""
+                val home = "home"
+                const val settings = "settings"
+            }
+            """,
+            [["ScreenTracker", "home"], ["ScreenTracker", "settings"]],
+            [["ScreenTracker", "currentScreen"]],
+        ),
+        (
+            "swift",
+            """
+            enum Screens {
+                static var current = ""
+                static let home = "home"
+            }
+            var lastScreen = "launch"
+            let start = "start"
+            """,
+            [["Screens", "home"], ["start"]],
+            [["Screens", "current"], ["lastScreen"]],
+        ),
+        (
+            "java",
+            """
+            class Screens {
+                public static final String HOME = "home";
+                public static String current = "";
+                private String draft = "draft";
+            }
+            """,
+            [["Screens", "HOME"]],
+            [["Screens", "current"], ["Screens", "draft"]],
+        ),
+        (
+            "ts",
+            """
+            export const home = "home";
+            export let screen = "home";
+            export var legacy = "legacy";
+            """,
+            [["home"]],
+            [["screen"], ["legacy"]],
+        ),
+    ],
+    ids=["kotlin", "swift", "java", "ts"],
+)
+def test_only_declarations_that_cannot_be_reassigned_are_read_as_constants(
+    language: str, source: str, readable: list[list[str]], mutable: list[list[str]]
+) -> None:
+    """A `var` holds what was last assigned at runtime, not its initial value.
+
+    Reading `var currentScreen = ""` as a constant checked an empty event name
+    (a false error); `export let screen = "home"` checked "home" (a false pass).
+    """
+    symbols = SymbolIndex()
+    symbols.index_tokens(tokenize(textwrap.dedent(source), language), language)
+
+    assert all(symbols.resolve(path) is not None for path in readable)
+    assert [symbols.resolve(path) for path in mutable] == [None] * len(mutable)
+
+
 def test_a_reference_resolves_on_the_longest_suffix_it_shares_with_a_constant() -> None:
     symbols = SymbolIndex()
     symbols.add(("Screen", "Open"), "screen_open", member=True)
