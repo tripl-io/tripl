@@ -35,6 +35,7 @@ from tripl_cli.check.config import (
     CheckConfig,
     EventTypeSpec,
     default_target,
+    field_target,
     selector_field,
 )
 from tripl_cli.check.model import (
@@ -137,13 +138,9 @@ class Read:
         if self.name is not None:
             yield NAME, self.name
         for name, value in self.fields.items():
-            yield _field_target(name), value
+            yield field_target(name), value
         if self.properties is not None:
             yield PROPERTIES, self.properties
-
-
-def _field_target(name: str) -> str:
-    return FIELD_PREFIX + name if name in RESERVED_TARGETS else name
 
 
 @dataclass(frozen=True)
@@ -398,11 +395,10 @@ def _refine(
 def _reasons(items: Sequence[CheckItem], read: Read) -> dict[str, str]:
     """One reason per dynamic target of ``items``, which all carry the same ``dynamic``.
 
-    ``CheckItem.dynamic`` names a field by its bare name, so there a field
-    ``name`` reads as the event's name. The targets are taken from ``read``
-    instead, by ``call_items``' own rule (a name or field that is not known,
-    properties that are no dictionary, else the name), keyed as
-    ``Read.targets`` keys them.
+    The targets are taken from ``read``, by ``call_items``' own rule (a name or
+    field that is not known, properties that are no dictionary, else the name),
+    keyed as ``Read.targets`` keys them, which is how ``CheckItem.dynamic``
+    keys them too (``config.field_target``).
     """
     if not items or not items[0].dynamic:
         return {}

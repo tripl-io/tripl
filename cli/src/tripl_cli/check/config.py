@@ -148,6 +148,17 @@ VALUE_NUMBER = "value:number"
 FIELD_PREFIX = "field:"
 RESERVED_TARGETS = frozenset({NAME, NAME_IGLU, PROPERTIES, VALUE_NUMBER})
 
+
+def field_target(name: str) -> str:
+    """How a target names the plan field ``name``: ``field:<name>`` when it is reserved.
+
+    One rule for every place a target is spelled (``--list``, the items plain
+    check sends, ``--strict``'s findings), so a field called ``name`` is never
+    read as the event's name nor ``properties`` as the properties argument.
+    """
+    return FIELD_PREFIX + name if name in RESERVED_TARGETS else name
+
+
 DEFAULT_SOURCES = ("**/*",)
 DEFAULT_EXCLUDES = (
     "**/.git/**",

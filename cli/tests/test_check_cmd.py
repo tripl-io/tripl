@@ -18,6 +18,7 @@ import re
 import sys
 import textwrap
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -306,6 +307,23 @@ def test_info_findings_only_count_under_strict() -> None:
     assert relaxed.status == "ok"
     assert [finding.severity for finding in relaxed.findings] == ["info"]
     assert result_for(item, verdict, strict=True, sent=True).status == "warning"
+
+
+def test_strict_names_a_field_called_name_as_that_field_not_the_event_name() -> None:
+    item = replace(_item(1, "screen_view"), dynamic=("field:name", "properties"))
+    verdict = {"ref": "i0", "status": "ok", "findings": []}
+
+    result = result_for(item, verdict, strict=True, sent=True)
+
+    assert [(finding.field, finding.message) for finding in result.findings] == [
+        ("name", "the value of 'name' is not known until runtime"),
+        ("properties", "the value of 'properties' is not known until runtime"),
+    ]
+    # The event's own name stays the bare target.
+    unnamed = replace(_item(1, "screen_view"), name=None, dynamic=("name",))
+    [finding] = result_for(unnamed, verdict, strict=True, sent=True).findings
+    assert finding.field is None
+    assert finding.message == "the event name is not known until runtime"
 
 
 def test_branch_is_resolved_by_name_and_sent_as_its_id(
@@ -1892,6 +1910,24 @@ def test_a_stderr_that_cannot_be_written_still_gets_the_json_document_through(
     document = json.loads(capsys.readouterr().out)
     assert document["command"] == "check --list"
     assert document["summary"]["calls"] > 0
+
+
+@pytest.mark.parametrize("stderr", [None, _FullDisk], ids=["closed", "full"])
+def test_plain_check_json_survives_a_stderr_that_cannot_be_written(
+    repo: Path,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stderr: type[_FullDisk] | None,
+) -> None:
+    # The human lines go to stderr first; `2>&-` or `2>/dev/full` used to end the
+    # run there, before the document reached stdout.
+    monkeypatch.setattr(sys, "stderr", None if stderr is None else stderr())
+    assert main(["check", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["command"] == "check"
+    assert document["summary"]["checked"] == 2
 
 
 def test_a_closed_stdout_is_no_failure_but_one_that_cannot_be_written_is(

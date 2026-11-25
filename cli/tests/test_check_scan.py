@@ -1188,9 +1188,9 @@ def test_every_dynamic_target_has_exactly_one_reason(tmp_path: Path) -> None:
     for call in found.calls:
         for target in call.items[0].dynamic:
             dynamic[target] += 1
-        # The items name a field by its bare name, `field:name` as `name`.
+        # The items key targets as --list does, so the two agree target for target.
         for target, code in call.dynamic.items():
-            reasons.setdefault(target.removeprefix("field:"), Counter())[code] += 1
+            reasons.setdefault(target, Counter())[code] += 1
     assert dynamic, "the fixture has no dynamic target at all"
     assert {target: sum(codes.values()) for target, codes in reasons.items()} == dict(dynamic)
     assert all(code in REASON_CODES for codes in reasons.values() for code in codes)
@@ -1229,10 +1229,11 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
         {"name": "parameter", "field:name": "parameter"},
         {"field:properties": "parameter"},
     ]
+    # The items plain check sends key them the same way: never the reserved target.
     assert [call.items[0].dynamic for call in found.calls] == [
-        ("name",),
-        ("name", "name"),
-        ("properties",),
+        ("field:name",),
+        ("name", "field:name"),
+        ("field:properties",),
     ]
     assert summarize(found).targets == {
         "screen": {"name": 2, "field:name": 2},
@@ -1246,6 +1247,64 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
         ("relay", [("name",), ("field:name",)]),
         ("showScreen", [("field:name",)]),
     ]
+
+
+@pytest.mark.parametrize(
+    ("path", "source"),
+    [
+        (
+            "app/Tracking.kt",
+            """
+            fun track(event: String, screen: String) {
+                Analytics.log(event, screen)
+            }
+            fun open() {
+                track("screen_view", "home")
+            }
+            """,
+        ),
+        (
+            "app/Tracking.java",
+            """
+            class Tracking {
+                void track(String event, String screen) throws IOException {
+                    Analytics.log(event, screen);
+                }
+                void open() {
+                    track("screen_view", "home");
+                }
+            }
+            """,
+        ),
+    ],
+    ids=["kotlin", "java"],
+)
+def test_a_function_declaration_is_not_sent_as_a_call(
+    tmp_path: Path, path: str, source: str
+) -> None:
+    """``find_calls`` reads ``fun track(event: String, ...) {`` as a call to ``track``.
+
+    The spec names ``track``, so plain check used to send the declaration as a
+    tracking call whose name was the parameter ``event`` - a dynamic row, or
+    under --strict a warning, for a line that tracks nothing.
+    """
+    root = _repo(tmp_path, {path: source})
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name, "field:screen"]}]}
+        """,
+    )
+
+    items = scan(config).items
+
+    assert [(item.name, dict(item.fields)) for item in items] == [
+        ("screen_view", {"screen": "home"})
+    ]
+    # --list agrees: one call site, the real one.
+    assert [call.items[0].name for call in inventory(config).calls] == ["screen_view"]
 
 
 # --- function scopes -----------------------------------------------------------------
