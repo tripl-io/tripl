@@ -144,6 +144,38 @@ async def test_unhandled_exception_log_line_shares_the_response_request_id() -> 
 
 
 @pytest.mark.asyncio
+async def test_health_ok_names_the_server_version_and_nothing_else(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A healthy probe carries the version (already public via OpenAPI) so the
+    CLI support report can name it, and adds no other field to an
+    unauthenticated response."""
+
+    class _Conn:
+        async def __aenter__(self) -> _Conn:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def execute(self, *_args: object) -> None:
+            return None
+
+    class _HealthyEngine:
+        def connect(self) -> _Conn:
+            return _Conn()
+
+    monkeypatch.setattr(main_module, "engine", _HealthyEngine())
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/health")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "version": main_module.__version__}
+
+
+@pytest.mark.asyncio
 async def test_health_db_failure_returns_generic_body_without_exception_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

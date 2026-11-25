@@ -109,7 +109,17 @@ def normalize_base_url(raw: str, origin: str) -> str:
             f"{origin} contains a control character ({control!r}) and is not a valid tripl "
             f"URL: {raw!r}. An origin is one line - no newlines, tabs or control bytes."
         )
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError as exc:
+        # urlsplit raises on a malformed IPv6 literal ("https://[::1") and on a
+        # few other unparseable hosts. Not a TriplError, so without this every
+        # command printed a traceback and exited 1 instead of exiting 2 with a
+        # message naming the setting to fix.
+        raise TriplConfigError(
+            f"{origin} is not a valid tripl URL: {raw!r}. The host part cannot be "
+            f"parsed ({exc}); an IPv6 address goes in brackets, e.g. https://[::1]:8000"
+        ) from exc
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         # Suggest a corrected value only for the common case — a bare host with
         # no scheme, `tripl.example.com` or `localhost:8000`. The test is "://"

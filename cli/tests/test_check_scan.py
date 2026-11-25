@@ -1120,9 +1120,9 @@ def test_every_dynamic_target_has_exactly_one_reason(tmp_path: Path) -> None:
     for call in found.calls:
         for target in call.items[0].dynamic:
             dynamic[target] += 1
-        # The items name a field by its bare name, `field:name` as `name`.
+        # The items key targets as --list does, so the two agree target for target.
         for target, code in call.dynamic.items():
-            reasons.setdefault(target.removeprefix("field:"), Counter())[code] += 1
+            reasons.setdefault(target, Counter())[code] += 1
     assert dynamic, "the fixture has no dynamic target at all"
     assert {target: sum(codes.values()) for target, codes in reasons.items()} == dict(dynamic)
     assert all(code in REASON_CODES for codes in reasons.values() for code in codes)
@@ -1161,10 +1161,11 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
         {"name": "parameter", "field:name": "parameter"},
         {"field:properties": "parameter"},
     ]
+    # The items plain check sends key them the same way: never the reserved target.
     assert [call.items[0].dynamic for call in found.calls] == [
-        ("name",),
-        ("name", "name"),
-        ("properties",),
+        ("field:name",),
+        ("name", "field:name"),
+        ("field:properties",),
     ]
     assert summarize(found).targets == {
         "screen": {"name": 2, "field:name": 2},
