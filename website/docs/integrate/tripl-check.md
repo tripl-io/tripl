@@ -163,6 +163,7 @@ event_types:
 |-----|---------|
 | `project` | The project slug. **Required** unless you pass `--project`. |
 | `branch` | Optional. A plan branch, by name or id, matched exactly the way [`tripl plan --branch`](../run/cli.md#the---branch-flag) matches it. Omit it to check against the live main plan. `--branch` on the command line overrides it. |
+| `revision` | Optional. The id of a stored plan revision to check against instead of the live plan. See [Pin the plan](#pin). `--revision` overrides it. Not together with `branch`. |
 | `root` | Optional. The directory that `sources`, `exclude` and `enums` globs start from, relative to the base directory. The base directory is the one that holds `.tripl/` (for a config file outside a `.tripl/` directory, the file's own directory). Default: the base directory. |
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
 | `exclude` | Glob patterns for files to skip, even when a `sources` pattern matches them. They are added to the built-in excludes: `.git`, `node_modules`, `Pods`, `Carthage`, `DerivedData`, `.build`, `build` and `dist` directories, and `*.min.js` files. |
@@ -668,6 +669,43 @@ running as another uid). The CLI never works around that last one: the
 message names the command that marks the checkout safe,
 `git config --global --add safe.directory "<dir>"`, or run the container as the
 checkout's owner (`docker run -u "$(id -u):$(id -g)" …`).
+
+## Pin the plan {#pin}
+
+By default a check follows the live plan. That is what you want while the plan
+and the code change together, and it has a cost: when someone archives an
+event, every open merge request that sends it goes red, and a pipeline you
+re-run next month can give another answer than it gave today.
+
+To pin the check, name a plan revision in the config:
+
+```yaml
+project: my-app
+revision: 0a1b2c3d-0000-4000-8000-00000000beef
+```
+
+A revision is a stored copy of the whole plan. Take one on the project's
+History page (or with `POST /projects/{slug}/revisions`) and copy its id.
+Every run then validates against that copy, and says so:
+
+```text
+2 call sites in 1 file: 2 ok, 0 warnings, 0 errors.
+Plan: revision 0a1b2c3d-0000-4000-8000-00000000beef (hash abababababab, taken 2026-11-20T09:00:00Z).
+```
+
+Moving to a newer plan is a commit of its own: take a revision, change the id,
+and review what the check now says. To see that before you commit it, run
+`tripl check --revision NEW_ID`, or `tripl check --revision live` for the live
+plan.
+
+A revision holds the event types with their fields and contracts, the events,
+the variables and their per-event overrides. Two things are not in it and are
+always today's: an event type's naming rule, which belongs to its scan config,
+and the policy rules of an installed extension.
+
+A pinned run is refused with a plan branch (`branch` or `--branch`) and with
+`--coverage`, which reads the live plan. An instance too old to pin fails the
+run instead of answering from the live plan.
 
 ## Summarise a change {#summary}
 

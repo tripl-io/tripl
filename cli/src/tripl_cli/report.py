@@ -579,6 +579,10 @@ def check_document(report: CheckReport) -> JsonDict:
     (``check/baseline.py``), ``summary`` gains ``failing``, each result
     ``fails``, and each finding ``baselined`` and ``fails``.
 
+    Pinned to a plan revision (``--revision``, or ``revision:`` in the check
+    config), and only then, the top-level ``plan`` names the revision that
+    judged the calls: ``revision``, ``plan_hash``, ``created_at``.
+
     With ``--coverage``, and only then, the top-level ``coverage`` lists the
     planned events no call of this run sends (``check/coverage.py``).
     """
@@ -614,6 +618,12 @@ def check_document(report: CheckReport) -> JsonDict:
         document["gate"] = gate_document(report)
     if based:
         document["baseline"] = baseline_document(report)
+    if report.plan is not None:
+        document["plan"] = {
+            "revision": report.plan.revision,
+            "plan_hash": report.plan.plan_hash,
+            "created_at": report.plan.created_at,
+        }
     if report.coverage is not None:
         document["coverage"] = coverage_document(report.coverage)
     document["results"] = [

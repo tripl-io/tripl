@@ -47,6 +47,7 @@ from tripl_cli.check.model import (
 )
 from tripl_cli.check.payloads import enforce_limits
 from tripl_cli.diagnostics.collect import Reader
+from tripl_cli.errors import TriplError
 from tripl_cli.model import JsonDict, as_list, text_of
 
 _STATUSES = frozenset({STATUS_OK, STATUS_WARNING, STATUS_ERROR})
@@ -81,14 +82,33 @@ async def validate(
     branch_id: str | None,
     strict: bool,
     batch_size: int = plan_validation.MAX_ITEMS,
+    revision: str | None = None,
+    answered: list[JsonDict] | None = None,
 ) -> tuple[CheckResult, ...]:
+    """One verdict per item. ``revision`` pins the plan; ``answered`` collects each ``plan``.
+
+    A reply that does not name the revision asked for is refused: an instance
+    older than the parameter ignores it and answers from the live plan, and a
+    pinned run must never pass on verdicts it did not ask for.
+    """
     items = [enforce_limits(item) for item in items]
     wire, positions = unique_items(items)
     verdicts: dict[str, JsonDict] = {}
     for batch in plan_validation.batches(wire, batch_size):
         response = await reader.send(
-            plan_validation.validate(slug, batch, branch=branch_id, strict=strict)
+            plan_validation.validate(
+                slug, batch, branch=branch_id, revision=revision, strict=strict
+            )
         )
+        plan = plan_validation.answering_plan(response)
+        if revision is not None and text_of(plan, "revision") != revision:
+            raise TriplError(
+                f"the instance did not validate against plan revision {revision}: it is "
+                "older than pinned revisions and answered from the live plan. Upgrade the "
+                "instance, or run with --revision live."
+            )
+        if answered is not None:
+            answered.append(plan)
         sent = {entry["ref"] for entry in batch}
         for verdict in plan_validation.verdicts(response):
             ref = text_of(verdict, "ref")

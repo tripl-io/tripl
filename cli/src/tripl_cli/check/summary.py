@@ -237,6 +237,8 @@ def _finding_lines(report: CheckReport) -> list[str]:
 def markdown_document(report: CheckReport) -> str:
     project = f"Project {_code(report.project)}"
     branch = f", plan branch {_code(report.branch_name)}" if report.branch_name else ""
+    if report.plan is not None:
+        branch = f", plan revision {_code(report.plan.revision)}"
     lines = [TITLE, "", f"{project}{branch}.", "", *_change_lines(report), ""]
     lines += _finding_lines(report)
     return "\n".join(lines) + "\n"

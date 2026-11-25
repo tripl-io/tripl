@@ -2271,7 +2271,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
                    [--print-preset [NAME]] [--new-from-rev REF |
                    --new-from-patch FILE] [--baseline FILE]
                    [--write-baseline FILE] [--prune-baseline] [--project SLUG]
-                   [--branch REF] [--strict]
+                   [--branch REF] [--revision ID] [--strict]
                    [--format {text,json,sarif,codequality,junit,markdown}]
                    [--report FORMAT=PATH] [--allow-empty] [--coverage]
                    [--json] [--timeout SECONDS]
@@ -2282,6 +2282,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--check-config PATH` | The check configuration to read. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) in the current directory or a parent, up to the repository root. (`--config` is the connection config file, as on every other command.) |
 | `--project SLUG` | The project to check against. Overrides `project` in the check configuration. One of the two is required. |
 | `--branch REF` | Check against a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the check configuration. |
+| `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
 | `--payloads FILE` | Payload mode: validate the events in `FILE` (NDJSON, a JSON array, or one object; `-` reads stdin) instead of scanning source files. A missing required field is an error in this mode. |
 | `--list` | Scan only, to write the check configuration. It lists every call the configuration matches with what the scan read from it and why a value was not read, the functions that pass their own parameter into a tracking call, and the calls that look like tracking but match no call spec. It needs no URL and no key, opens no connection and sends nothing. With no check configuration found, it scans the whole git repository it runs in. It refuses `--report`, `--branch`, `--strict`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` and a `--format` other than `text` or `json` (exit 2), and the parser refuses it together with `--payloads`. See [the example below](#tripl-check-list) and the guide's [List what the scan reads](../integrate/tripl-check.md#list). |
 | `--print-preset [NAME]` | Print the call specs of the preset `NAME` as YAML to paste under an event type's `calls:`, as the start of your own, and exit 0, even when the reader closes the pipe early. Without `NAME` it prints every preset. Two comment lines head each preset: where to paste it, and, for the event type's first preset, the `style:` to set in a `codegen:` block that has none: the one [`tripl codegen`](../integrate/codegen.md#styles) took from that preset's name. It acts as soon as it is parsed, the way `--help` does: the flags after it are ignored, no command runs, and it prints YAML even with `--json`. An unknown `NAME` is exit 2, and the message lists the presets. |
@@ -4603,6 +4604,11 @@ a baseline even with no marker and no gate.
 | `baseline` | What the baseline held and this run matched: `path` (the file as given), `action` (`"check"`, `"prune"` or `"write"`), `entries` and `findings` (the file's entries and the findings they hold, counts summed: as read, or as written), `baselined` (this run's findings the file holds), `stale` (the file's findings this run did not have), `pruned` (under `--prune-baseline`, the findings dropped from the file, `0` when none, else `null`) and `not_pruned` (why `--prune-baseline` left the file alone, else `null`). |
 | `results[].findings[].baselined` | Whether the baseline holds the finding, so it does not fail the run. Always `false` for a suppressed finding and for `no_verdict`. |
 | `results[].findings[].fails` | With a baseline: severe, not suppressed, not baselined, and, under a gate too, new in the change. |
+
+Pinned to a plan revision (`--revision`, or `revision` in the check
+configuration), and only then, the document has a `plan` key: `revision` (the
+id), `plan_hash` (the hash of that revision's content) and `created_at` (when
+it was taken). Two runs with the same `plan_hash` were judged by the same plan.
 
 With `--coverage`, and only then, the document has a `coverage` key:
 
