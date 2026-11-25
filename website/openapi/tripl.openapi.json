@@ -31519,7 +31519,7 @@
           "plan-validation"
         ],
         "summary": "Validate Plan",
-        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing.",
+        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing. ``plan`` in the answer names the\nrevision that judged the calls, or is empty for the live plan.",
         "operationId": "validate_plan_api_v1_projects__slug__plan_validate_post",
         "security": [
           {
@@ -31535,6 +31535,25 @@
               "type": "string",
               "title": "Slug"
             }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Validate against this stored plan revision (`GET /revisions`) instead of the live plan. Not with `branch`.",
+              "title": "Revision"
+            },
+            "description": "Validate against this stored plan revision (`GET /revisions`) instead of the live plan. Not with `branch`."
           },
           {
             "name": "branch",
@@ -59401,6 +59420,48 @@
         ],
         "title": "PlanValidationItemResult"
       },
+      "PlanValidationPlan": {
+        "properties": {
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "plan_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Hash"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "title": "PlanValidationPlan",
+        "description": "Which plan answered: a stored revision (``?revision=``), or the live one.\n\nAll ``None`` for the live plan of main or of a branch: its verdicts follow\nevery edit. With a revision, ``plan_hash`` is the hash of that revision's\ncontent (the one plan branches compare for approval), so two runs that\nname the same hash were judged by the same plan."
+      },
       "PlanValidationRequest": {
         "properties": {
           "items": {
@@ -59434,6 +59495,9 @@
           },
           "summary": {
             "$ref": "#/components/schemas/PlanValidationSummary"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanValidationPlan"
           }
         },
         "type": "object",

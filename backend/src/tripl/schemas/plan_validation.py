@@ -9,6 +9,7 @@ scanned". It is never an error.
 """
 
 import uuid
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -87,6 +88,21 @@ class PlanValidationSummary(BaseModel):
     errors: int = 0
 
 
+class PlanValidationPlan(BaseModel):
+    """Which plan answered: a stored revision (``?revision=``), or the live one.
+
+    All ``None`` for the live plan of main or of a branch: its verdicts follow
+    every edit. With a revision, ``plan_hash`` is the hash of that revision's
+    content (the one plan branches compare for approval), so two runs that
+    name the same hash were judged by the same plan.
+    """
+
+    revision: uuid.UUID | None = None
+    plan_hash: str | None = None
+    created_at: datetime | None = None
+
+
 class PlanValidationResponse(BaseModel):
     items: list[PlanValidationItemResult]
     summary: PlanValidationSummary
+    plan: PlanValidationPlan = Field(default_factory=PlanValidationPlan)
