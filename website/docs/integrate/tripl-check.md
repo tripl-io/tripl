@@ -686,6 +686,13 @@ revision: 0a1b2c3d-0000-4000-8000-00000000beef
 
 A revision is a stored copy of the whole plan. Take one on the project's
 History page (or with `POST /projects/{slug}/revisions`) and copy its id.
+[`tripl plan revisions`](../run/cli.md#tripl-plan-revisions) lists the ones a
+project already has, id first:
+
+```bash
+tripl plan revisions --project my-app
+```
+
 Every run then validates against that copy, and says so:
 
 ```text

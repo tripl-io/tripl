@@ -312,8 +312,8 @@ def register(
         metavar="ID",
         help=(
             "validate against the stored plan revision ID instead of the live plan, so the "
-            "verdicts do not change when the plan does; overrides `revision` in the check "
-            f"config, and {REVISION_LIVE} unpins it for this run"
+            "verdicts do not change when the plan does (`tripl plan revisions` lists the ids); "
+            f"overrides `revision` in the check config, and {REVISION_LIVE} unpins it for this run"
         ),
     )
     parser.add_argument(
@@ -955,7 +955,8 @@ def _pinned_revision(
     except ValueError:
         raise TriplConfigError(
             f"{source} is not a plan revision id: {raw!r}. Use the id of a revision of the "
-            f"project (its History page lists them), or {REVISION_LIVE} for the live plan."
+            f"project (`tripl plan revisions` and its History page list them), or "
+            f"{REVISION_LIVE} for the live plan."
         ) from None
     if branch is not None:
         raise TriplConfigError(

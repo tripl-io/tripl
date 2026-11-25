@@ -59,7 +59,7 @@ def get_diff(slug: str, branch_id: str) -> ApiRequest:
     """Answers ``{behind_base, entries, summary}``. No CLI verb reads it yet.
 
     ``tripl plan`` does not expose it: that payload is not a list, so it does
-    not fit the one document shape the seven read verbs share, and
+    not fit the one document shape the eight read verbs share, and
     ``behind_base`` is too load-bearing to smuggle into an ``items`` array.
     ``tripl-mcp``'s ``get_branch_diff`` calls this.
     """

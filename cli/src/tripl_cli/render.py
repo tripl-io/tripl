@@ -302,8 +302,8 @@ def _plan_scope(read: PlanRead) -> str:
     A branch is named only when one was asked for. That is not brevity: the API
     has no id for main and spells it by omitting ``?branch=`` entirely (see
     ``api/branches.py``), so printing ``(main)`` would invent a name for the
-    absence — and ``plan branches`` reads no revision at all, which any such
-    label would misdescribe.
+    absence — and ``plan branches`` and ``plan revisions`` list a whole project
+    rather than read one plan, which any such label would misdescribe.
     """
     if read.branch_id is None:
         return read.project
@@ -330,8 +330,8 @@ def render_plan_read(read: PlanRead, rows: Sequence[Sequence[str]], *, empty: st
 
     The COLUMNS differ per resource and are built by the ``*_rows`` functions
     below; everything around them — the scope line, the empty case, the count,
-    and the sentence that says the list stopped early — is here, so seven verbs
-    cannot end up saying the same thing seven ways. That is the same rule
+    and the sentence that says the list stopped early — is here, so eight verbs
+    cannot end up saying the same thing eight ways. That is the same rule
     ``_incomplete`` already applies to ``scans list`` and ``drifts list``.
     """
     lines = [_plan_scope(read)]
@@ -467,6 +467,55 @@ def branch_rows(branches: Sequence[JsonDict]) -> list[list[str]]:
             "behind base" if branch.get("behind_base") else "",
         ]
         for branch in branches
+    ]
+
+
+# The counts a revision summary carries, in the order they are printed, with the
+# noun each one is counted in. `variables` prints as properties, the name the
+# rest of the CLI uses for them.
+_REVISION_COUNTS: tuple[tuple[str, str], ...] = (
+    ("event_types", "event type"),
+    ("events", "event"),
+    ("fields", "field"),
+    ("variables", "property"),
+    ("meta_fields", "meta field"),
+    ("relations", "relation"),
+)
+
+
+def _revision_counts(revision: JsonDict) -> str:
+    """``4 event types, 23 events, 9 fields``: what the stored plan holds.
+
+    Zero counts are left out so the cell stays short; a plan with nothing in it
+    prints ``empty``.
+    """
+    counts = revision.get("entity_counts")
+    if not isinstance(counts, dict):
+        return "-"
+    parts = [
+        plural(int_of(counts, key), noun) for key, noun in _REVISION_COUNTS if int_of(counts, key)
+    ]
+    return ", ".join(parts) if parts else "empty"
+
+
+def revision_rows(revisions: Sequence[JsonDict]) -> list[list[str]]:
+    """id, when it was stored, kind, the branch behind it, counts, and summary.
+
+    The id goes first because it is the argument ``tripl check --revision``
+    takes. The listing covers the whole project, so the branch column tells a
+    snapshot of the main plan (``-``) from a row made for a plan branch. The
+    summary is author-written free text, so it goes last, on one line.
+    """
+    return [
+        [
+            text_of(revision, "id") or "(no id)",
+            text_of(revision, "created_at") or "-",
+            text_of(revision, "kind") or "unknown",
+            f"branch {text_of(revision, 'branch_id')}" if text_of(revision, "branch_id") else "-",
+            _revision_counts(revision),
+            _flat(text_of(revision, "summary")),
+        ]
+        for revision in revisions
     ]
 
 

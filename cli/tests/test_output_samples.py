@@ -45,6 +45,7 @@ from .conftest import (
     make_event_type,
     make_field,
     make_job,
+    make_revision,
     make_scan_config,
     make_search_result,
     make_variable,
@@ -373,6 +374,42 @@ def test_plan_branches_sample(
         "  b-9f21  checkout-redesign  working  draft   3 ahead  behind base\n"
         "\n"
         "2 branches.\n"
+    )
+
+
+def test_plan_revisions_sample(
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The first column is the id ``tripl check --revision`` takes."""
+    tripl_api.revisions(
+        "prod",
+        [
+            make_revision(
+                "5e6f7a8b-0000-4000-8000-00000000cafe",
+                summary="Merge checkout-redesign",
+                kind="merge",
+                branch_id="7c1d2e3f-0000-4000-8000-000000009f21",
+                created_at="2026-08-01T09:00:00Z",
+            ),
+            make_revision(),
+        ],
+    )
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    assert capsys.readouterr().out == (
+        "tripl plan revisions - http://tripl.test (from $TRIPL_BASE_URL)\n"
+        "\n"
+        "prod\n"
+        "  5e6f7a8b-0000-4000-8000-00000000cafe  2026-08-01T09:00:00Z  merge     "
+        "branch 7c1d2e3f-0000-4000-8000-000000009f21  "
+        "4 event types, 23 events, 9 fields, 6 properties, 1 relation  Merge checkout-redesign\n"
+        "  0a1b2c3d-0000-4000-8000-00000000beef  2026-07-30T14:05:11Z  snapshot  "
+        "-                                            "
+        "4 event types, 23 events, 9 fields, 6 properties, 1 relation  "
+        "Before the checkout redesign\n"
+        "\n"
+        "2 revisions.\n"
     )
 
 

@@ -99,6 +99,7 @@ tripl plan types --project SLUG             # event types, with a field count ea
 tripl plan fields <event-type> --project SLUG   # one event type's field definitions
 tripl plan properties --project SLUG        # properties, and how many events use each
 tripl plan branches --project SLUG          # plan branches and how far ahead each is
+tripl plan revisions --project SLUG         # stored plan revisions; the id check --revision takes
 tripl plan search <query> --project SLUG    # search the whole plan, ids to read next
 tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy marker on monitoring charts (WRITE)
 tripl check               # validate the tracking calls in this checkout against the plan

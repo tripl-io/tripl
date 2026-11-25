@@ -1,9 +1,9 @@
-"""``tripl plan types|fields|variables|branches|search``.
+"""``tripl plan types|fields|variables|branches|revisions|search``.
 
-One document shape across five verbs, so most of what is worth pinning is the
-shape itself plus the two places a verb legitimately differs: ``plan branches``
-takes no ``--branch``, and ``plan search`` reports whether the semantic index
-answered.
+One document shape across six verbs, so most of what is worth pinning is the
+shape itself plus the places a verb legitimately differs: ``plan branches``
+and ``plan revisions`` take no ``--branch``, and ``plan search`` reports
+whether the semantic index answered.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from .conftest import (
     make_branch,
     make_event_type,
     make_field,
+    make_revision,
     make_search_result,
     make_variable,
 )
@@ -303,3 +304,123 @@ def test_a_failed_read_is_exit_1_and_not_an_empty_table(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "403" in captured.err
+
+
+def test_revisions_lists_the_id_to_pin_a_check_to(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The id is the first column: it is what ``tripl check --revision`` takes."""
+    tripl_api.revisions(
+        "prod",
+        [
+            make_revision(
+                "5e6f7a8b-0000-4000-8000-00000000cafe",
+                summary="Merge checkout-redesign",
+                kind="merge",
+                branch_id="b-9f21",
+                created_at="2026-08-01T09:00:00Z",
+            ),
+            make_revision(),
+        ],
+    )
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    counts = "4 event types, 23 events, 9 fields, 6 properties, 1 relation"
+    assert (
+        "  5e6f7a8b-0000-4000-8000-00000000cafe  2026-08-01T09:00:00Z  merge     branch b-9f21  "
+        f"{counts}  Merge checkout-redesign\n" in out
+    )
+    assert (
+        "  0a1b2c3d-0000-4000-8000-00000000beef  2026-07-30T14:05:11Z  snapshot  -              "
+        f"{counts}  Before the checkout redesign\n" in out
+    )
+    assert out.endswith("2 revisions.\n")
+
+
+def test_a_revision_summary_with_a_newline_stays_on_one_row(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions(
+        "prod",
+        [
+            make_revision(summary="Before the release\n\nsecond paragraph", entity_counts={}),
+            make_revision("r-2", summary=""),
+        ],
+    )
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    assert "  empty  " in out
+    assert "  Before the release second paragraph\n" in out
+    # No summary at all prints a dash, not a ragged row.
+    assert "1 relation  -\n" in out
+
+
+def test_revisions_page_and_report_what_they_left_behind(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    route = tripl_api.revisions("prod", [make_revision()], total=7)
+    assert main(["plan", "revisions", "--project", "prod", "--offset", "2", "--limit", "1"]) == 0
+    params = route.calls.last.request.url.params
+    assert (params["offset"], params["limit"]) == ("2", "1")
+    # The listing covers the whole project, so no branch is ever sent.
+    assert "branch" not in params
+    assert (
+        "1 of 7 revisions shown; raise --limit or pass --offset to read the rest."
+        in capsys.readouterr().out
+    )
+
+
+def test_revisions_json_is_the_shared_document_with_the_rows_verbatim(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    revision = make_revision(kind="branch_base", branch_id="b-9f21")
+    tripl_api.revisions("prod", [revision], total=3)
+    assert main(["plan", "revisions", "--project", "prod", "--json"]) == 0
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert document["command"] == "plan revisions"
+    assert document["kind"] == "revision"
+    assert document["branch"] is None
+    assert (document["total"], document["offset"], document["limit"]) == (3, 0, 50)
+    assert document["truncated"] is True
+    assert document["meta"] == {}
+    assert document["items"] == [revision]
+    # Every human line is on stderr, so stdout is the document alone.
+    assert "tripl plan revisions - " in captured.err
+
+
+def test_revisions_takes_no_branch_flag_and_refuses_a_limit_past_the_routes(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    route = tripl_api.revisions("prod", [make_revision()])
+    for flags, reason in (
+        (["--branch", "anything"], "unrecognized arguments: --branch"),
+        (["--limit", "201"], "--limit"),
+        (["--limit", "0"], "--limit"),
+        (["--offset=-1"], "--offset"),
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(["plan", "revisions", "--project", "prod", *flags])
+        assert exit_info.value.code == 2
+        assert reason in capsys.readouterr().err
+    assert route.call_count == 0
+
+
+def test_a_project_with_no_revisions_says_so(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("prod", [])
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    assert "  (no revisions)\n" in out
+    assert out.endswith("0 revisions.\n")
+
+
+def test_revisions_of_an_unknown_project_is_exit_1(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.revisions("nope", {"detail": "Project not found"}, status=404)
+    assert main(["plan", "revisions", "--project", "nope"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "404" in captured.err
