@@ -66,7 +66,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
-    from tripl_cli.check.model import CheckReport, Origin, Suppression
+    from tripl_cli.check.model import CheckReport, Marker, Origin, Suppression
     from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
     from tripl_cli.install.plan import FileWrite, InstallPlan, UpgradePlan
@@ -723,7 +723,10 @@ def check_list_document(
     (``check.model.REASON_CODES``), value ``kind``s and ``signal``s are the
     stable vocabulary; ``items`` are the ones ``tripl check`` would build,
     within the validator's size limits, ``sent`` false for a call it reports
-    as dynamic and sends nothing for.
+    as dynamic and sends nothing for. ``suppressions`` are the
+    ``tripl-check-ignore`` markers read: under a call the valid ones covering
+    it, at the top level every one with the number of matched ``calls`` it
+    covers (the check document has ``used`` there, which takes verdicts).
     """
     from tripl_cli.check.inventory import summarize
     from tripl_cli.check.payloads import enforce_limits
@@ -749,6 +752,12 @@ def check_list_document(
         "default_label_fields": {
             name: list(dict.fromkeys(field for field, _ in pairs))
             for name, pairs in summary.default_label_fields.items()
+        },
+        "suppressions": {
+            "markers": summary.markers,
+            "invalid": summary.markers_invalid,
+            "no_call": summary.markers_no_call,
+            "calls_covered": summary.calls_covered,
         },
     }
     document["calls"] = [
@@ -779,12 +788,39 @@ def check_list_document(
                 }
                 for item in map(enforce_limits, call.items)
             ],
+            "suppressions": [
+                {
+                    "location": _marker_location(suppression),
+                    "targets": _marker_targets(suppression),
+                    "reason": suppression.reason,
+                }
+                for suppression in call.suppressions
+            ],
         }
         for call in found.calls
+    ]
+    document["suppressions"] = [
+        {
+            "location": _marker_location(entry.marker),
+            "text": entry.marker.text,
+            "targets": _marker_targets(entry.marker),
+            "reason": entry.marker.reason,
+            "problem": entry.marker.problem,
+            "calls": entry.calls,
+        }
+        for entry in found.markers
     ]
     document["forwarders"] = [_forwarder_document(forwarder) for forwarder in found.forwarders]
     document["unmatched"] = [_unmatched_document(group) for group in found.unmatched]
     return document
+
+
+def _marker_location(marker: Marker | Suppression) -> JsonDict:
+    return {"path": marker.path, "line": marker.line, "column": marker.column}
+
+
+def _marker_targets(marker: Marker | Suppression) -> list[JsonDict]:
+    return [{"code": code, "field": field} for code, field in marker.targets]
 
 
 def _read_document(read: ReadValue | None) -> JsonDict | None:

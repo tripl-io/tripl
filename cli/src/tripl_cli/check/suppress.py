@@ -237,7 +237,7 @@ def marker_states(
     )
 
 
-def label(marker: Marker) -> str:
+def label(marker: Marker | Suppression) -> str:
     """The marker as its targets read: ``tripl-check-ignore[unknown_event,unknown_field:x]``."""
     targets = ",".join(
         code if field is None else f"{code}:{field}" for code, field in marker.targets

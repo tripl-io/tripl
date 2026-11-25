@@ -23,7 +23,8 @@ from tripl_cli.cli import main
 
 GUIDE_PATH = REPO_ROOT / "website" / "docs" / "integrate" / "tripl-check.md"
 
-# The repository the samples describe: two Kotlin files, four matched calls.
+# The repository the samples describe: two Kotlin files, four matched calls,
+# one of them under a tripl-check-ignore marker.
 SAMPLE_CONFIG = """
 project: shop
 sources: ["app/**"]
@@ -53,6 +54,7 @@ SAMPLE_SOURCES = {
 
         class CheckoutScreen {
             fun show(step: String) {
+                // tripl-check-ignore[unknown_field:cart] -- the plan gains cart next release
                 analytics.logEvent("checkout_started", mapOf("step" to step, "cart" to "main"))
                 tracking.track("checkout_viewed", emptyMap())
             }
@@ -127,7 +129,7 @@ def test_the_list_json_example_is_check_list_json_trimmed_to_one_entry_per_list(
     # The docs show one entry of each list, the first.
     trimmed = {
         **printed,
-        **{key: printed[key][:1] for key in ("calls", "forwarders", "unmatched")},
+        **{key: printed[key][:1] for key in ("calls", "suppressions", "forwarders", "unmatched")},
     }
 
     assert _without_run_details(trimmed) == _without_run_details(documented)

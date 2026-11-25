@@ -504,7 +504,8 @@ Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched n
 
 A suppression changes only whether the run fails. A result's `status` and the
 summary counts stay the plan's verdict. Payload mode reads no source, so it has
-no markers. One known limitation: in a JSX file, element text that looks like a
+no markers. To review every marker in the code without a run,
+[`tripl check --list`](#list-suppressions) shows each one on the call it covers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
 
 ## Gate on the change {#new-findings}
@@ -962,6 +963,9 @@ It prints three things:
 - **The functions that forward their own parameter** into a tracking call.
 - **The calls that look like tracking** but match no call spec.
 
+When the code has `tripl-check-ignore` markers, it also shows
+[which call each one covers](#list-suppressions).
+
 The summary counts the calls: how many are fully read, how many are not sent
 (no name or field read, so `tripl check` counts them as `dynamic`), and how
 many are sent with a value not read. It counts the top-level values only (the
@@ -1126,6 +1130,33 @@ event: fields key, exclude are read from the labels key and exclude because the 
 ```
 
 List the labels in `args:`, and map the ones that are not fields to `null`.
+
+### Suppression markers {#list-suppressions}
+
+`--list` is also where to audit the [`tripl-check-ignore` markers](#suppress).
+Each matched call a valid marker covers gets an `ignore:` line with the codes
+the marker waives, its reason and its line. After the summary, one line counts
+the markers, and the ones that suppress nothing follow:
+
+```text
+app/src/Cart.kt:12:9  event  analytics.track  name=cart_opened
+    ignore: tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (line 11)
+
+Suppression markers: 3 read, covering 1 call site.
+Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
+Suppression on no matched call: app/src/Old.kt:3 tripl-check-ignore[unknown_event].
+```
+
+A marker on no matched call sits where no call spec matches a call: the call
+was removed, or the config does not read it. Move the marker or delete it.
+
+`--list` sends nothing, so it has no verdicts and cannot say whether a marker
+on a call waives a finding. A marker with a misspelled code shows on its call
+here like any other; only `tripl check` reports it, as `Unused suppression:`.
+With no config (below) nothing matches, so the markers are counted and only
+the malformed ones are listed. A repository with no marker prints none of these
+lines. In `--json` they are `calls[].suppressions` and the top-level
+`suppressions`.
 
 ### No config yet {#list-discovery}
 

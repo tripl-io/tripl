@@ -5,7 +5,10 @@ scan read for each target; under a call with a value it did not read, one
 indented line per reason, the way ``tripl check`` prints findings under a
 result. Then the summary: the tally and the reasons per target, the functions
 that forward their own parameter into a tracking call (each wants a call spec of
-its own), and the calls that look like tracking but match no call spec. The
+its own), and the calls that look like tracking but match no call spec. When
+the scan read a ``tripl-check-ignore`` marker: under each call the markers
+covering it, and after the summary how many there are and the ones that
+suppress nothing (malformed, or on no matched call). The
 JSON document is ``tripl_cli.report.check_list_document``; both read their
 counts from ``inventory.summarize``, so the two cannot disagree.
 
@@ -23,6 +26,7 @@ from tripl_cli.check.inventory import (
     Forwarder,
     Inventory,
     ListedCall,
+    ListedMarker,
     Location,
     ReadValue,
     Summary,
@@ -43,8 +47,10 @@ from tripl_cli.check.model import (
     REASON_VARIABLE,
     REASON_WRONG_SHAPE,
     SIGNAL_CONSTANT,
+    MarkerState,
 )
-from tripl_cli.check.render import location, nothing_matched, render_skipped
+from tripl_cli.check.render import location, marker_line, nothing_matched, render_skipped
+from tripl_cli.check.suppress import label
 from tripl_cli.check.values import Value
 from tripl_cli.render import columns, plural
 
@@ -108,6 +114,7 @@ def render_listing(found: Inventory, *, config: str | None) -> str:
     for call in found.calls:
         lines.append(_call_line(call))
         lines.extend(_reason_lines(call))
+        lines.extend(_suppression_lines(call))
     if found.calls:
         lines.append("")
     lines.extend(_tally(summary, found.files))
@@ -115,6 +122,8 @@ def render_listing(found: Inventory, *, config: str | None) -> str:
         lines += ["", *_why(summary)]
     if found.forwarders:
         lines += ["", *_forwarders(found.forwarders)]
+    if found.markers:
+        lines += ["", *_markers(found, summary)]
     if not found.calls:
         lines += ["", _no_call(found, config)]
     lines += ["", *_unmatched(found.unmatched)]
@@ -171,6 +180,14 @@ def _reason_lines(call: ListedCall) -> list[str]:
     if call.read.unmapped:
         lines.append(f"    not mapped: {', '.join(call.read.unmapped)}")
     return lines
+
+
+def _suppression_lines(call: ListedCall) -> list[str]:
+    """Under a call, read or not: one line per valid marker covering it, with its reason."""
+    return [
+        f"    ignore: {label(suppression)} -- {_flat(suppression.reason)} (line {suppression.line})"
+        for suppression in call.suppressions
+    ]
 
 
 def _reason_text(code: str, read: ReadValue | None, unread_object: Value | None = None) -> str:
@@ -263,6 +280,35 @@ def _why(summary: Summary) -> list[str]:
         for code, count in sorted(codes.items(), key=lambda item: (-item[1], _order(item[0]))):
             rows.append([target, code, str(count), REASON_TEXT.get(code, code)])
     return ["Why (call sites, per target):", *(f"  {line}" for line in columns(rows))]
+
+
+def _markers(found: Inventory, summary: Summary) -> list[str]:
+    """How many markers the scan read, then each one that suppresses nothing, and why.
+
+    A valid marker on no matched call is only named when the config can match
+    a call: with no event types none does, and every marker would be listed.
+    """
+    count = f"Suppression markers: {summary.markers} read"
+    if found.matching:
+        count += f", covering {plural(summary.calls_covered, 'call site')}"
+    lines = [f"{count}."]
+    lines.extend(
+        marker_line(MarkerState(entry.marker, used=False))
+        for entry in found.markers
+        if entry.marker.problem is not None
+    )
+    if found.matching:
+        lines.extend(_no_call_marker(entry) for entry in found.markers if _on_no_call(entry))
+    return lines
+
+
+def _on_no_call(entry: ListedMarker) -> bool:
+    return entry.marker.problem is None and not entry.calls
+
+
+def _no_call_marker(entry: ListedMarker) -> str:
+    marker = entry.marker
+    return f"Suppression on no matched call: {marker.path}:{marker.line} {label(marker)}."
 
 
 def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:

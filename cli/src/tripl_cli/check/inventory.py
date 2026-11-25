@@ -6,7 +6,9 @@ for each target and, for a value that was not, why (``model.REASON_CODES``:
 the evaluator's reason, refined here from the function the call sits in). Then
 the functions that forward their own parameter into a tracking call, whose
 callers hold the value and want a call spec of their own; and the calls that
-look like tracking but match no call spec.
+look like tracking but match no call spec. And the ``tripl-check-ignore``
+markers the scan read: under each call the valid ones covering it, then the
+ones that suppress nothing because they are malformed or cover no matched call.
 
 ``inventory()`` runs ``scan``'s own passes, so what it lists is what ``tripl
 check`` reads; and nothing here flows back into ``scan()``, so what ``tripl
@@ -51,8 +53,10 @@ from tripl_cli.check.model import (
     SIGNAL_RECEIVER,
     SIGNALS,
     CheckItem,
+    Marker,
     Origin,
     SkippedFile,
+    Suppression,
 )
 from tripl_cli.check.scan import (
     FileCalls,
@@ -65,6 +69,7 @@ from tripl_cli.check.scan import (
 )
 from tripl_cli.check.scopes import FunctionScope, ScopeIndex
 from tripl_cli.check.signatures import Parameter
+from tripl_cli.check.suppress import attach, markers
 from tripl_cli.check.values import Evaluator, Value, clip, pure_path
 
 # With no check config `--list` scans a whole repository, and stops after this
@@ -161,6 +166,9 @@ class ListedCall:
     # What `tripl check` builds for this call, exactly as `scan()` does. The
     # validator's size limits are applied later (`payloads.enforce_limits`).
     items: tuple[CheckItem, ...]
+    # The valid `tripl-check-ignore` markers covering the call, in file order:
+    # the ones `tripl check` would let waive a finding on it.
+    suppressions: tuple[Suppression, ...] = ()
 
     @property
     def fully_read(self) -> bool:
@@ -239,6 +247,19 @@ class Forwarder:
 
 
 @dataclass(frozen=True)
+class ListedMarker:
+    """A ``tripl-check-ignore`` marker the scan read, with how many matched calls it covers.
+
+    ``calls`` is 0 for a malformed marker (``marker.problem``), which covers
+    nothing. Whether a marker on a call waives anything is not known here:
+    that takes the verdicts only ``tripl check`` asks for.
+    """
+
+    marker: Marker
+    calls: int
+
+
+@dataclass(frozen=True)
 class Inventory:
     """Everything ``tripl check --list`` shows. Nothing in it is ever sent."""
 
@@ -253,6 +274,11 @@ class Inventory:
     skipped: tuple[SkippedFile, ...] = ()
     # Discovery stopped at `MAX_DISCOVERY_FILES` with source files left unread.
     truncated: bool = False
+    # Every marker in the files read, in scan order.
+    markers: tuple[ListedMarker, ...] = ()
+    # False when the config has no event types (discovery mode included):
+    # nothing can match then, so a marker covering no call says nothing.
+    matching: bool = True
 
 
 # --- the inventory ------------------------------------------------------------------
@@ -274,7 +300,24 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
     groups: dict[str, _Group] = {}
     tallies: dict[str, dict[str, _Tally]] = {}
     forwarders: dict[tuple[str, str, int], _Forwarding] = {}
+    listed_markers: list[ListedMarker] = []
     for found in second_pass(config, tree, explain=True):
+        # The markers and the calls they cover, read exactly as `scan()` reads them.
+        placed = markers(
+            found.source.relative, found.text, found.tokens, found.source.language, found.lines
+        )
+        hits = [call for call, hit in found.calls if hit is not None]
+        covering = attach(placed, hits, found.lines) if placed else {}
+        covered: dict[tuple[int, int], int] = {}
+        for suppressions in covering.values():
+            for suppression in suppressions:
+                key = (suppression.line, suppression.column)
+                covered[key] = covered.get(key, 0) + 1
+        listed_markers.extend(
+            ListedMarker(entry.marker, covered.get((entry.marker.line, entry.marker.column), 0))
+            for entry in placed
+        )
+        index = -1
         scopes = ScopeIndex(found.tokens, found.source.language, found.text)
         # A call `find_calls` reports with a parameter list's end is that
         # declaration, with a body or without one.
@@ -286,11 +329,12 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         for call, hit in found.calls:
             if hit is None:
                 continue
+            index += 1
             if not offsets:
                 offsets = [token.offset for token in found.tokens]
             at = bisect_left(offsets, call.offset)
             scope = scopes.innermost(at)
-            matched = _listed(call, hit, found, scopes, scope, at)
+            matched = _listed(call, hit, found, scopes, scope, at, covering.get(index, ()))
             listed.append(matched)
             matched_spans.extend(_read_spans(call, hit[1]))
             if scope is not None:
@@ -319,6 +363,8 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         files=len(tree.parsed),
         skipped=tree.skipped,
         truncated=truncated,
+        markers=tuple(listed_markers),
+        matching=bool(config.event_types),
     )
 
 
@@ -329,15 +375,17 @@ def _listed(
     scopes: ScopeIndex,
     scope: FunctionScope | None,
     at: int,
+    suppressions: tuple[Suppression, ...] = (),
 ) -> ListedCall:
     """One matched call, mapped as ``tripl check`` maps it, with what it read and why not.
 
-    ``scope`` is the innermost function around it, ``at`` its first token.
+    ``scope`` is the innermost function around it, ``at`` its first token,
+    ``suppressions`` the valid markers covering it.
     """
     event_type, spec = hit
     origin = call_origin(found.source, call, found.lines)
     collected = collect_call(call, spec, event_type, found.evaluator)
-    items = tuple(call_items(collected, event_type.name, origin))
+    items = tuple(call_items(collected, event_type.name, origin, suppressions=suppressions))
     fields = collected.fields or {}
     read = Read(
         name=None if collected.name is None else _refine(collected.name, scope, scopes, found, at),
@@ -357,6 +405,7 @@ def _listed(
         dynamic=_reasons(items, read),
         default_label_fields=_default_label_fields(call, spec, event_type, fields),
         items=items,
+        suppressions=suppressions,
     )
 
 
@@ -973,6 +1022,12 @@ class Summary:
     targets: Mapping[str, Mapping[str, int]]
     # Per event type: each `(field, label)` a label reached by the default mapping.
     default_label_fields: Mapping[str, tuple[tuple[str, str], ...]]
+    # The `tripl-check-ignore` markers read; of them, the malformed ones and
+    # the valid ones covering no matched call; and the calls a marker covers.
+    markers: int = 0
+    markers_invalid: int = 0
+    markers_no_call: int = 0
+    calls_covered: int = 0
 
 
 def summarize(found: Inventory) -> Summary:
@@ -1002,4 +1057,10 @@ def summarize(found: Inventory) -> Summary:
         reasons=reasons,
         targets=targets,
         default_label_fields={key: tuple(pairs) for key, pairs in defaults.items()},
+        markers=len(found.markers),
+        markers_invalid=sum(1 for entry in found.markers if entry.marker.problem is not None),
+        markers_no_call=sum(
+            1 for entry in found.markers if entry.marker.problem is None and not entry.calls
+        ),
+        calls_covered=sum(1 for call in found.calls if call.suppressions),
     )

@@ -1098,6 +1098,7 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "skipped": list,
     "summary": dict,
     "calls": list,
+    "suppressions": list,
     "forwarders": list,
     "unmatched": list,
 }
@@ -1134,9 +1135,18 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         },
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
+        "suppressions": {"markers": 0, "invalid": 0, "no_call": 0, "calls_covered": 0},
     }
     forwarding, formatted, shaped, sent = document["calls"]
-    assert set(forwarding) == {"location", "snippet", "event_type", "read", "dynamic", "items"}
+    assert set(forwarding) == {
+        "location",
+        "snippet",
+        "event_type",
+        "read",
+        "dynamic",
+        "items",
+        "suppressions",
+    }
     assert forwarding["location"] == {
         "path": "app/Screen.kt",
         "line": 3,

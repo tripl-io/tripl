@@ -2407,11 +2407,12 @@ tripl check --list - /home/me/shop/.tripl/check.yml, root /home/me/shop (nothing
 app/Tracking.kt:10:9  event  analytics.logEvent  name=? properties=?
     name: parameter event of track (line 9)
     properties: parameter params of track (line 9)
-app/checkout/CheckoutScreen.kt:5:9  event  analytics.logEvent  name=checkout_started properties={step=?, cart=main}
-app/checkout/CheckoutScreen.kt:10:9  event  analytics.logEvent  name=?
+app/checkout/CheckoutScreen.kt:6:9  event  analytics.logEvent  name=checkout_started properties={step=?, cart=main}
+    ignore: tripl-check-ignore[unknown_field:cart] -- the plan gains cart next release (line 5)
+app/checkout/CheckoutScreen.kt:11:9  event  analytics.logEvent  name=?
     name: format of promo_%s_shown
-app/checkout/CheckoutScreen.kt:14:9  event  analytics.logEvent  name=?
-    name: action.event: property of parameter action of onAction (line 13)
+app/checkout/CheckoutScreen.kt:15:9  event  analytics.logEvent  name=?
+    name: action.event: property of parameter action of onAction (line 14)
 
 4 call sites in 2 files: 1 fully read; 3 not sent (no name or field read); 0 sent with a value not read.
 Values not read: name 3, properties 1.
@@ -2424,11 +2425,13 @@ Why (call sites, per target):
   properties  parameter           1  a parameter of the function the call sits in: the value comes from its callers; add a call spec for that function
 
 Functions that forward their own parameter into a tracking call (add a call spec for each, so their calls are read):
-  track  app/Tracking.kt:9  forwards event (#0) to name, params (#1) to properties  1 call named track elsewhere, none matched (first app/checkout/CheckoutScreen.kt:6)
+  track  app/Tracking.kt:9  forwards event (#0) to name, params (#1) to properties  1 call named track elsewhere, none matched (first app/checkout/CheckoutScreen.kt:7)
+
+Suppression markers: 1 read, covering 1 call site.
 
 Calls that look like tracking but match no call spec:
-  1  relay  constant  app/checkout/CheckoutScreen.kt:18:9  relay(Events.CHECKOUT_STARTED)
-  1  track  name      app/checkout/CheckoutScreen.kt:6:9   tracking.track("checkout_viewed", emptyMap())
+  1  relay  constant  app/checkout/CheckoutScreen.kt:19:9  relay(Events.CHECKOUT_STARTED)
+  1  track  name      app/checkout/CheckoutScreen.kt:7:9   tracking.track("checkout_viewed", emptyMap())
 ```
 
 Each matched call gets one line: its location, event type and callee, then
@@ -2449,6 +2452,17 @@ whole), so the `checkout_started` call above is fully read. An expression is
 cut at 60 characters (`EXPRESSION_MAX`), and an example of a call that looks
 like tracking at 80 (`EXAMPLE_MAX`), each ending in `...`.
 
+When the scan read a [`tripl-check-ignore` marker](../integrate/tripl-check.md#suppress),
+each call a valid one covers gets an `ignore:` line with the marker's codes,
+reason and line, whether the call is fully read or not, and a
+`Suppression markers:` line after the summary counts the markers and the call
+sites they cover. Under it, a malformed marker gets the `Suppression ignored:`
+line `tripl check` prints, and a valid marker that covers no matched call gets
+`Suppression on no matched call: <path>:<line> tripl-check-ignore[<codes>].`
+`--list` asks for no verdicts, so it cannot tell whether a marker on a call
+waives a finding: `Unused suppression:` is only in `tripl check`. A repository
+with no marker prints none of these lines.
+
 The text shows every call that passes an event-name constant (signal
 `constant`) and the 10 other most frequent groups; `--json` lists them all. The
 reason codes are in the [`check --list` document](#check---list-document), and
@@ -2459,7 +2473,8 @@ With no check configuration found (no `.tripl/check.yml` up to the repository
 root and no `--check-config`), `--list` scans the whole git repository it runs
 in, every file in a supported language outside the built-in excludes and
 hidden directories (`.venv`, `.gradle`, `.next`), and lists the calls that
-look like tracking: a place to start the configuration. It reads at most 20000 source
+look like tracking: a place to start the configuration. Nothing matches there,
+so the markers are only counted and the malformed ones listed. It reads at most 20000 source
 files (`MAX_DISCOVERY_FILES`) and says so when it stops there. Outside a git
 repository it is exit 2.
 
@@ -4653,7 +4668,8 @@ with the type shown. Trimmed to one call of each list:
       "properties": { "parameter": 1 }
     },
     "targets": { "event": { "name": 4, "properties": 2 } },
-    "default_label_fields": {}
+    "default_label_fields": {},
+    "suppressions": { "markers": 1, "invalid": 0, "no_call": 0, "calls_covered": 1 }
   },
   "calls": [
     {
@@ -4672,7 +4688,18 @@ with the type shown. Trimmed to one call of each list:
         "object_argument": null
       },
       "dynamic": { "name": "parameter", "properties": "parameter" },
-      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ]
+      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ],
+      "suppressions": []
+    }
+  ],
+  "suppressions": [
+    {
+      "location": { "path": "app/checkout/CheckoutScreen.kt", "line": 5, "column": 12 },
+      "text": "tripl-check-ignore[unknown_field:cart] -- the plan gains cart next release",
+      "targets": [ { "code": "unknown_field", "field": "cart" } ],
+      "reason": "the plan gains cart next release",
+      "problem": null,
+      "calls": 1
     }
   ],
   "forwarders": [
@@ -4685,13 +4712,13 @@ with the type shown. Trimmed to one call of each list:
       ],
       "calls": 1,
       "callers": { "same_file": 0, "same_file_matched": 0, "other_files": 1, "other_files_matched": 0,
-                   "first_unmatched": { "path": "app/checkout/CheckoutScreen.kt", "line": 6, "column": 9 } }
+                   "first_unmatched": { "path": "app/checkout/CheckoutScreen.kt", "line": 7, "column": 9 } }
     }
   ],
   "unmatched": [
     {
       "method": "relay", "receivers": { "": 1 }, "signal": "constant", "calls": 1,
-      "first": { "path": "app/checkout/CheckoutScreen.kt", "line": 18, "column": 9 },
+      "first": { "path": "app/checkout/CheckoutScreen.kt", "line": 19, "column": 9 },
       "example": "relay(Events.CHECKOUT_STARTED)"
     }
   ]
@@ -4705,9 +4732,11 @@ with the type shown. Trimmed to one call of each list:
 | `root` | The absolute directory the scan read: the configuration's `root`, or the repository root in discovery mode. Every `path` below is relative to it. |
 | `truncated` | `true` when discovery mode stopped at 20000 source files with files left unread. Always `false` with a check configuration. |
 | `files_scanned` / `skipped` | As in the [`check` document](#check-document). |
-| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. |
+| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. `suppressions` counts the `tripl-check-ignore` markers: `markers`, all that were read; `invalid`, the malformed ones; `no_call`, the valid ones that cover no matched call; and `calls_covered`, the call sites at least one valid marker covers. |
 | `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. |
 | `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value whose reason comes from the argument alone (never `parameter`, `parameter_property` or `local`, so `declared` is `null`). `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read, while the text names it only on a `not passed` line. |
+| `calls[].suppressions[]` | The valid `tripl-check-ignore` markers that cover the call, in file order, `[]` when none does: `location` (`{path, line, column}` of the marker's keyword), `targets` (`{code, field}` each, `field` `null` for a code waived on any field) and `reason`. They are the markers `tripl check` would let waive a finding on the call; whether one does takes the verdicts, which `--list` does not ask for. |
+| `suppressions[]` | Every `tripl-check-ignore` marker the scan read, in scan order, `[]` when there is none: `location`, `targets` and `reason` as above (`reason` is `null` when the marker gives none), `text` (the marker as written, from the keyword on), `problem` (`null` for a valid marker, else `no_codes`, `not_suppressible` or `no_reason`) and `calls`, the number of matched calls it covers, 0 for a malformed one. The [`check` document](#check-document) has a `suppressions[]` too, with `used` in place of `calls` and no `text`: `used` says whether the marker waived a finding, which only a run with verdicts knows. In discovery mode nothing matches, so every `calls` is 0. |
 | `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`): add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`). `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
 | `unmatched[]` | The calls that look like tracking but match no call spec, grouped by method (the callee's last segment, or an Objective-C selector). `receivers` counts what came before the method (`""` for a bare call), `signal` says why the calls look like tracking, `calls` counts them, `first` locates the first one, and `example` is its source on one line, at most 80 characters. Groups with signal `constant` come first, then the rest by `calls`. |
 
