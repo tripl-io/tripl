@@ -300,13 +300,22 @@ def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:
 
 
 def _forwarded(parameter: ForwardedParameter) -> str:
-    """One forwarded parameter: its targets, and whether a call takes it as its object."""
+    """One forwarded parameter: its targets, and whether a call takes it as its object.
+
+    ``object_arg:`` reads an argument by position, and only one written
+    without a label. So for a parameter passed on as the object whose callers
+    may label it (always in Swift, by choice in Kotlin), the row says which
+    calls a call spec for the function will not read.
+    """
     where: list[str] = []
     if parameter.targets:
         where.append(f"to {_and(parameter.targets)}")
     if parameter.object_argument:
         where.append("as the object argument")
-    return f"{parameter.name} (#{parameter.index}) {' and '.join(where)}"
+    text = f"{parameter.name} (#{parameter.index}) {' and '.join(where)}"
+    if parameter.object_argument and parameter.label is not None:
+        text += f" (object_arg does not read an argument labelled {parameter.label})"
+    return text
 
 
 def _callers(forwarder: Forwarder) -> str:

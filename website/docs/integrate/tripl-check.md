@@ -1070,11 +1070,32 @@ event_types:
         args: {category: category, action: action}
 ```
 
+`object_arg:` reads an argument by its position, and only one written without
+a label. Swift callers write `send(evt: […])` unless the parameter is declared
+`_ evt`, and Kotlin callers may write `send(evt = …)`. Such a call is matched
+by the call spec for `send` but its object is not read: it lists as
+`name: not passed` with `not mapped: evt`. `--list` says so in the function's
+row, before you add the spec:
+`forwards evt (#0) as the object argument (object_arg does not read an argument labelled evt)`.
+In Kotlin the calls that pass the argument by position are still read. In
+Swift none is, so there is nothing to configure for that function, short of
+declaring the parameter `_ evt`.
+
 A function is listed this way also when the tracking call in it is otherwise
 read, such as `function opened(props: Props) { track("opened", props) }`: the
 name is in the function's body and only the object comes from its callers. A
 call spec for `opened` then reads what the callers put in the object, not the
-name. Only a bare parameter counts, never a property of one (`evt.inner`).
+name. `tripl check` builds one item per matched call, so each caller then
+gives a second item, with the fields from its object and no name, next to the
+named one from the function's body: the event is not put together from the
+two. Add that spec only when the callers' fields are worth checking on their
+own.
+
+Only a bare parameter counts, never a property of one (`evt.inner`). The
+function is found the way a `parameter` reason is (see above), with the same
+limits: an Objective-C method is not listed, and a parameter is still taken
+for one after the function assigns it a new value, or inside a lambda whose
+own parameter has its name.
 
 A Swift `init` or a TypeScript `constructor` is listed under its
 type's name, which is what its callers write (`ScreenView(screen: name)`,

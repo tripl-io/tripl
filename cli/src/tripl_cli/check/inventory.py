@@ -200,6 +200,9 @@ class ForwardedParameter:
     ``targets`` are the targets it reaches as a value; ``object_argument``
     says a tracking call takes it whole as its object argument, whose keys
     are the targets. A parameter forwarded only that way has no ``targets``.
+    ``label`` is what a caller may write before the argument (Swift's
+    external label, the name itself in Kotlin): a call spec's ``object_arg``
+    reads an argument only when it is written without one.
     """
 
     name: str

@@ -39,6 +39,7 @@ from tripl_cli.check.inventory import (
     summarize,
 )
 from tripl_cli.check.lexer import STRING, Interp, Token, tokenize
+from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import REASON_CODES, CheckItem
 from tripl_cli.check.scan import Snapshot, base_items, glob_regex, scan
 from tripl_cli.check.scopes import FunctionScope, ScopeIndex
@@ -3242,3 +3243,94 @@ def test_an_initializer_that_passes_its_parameter_on_as_the_object_is_listed_by_
     assert (forwarder.function, forwarder.location) == ("PageView", Location("web/page.ts", 2))
     assert forwarder.parameters == (ForwardedParameter("evt", 0, None, (), object_argument=True),)
     assert forwarder.callers.same_file == 1
+
+
+def test_an_object_forwarder_in_each_language_carries_the_label_its_callers_write(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "ios/A.swift": """
+                func send(evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func plain(_ evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func renamed(with evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func use() {
+                    send(evt: ["name": "x"])
+                    plain(["name": "y"])
+                }
+            """,
+            "app/K.kt": """
+                fun sendK(evt: Map<String, Any>) { logObj(evt) }
+                fun useK() {
+                    sendK(mapOf("name" to "y"))
+                    sendK(evt = mapOf("name" to "z"))
+                }
+            """,
+            "app/J.java": """
+                class J {
+                    void sendJ(Map<String, Object> evt) { logObj(evt); }
+                }
+            """,
+            "o/A.m": """
+                @implementation A
+                - (void)send:(NSDictionary *)evt {
+                    logObj(evt);
+                }
+                void cfun(NSDictionary *evt) {
+                    logObj(evt);
+                }
+                @end
+            """,
+        },
+    )
+    specs = """
+        project: demo
+        event_types:
+          ev:
+            calls:
+              - {function: "logObj", object_arg: 0, args: {name: name}}
+              - {function: "send", object_arg: 0, args: {name: name}}
+              - {function: "plain", object_arg: 0, args: {name: name}}
+              - {function: "sendK", object_arg: 0, args: {name: name}}
+    """
+    found = inventory(_config(root, specs))
+    forwarders = {forwarder.function: forwarder.parameters for forwarder in found.forwarders}
+    # The label is what a caller may write: Swift's external one (none for
+    # `_`), the name itself in Kotlin, none in Java and C. An Objective-C
+    # method is no function to the scan, so it is not listed.
+    assert forwarders == {
+        "send": (ForwardedParameter("evt", 0, "evt", (), object_argument=True),),
+        "plain": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+        "renamed": (ForwardedParameter("evt", 0, "with", (), object_argument=True),),
+        "sendK": (ForwardedParameter("evt", 0, "evt", (), object_argument=True),),
+        "sendJ": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+        "cfun": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+    }
+    # `object_arg` reads the argument only where it is written without a label.
+    names = {
+        (call.origin.snippet, None if call.read.name is None else call.read.name.value.text)
+        for call in found.calls
+        if call.origin.snippet != "logObj"
+    }
+    assert names == {("send", None), ("plain", "y"), ("sendK", "y"), ("sendK", None)}
+    # So the row of a function whose callers may label it says which calls a
+    # call spec for it will not read.
+    rows = {
+        line.split()[0]: line
+        for line in render_listing(found, config=None).splitlines()
+        if " forwards " in line
+    }
+    note = "as the object argument (object_arg does not read an argument labelled {})  "
+    assert note.format("evt") in rows["send"]
+    assert note.format("with") in rows["renamed"]
+    assert note.format("evt") in rows["sendK"]
+    for function in ("plain", "sendJ", "cfun"):
+        assert "as the object argument  " in rows[function]
+        assert "labelled" not in rows[function]
