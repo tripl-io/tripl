@@ -29,6 +29,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 
 from tripl_cli.api import plan_validation
+from tripl_cli.check.config import FIELD_PREFIX, NAME
 from tripl_cli.check.model import (
     CODE_DYNAMIC_VALUE,
     CODE_NO_VERDICT,
@@ -133,7 +134,8 @@ def result_for(
     if strict and item.dynamic:
         known = {(finding.code, finding.field) for finding in findings}
         for target in item.dynamic:
-            field = None if target == "name" else target
+            # `field:name` is the plan field called name, not the event's name.
+            field = None if target == NAME else target.removeprefix(FIELD_PREFIX)
             if (CODE_DYNAMIC_VALUE, field) in known:
                 continue
             findings.append(

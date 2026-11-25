@@ -41,6 +41,7 @@ from tripl_cli.check.config import (
     CheckConfig,
     EnumSource,
     EventTypeSpec,
+    field_target,
 )
 from tripl_cli.check.lexer import EXTENSIONS, LineIndex, Token, tokenize
 from tripl_cli.check.model import (
@@ -575,11 +576,14 @@ def call_items(
     fields = collected.fields or {}
     dynamic_targets = [
         target
-        for target, value in (("name", collected.name), *fields.items())
+        for target, value in (
+            (NAME, collected.name),
+            *((field_target(name), value) for name, value in fields.items()),
+        )
         if value is not None and not value.is_known
     ]
     if collected.properties is not None and collected.properties.kind not in ("entries",):
-        dynamic_targets.append("properties")
+        dynamic_targets.append(PROPERTIES)
     names = _options(collected.name)
     field_names = list(fields)
     field_options = [_options(fields[name]) for name in field_names]
@@ -596,7 +600,7 @@ def call_items(
                 fields={name: None for name in field_names},
                 properties=properties,
                 complete=False,
-                dynamic=tuple(dynamic_targets) or ("name",),
+                dynamic=tuple(dynamic_targets) or (NAME,),
                 sendable=False,
                 suppressions=suppressions,
             )
