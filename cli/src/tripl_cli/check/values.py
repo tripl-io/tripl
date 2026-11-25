@@ -347,7 +347,7 @@ class Evaluator:
             called = None
             reference = body[:-2]  # `Category.HOME.name()` names the path `Category.HOME.name`
         if called is not None:
-            values = self.symbols.function_values(called)
+            values = self.symbols.function_values(called, language=self.language)
             if values is None:
                 if not self.explain:
                     return dynamic(called)

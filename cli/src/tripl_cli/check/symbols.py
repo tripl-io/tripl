@@ -156,7 +156,9 @@ class SymbolIndex:
     entries: list[Entry] = field(default_factory=list)
     # Qualified paths of every enum case seen, with or without a raw value.
     cases: set[tuple[str, ...]] = field(default_factory=set)
-    functions: dict[str, list[tuple[str, ...] | None]] = field(default_factory=dict)
+    # Keyed by (language, name): a Kotlin `genericName()` must not read a Swift
+    # `func genericName()` in another file of a mixed repository.
+    functions: dict[tuple[str, str], list[tuple[str, ...] | None]] = field(default_factory=dict)
     # `entries` under each suffix of their path (`(home,)`, `(Category, home)`,
     # …) and file-scope constants under their name, in the order added, and
     # the last one and two segments of each case: a lookup reads only what can
@@ -184,8 +186,8 @@ class SymbolIndex:
         self.cases.add(path)
         self._case_suffixes.update((path[-1:], path[-2:]))
 
-    def add_function(self, name: str, values: tuple[str, ...] | None) -> None:
-        self.functions.setdefault(name, []).append(values)
+    def add_function(self, name: str, values: tuple[str, ...] | None, *, language: str) -> None:
+        self.functions.setdefault((language, name), []).append(values)
 
     def index_tokens(self, tokens: list[Token], language: str) -> None:
         if language == "swift":
@@ -245,9 +247,13 @@ class SymbolIndex:
         suffix = tuple(segments[-2:])
         return any(e.path[-2:] == suffix for e in self._suffixes.get(suffix, []))
 
-    def function_values(self, name: str) -> tuple[str, ...] | None:
-        """The strings function ``name`` can return, or None (unknown, dynamic or ambiguous)."""
-        definitions = self.functions.get(name)
+    def function_values(self, name: str, *, language: str) -> tuple[str, ...] | None:
+        """The strings ``language``'s function ``name`` can return, or None.
+
+        None when it is unknown, dynamic or ambiguous. Only functions declared
+        in the same language are looked at.
+        """
+        definitions = self.functions.get((language, name))
         if not definitions:
             return None
         distinct = set(definitions)
@@ -551,7 +557,9 @@ def _index_functions(index: SymbolIndex, tokens: list[Token], language: str) -> 
                 and tokens[position + 3].is_ident("String")
                 and tokens[position + 4].is_punct("{")
             ):
-                index.add_function(tokens[position + 1].text, _body_values(tokens, position + 4))
+                index.add_function(
+                    tokens[position + 1].text, _body_values(tokens, position + 4), language=language
+                )
             continue
         name_index: int | None = None
         if (
@@ -593,10 +601,10 @@ def _function(index: SymbolIndex, tokens: list[Token], name_index: int, language
     if language == "kotlin" and tokens[after].is_punct("="):
         # Expression body: `fun name() = "x"` / `fun name(): String = "x"`.
         value = _single_string(tokens[after + 1 : after + 3])
-        index.add_function(name, (value,) if value is not None else None)
+        index.add_function(name, (value,) if value is not None else None, language=language)
         return
     if declared in _STRING_TYPES and tokens[after].is_punct("{"):
-        index.add_function(name, _body_values(tokens, after))
+        index.add_function(name, _body_values(tokens, after), language=language)
 
 
 def _single_string(span: Sequence[Token]) -> str | None:
