@@ -1038,6 +1038,28 @@ place to start the config. It needs a git checkout; outside one, it is exit 2. I
 20000 source files. When it stops there, it says so: write the config with
 `sources:` to scan the rest.
 
+## Plan coverage {#coverage}
+
+A check tells you which calls do not match the plan. To see the opposite, the
+planned events your code never sends, add `--coverage`:
+
+```bash
+tripl check --coverage
+```
+
+After the usual result it lists the events with status `ready_for_dev`,
+`implemented` or `live` that no scanned call matched, in three groups it never
+merges: **not found** (the scanned files do not send the event), **possibly
+sent** (a call of that event type has a value the scan could not read, so it
+may be this event; [`--list`](#list) says how to make it readable) and **not
+scanned** (the event type has no call spec in your config). A wrapper that
+takes the event name as a parameter puts every event of its type in "possibly
+sent" until you add a [call spec for the wrapper](#list-forwarders).
+
+The report never fails the run, and it only knows the files under `sources`:
+run it in each repository that sends events to the project. The groups and the
+JSON keys are in the [CLI reference](../run/cli.md#tripl-check-coverage).
+
 ## Output formats {#output}
 
 `--format` picks what goes to stdout, and `--report FORMAT=PATH` writes the

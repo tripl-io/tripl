@@ -32,6 +32,7 @@ from urllib.parse import quote
 
 from tripl_cli import __version__
 from tripl_cli.check.baseline import baseline_document
+from tripl_cli.check.coverage import coverage_lines
 from tripl_cli.check.fingerprint import (
     FINGERPRINT_KEY,
     finding_fingerprints,
@@ -194,6 +195,8 @@ def render_text(report: CheckReport) -> str:
     lines.extend(_marker_lines(report))
     if report.skipped:
         lines.append(render_skipped(report.skipped))
+    if report.coverage is not None:
+        lines.extend(coverage_lines(report.coverage))
     return "\n".join(lines)
 
 

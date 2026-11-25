@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tripl_cli.model import JsonDict, Run
+
+if TYPE_CHECKING:
+    from tripl_cli.check.coverage import Coverage
 
 MODE_STATIC = "static"
 MODE_PAYLOADS = "payloads"
@@ -363,6 +366,8 @@ class CheckReport:
     gate: GateInfo | None = None
     # Set when the run had a baseline; each finding then carries ``baselined``.
     baseline: BaselineInfo | None = None
+    # Set with ``--coverage``: the planned events no call of this run sends.
+    coverage: Coverage | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)

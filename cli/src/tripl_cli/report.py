@@ -578,8 +578,12 @@ def check_document(report: CheckReport) -> JsonDict:
     the top-level ``baseline`` says what the file held and this run matched
     (``check/baseline.py``), ``summary`` gains ``failing``, each result
     ``fails``, and each finding ``baselined`` and ``fails``.
+
+    With ``--coverage``, and only then, the top-level ``coverage`` lists the
+    planned events no call of this run sends (``check/coverage.py``).
     """
     from tripl_cli.check.baseline import baseline_document
+    from tripl_cli.check.coverage import coverage_document
     from tripl_cli.check.fingerprint import finding_fingerprints
     from tripl_cli.check.gate import gate_document
     from tripl_cli.check.model import finding_fails
@@ -610,6 +614,8 @@ def check_document(report: CheckReport) -> JsonDict:
         document["gate"] = gate_document(report)
     if based:
         document["baseline"] = baseline_document(report)
+    if report.coverage is not None:
+        document["coverage"] = coverage_document(report.coverage)
     document["results"] = [
         {
             "status": result.status,

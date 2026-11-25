@@ -53,6 +53,11 @@ what this run no longer has, never when the run could not see everything. A
 baseline that cannot be read, or was written for another project, mode or
 key recipe, is exit 2 before any request.
 
+``--coverage`` adds the opposite report to a static run: the planned events
+no scanned call sends (``check/coverage.py``). It reads the event types and
+the events of the plan the check ran against, in the same ``run_gate``, and
+never changes the exit code.
+
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime) that no
 ``tripl-check-ignore`` marker suppresses (``check/suppress.py``) and that, under
@@ -87,8 +92,11 @@ from typing import Any, TextIO
 
 import httpx
 
+from tripl_cli.api import event_types as event_types_api
+from tripl_cli.api import events as events_api
 from tripl_cli.check import baseline as baseline_mod
 from tripl_cli.check import changes as changes_mod
+from tripl_cli.check import coverage as coverage_mod
 from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
@@ -128,10 +136,10 @@ from tripl_cli.commands._check_config import (
 )
 from tripl_cli.commands._plan import Branch, add_branch, begin, resolve_branch
 from tripl_cli.config import Config
-from tripl_cli.diagnostics.collect import instance_of
+from tripl_cli.diagnostics.collect import Reader, instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
 from tripl_cli.install.shell import Runner, subprocess_runner
-from tripl_cli.model import Run, to_rfc3339
+from tripl_cli.model import JsonList, Run, as_list, page_items, page_total, to_rfc3339
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
@@ -317,6 +325,16 @@ def register(
             "or the --payloads file holds no events"
         ),
     )
+    parser.add_argument(
+        "--coverage",
+        dest="coverage",
+        action="store_true",
+        help=(
+            "also list the planned events (status "
+            f"{', '.join(coverage_mod.COVERED_STATUSES)}) that no scanned call sends; "
+            "never changes the exit code"
+        ),
+    )
     add_json(parser)
     add_timeout(parser)
     parser.set_defaults(handler=run, abandon=abandon)
@@ -484,6 +502,11 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
+    if args.coverage:
+        return (
+            "--coverage compares the scan with the plan, and --list sends nothing; "
+            "run tripl check --coverage without --list."
+        )
     gate = _gate_flag(args) or _baseline_flag(args)
     if gate == "--write-baseline":
         return "--write-baseline records a check's findings, and --list checks nothing; drop it."
@@ -704,7 +727,7 @@ def default_runner() -> Runner:
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
-    refusal = _gate_refusal(args) or _baseline_refusal(args, targets)
+    refusal = _gate_refusal(args) or _baseline_refusal(args, targets) or _coverage_refusal(args)
     if refusal is not None:
         raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
@@ -748,8 +771,10 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     if check_config is not None and _gate_flag(args) is not None:
         gated = _change(args, check_config, items, skipped)
 
+    covered: coverage_mod.Coverage | None = None
+
     async def body(client: httpx.AsyncClient) -> tuple[Branch, tuple[CheckResult, ...], int]:
-        nonlocal gated
+        nonlocal gated, covered
         reader = context.reader(client)
         branch = await resolve_branch(reader, project, selector)
         results: tuple[CheckResult, ...] = ()
@@ -784,6 +809,9 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
                 )
             results = gate_mod.apply_gate(results, changed, causes)
             gated = info, changed
+        if args.coverage:
+            assert check_config is not None  # --coverage is refused with --payloads
+            covered = await _coverage(reader, project, branch, check_config, results)
         return branch, results, reader.requests
 
     branch, results, requests = run_gate(config, body, timeout=args.timeout)
@@ -820,6 +848,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         skipped=skipped,
         markers=marker_states(markers, results),
         gate=None if gated is None else gated[0],
+        coverage=covered,
     )
     report, written = _with_baseline(args, report, baseline)
     # Every file before anything is printed: a report that cannot be written
@@ -844,6 +873,49 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
+
+
+def _coverage_refusal(args: argparse.Namespace) -> str | None:
+    if args.coverage and args.payloads is not None:
+        return (
+            "--coverage lists the planned events no call in the source sends, and a capture "
+            "holds only the events one session happened to send; drop --coverage."
+        )
+    return None
+
+
+async def _planned_events(reader: Reader, project: str, branch: Branch) -> JsonList:
+    """Every event in a covered status, page by page until the route's own total."""
+    rows: JsonList = []
+    while True:
+        payload = await reader.send(
+            events_api.list_events(
+                project,
+                status=list(coverage_mod.COVERED_STATUSES),
+                offset=len(rows),
+                limit=events_api.LIMIT_MAX,
+                branch=branch.id,
+            )
+        )
+        page = page_items(payload)
+        rows.extend(page)
+        total = page_total(payload)
+        if not page or total is None or len(rows) >= total:
+            return rows
+
+
+async def _coverage(
+    reader: Reader,
+    project: str,
+    branch: Branch,
+    check_config: CheckConfig,
+    results: Sequence[CheckResult],
+) -> coverage_mod.Coverage:
+    types = as_list(await reader.send(event_types_api.list_event_types(project, branch=branch.id)))
+    type_names = {str(row.get("id")): str(row.get("name") or "") for row in types}
+    events = await _planned_events(reader, project, branch)
+    scanned = (spec.name for spec in check_config.event_types if spec.calls)
+    return coverage_mod.build(events, type_names, scanned, results)
 
 
 def _with_baseline(
