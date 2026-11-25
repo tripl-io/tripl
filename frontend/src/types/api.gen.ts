@@ -4388,7 +4388,8 @@ export interface paths {
          * @description One verdict per tracking call: known event, allowed values, contracts.
          *
          *     Up to 5000 items per request. A ``null`` field value means "set at runtime"
-         *     and is never an error. Changes nothing.
+         *     and is never an error. Changes nothing. ``plan`` in the answer names the
+         *     revision that judged the calls, or is empty for the live plan.
          */
         post: operations["validate_plan_api_v1_projects__slug__plan_validate_post"];
         delete?: never;
@@ -15006,6 +15007,23 @@ export interface components {
              */
             status: "ok" | "warning" | "error";
         };
+        /**
+         * PlanValidationPlan
+         * @description Which plan answered: a stored revision (``?revision=``), or the live one.
+         *
+         *     All ``None`` for the live plan of main or of a branch: its verdicts follow
+         *     every edit. With a revision, ``plan_hash`` is the hash of that revision's
+         *     content (the one plan branches compare for approval), so two runs that
+         *     name the same hash were judged by the same plan.
+         */
+        PlanValidationPlan: {
+            /** Created At */
+            created_at?: string | null;
+            /** Plan Hash */
+            plan_hash?: string | null;
+            /** Revision */
+            revision?: string | null;
+        };
         /** PlanValidationRequest */
         PlanValidationRequest: {
             /** Items */
@@ -15020,6 +15038,7 @@ export interface components {
         PlanValidationResponse: {
             /** Items */
             items: components["schemas"]["PlanValidationItemResult"][];
+            plan?: components["schemas"]["PlanValidationPlan"];
             summary: components["schemas"]["PlanValidationSummary"];
         };
         /** PlanValidationSummary */
@@ -35027,6 +35046,8 @@ export interface operations {
     validate_plan_api_v1_projects__slug__plan_validate_post: {
         parameters: {
             query?: {
+                /** @description Validate against this stored plan revision (`GET /revisions`) instead of the live plan. Not with `branch`. */
+                revision?: string | null;
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
                 branch?: string | null;
             };

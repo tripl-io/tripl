@@ -23231,6 +23231,48 @@
         "title": "PlanValidationItemResult",
         "type": "object"
       },
+      "PlanValidationPlan": {
+        "description": "Which plan answered: a stored revision (``?revision=``), or the live one.\n\nAll ``None`` for the live plan of main or of a branch: its verdicts follow\nevery edit. With a revision, ``plan_hash`` is the hash of that revision's\ncontent (the one plan branches compare for approval), so two runs that\nname the same hash were judged by the same plan.",
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "plan_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Hash"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "title": "PlanValidationPlan",
+        "type": "object"
+      },
       "PlanValidationRequest": {
         "properties": {
           "items": {
@@ -23261,6 +23303,9 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanValidationPlan"
           },
           "summary": {
             "$ref": "#/components/schemas/PlanValidationSummary"
@@ -59085,7 +59130,7 @@
     },
     "/api/v1/projects/{slug}/plan/validate": {
       "post": {
-        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing.",
+        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing. ``plan`` in the answer names the\nrevision that judged the calls, or is empty for the live plan.",
         "operationId": "validate_plan_api_v1_projects__slug__plan_validate_post",
         "parameters": [
           {
@@ -59095,6 +59140,25 @@
             "schema": {
               "title": "Slug",
               "type": "string"
+            }
+          },
+          {
+            "description": "Validate against this stored plan revision (`GET /revisions`) instead of the live plan. Not with `branch`.",
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Validate against this stored plan revision (`GET /revisions`) instead of the live plan. Not with `branch`.",
+              "title": "Revision"
             }
           },
           {

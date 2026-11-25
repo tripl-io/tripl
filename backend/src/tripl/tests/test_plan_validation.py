@@ -825,3 +825,112 @@ async def test_validate_route_accepts_scalar_field_values(client: AsyncClient) -
     assert items[2]["findings"][0]["message"] == "50 is above the maximum 10 of 'value'"
     # A boolean renders as the scan renders it, and is not a number.
     assert "'true' is not a number" in items[3]["findings"][0]["message"]
+
+
+# ---------------------------------------------------------------------------
+# A pinned revision
+# ---------------------------------------------------------------------------
+
+
+async def _take_revision(client: AsyncClient, slug: str) -> str:
+    taken = await _post(client, f"/api/v1/projects/{slug}/revisions", {"summary": "pin"})
+    return str(taken["id"])
+
+
+@pytest.mark.asyncio
+async def test_a_pinned_revision_gives_the_verdicts_the_live_plan_gave_when_it_was_taken(
+    client: AsyncClient,
+) -> None:
+    """Every rule the live route applies, re-read from the revision's payload."""
+    s = await seed_validation_plan(client, "pv-pin-parity")
+    async with TestSessionLocal() as session, session.begin():
+        variable = (
+            await session.execute(select(Variable).where(Variable.name == "item_kind"))
+        ).scalar_one()
+        session.add(
+            VariableEventValueOverride(
+                project_id=variable.project_id,
+                branch_id=variable.branch_id,
+                variable_id=variable.id,
+                event_id=s.events["shop:item_${item_kind}:view"],
+                values=["car"],
+            )
+        )
+    body = {
+        "strict": True,
+        "items": [
+            {**_se("shop", "open", "tap"), "ref": "App.swift:10"},
+            _se("shop", "open", "typo"),
+            _se("shop", "open", "swipe"),
+            _se("shop", "item_car", "view"),
+            _se("shop", "item_hat", "view"),
+            _se("shop", None, "tap"),
+            {"event_type": "nope", "name": "x"},
+            {"name": "shop:open:tap", "properties": {"value": 50, "colour": "red"}},
+            _se("shop", "open", "tap", complete=True),
+        ],
+    }
+    live = (await client.post(s.url, json=body)).json()
+    assert live["plan"] == {"revision": None, "plan_hash": None, "created_at": None}
+
+    revision = await _take_revision(client, s.slug)
+    pinned = await client.post(s.url, params={"revision": revision}, json=body)
+
+    assert pinned.status_code == 200, pinned.text
+    assert pinned.json()["items"] == live["items"]
+    assert pinned.json()["summary"] == live["summary"]
+    plan = pinned.json()["plan"]
+    assert plan["revision"] == revision
+    assert len(plan["plan_hash"]) == 64
+    assert plan["created_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_a_pinned_revision_does_not_follow_the_live_plan(client: AsyncClient) -> None:
+    """Archiving an event, tightening a variable and deleting a field leave it alone."""
+    s = await seed_validation_plan(client, "pv-pin-frozen")
+    revision = await _take_revision(client, s.slug)
+    async with TestSessionLocal() as session, session.begin():
+        await session.execute(
+            sql_update(Event).where(Event.id == s.events["shop:open:tap"]).values(status="archived")
+        )
+        await session.execute(
+            sql_update(Variable).where(Variable.name == "item_kind").values(allowed_values=["car"])
+        )
+    body = {"items": [_se("shop", "open", "tap"), _se("shop", "item_hat", "view")]}
+
+    live = (await client.post(s.url, json=body)).json()
+    assert [item["status"] for item in live["items"]] == ["error", "error"]
+
+    pinned = (await client.post(s.url, params={"revision": revision}, json=body)).json()
+    assert [item["status"] for item in pinned["items"]] == ["ok", "ok"]
+    assert pinned["items"][0]["event_id"] == str(s.events["shop:open:tap"])
+
+    # A revision taken now holds today's plan, under another hash.
+    later = await _take_revision(client, s.slug)
+    again = (await client.post(s.url, params={"revision": later}, json=body)).json()
+    assert [item["status"] for item in again["items"]] == ["error", "error"]
+    assert again["plan"]["plan_hash"] != pinned["plan"]["plan_hash"]
+
+
+@pytest.mark.asyncio
+async def test_a_revision_is_refused_with_a_branch_and_from_another_project(
+    client: AsyncClient,
+) -> None:
+    s = await seed_validation_plan(client, "pv-pin-refuse")
+    other = await seed_validation_plan(client, "pv-pin-other")
+    revision = await _take_revision(client, s.slug)
+    body = {"items": [_se("shop", "open", "tap")]}
+    created = await client.post(f"/api/v1/projects/{s.slug}/branches", json={"name": "cleanup"})
+
+    both = await client.post(
+        s.url, params={"revision": revision, "branch": created.json()["id"]}, json=body
+    )
+    assert both.status_code == 400
+    assert "revision or branch" in both.json()["detail"]
+    foreign = await client.post(other.url, params={"revision": revision}, json=body)
+    assert foreign.status_code == 404
+    unknown = await client.post(s.url, params={"revision": str(uuid.uuid4())}, json=body)
+    assert unknown.status_code == 404
+    malformed = await client.post(s.url, params={"revision": "latest"}, json=body)
+    assert malformed.status_code == 422

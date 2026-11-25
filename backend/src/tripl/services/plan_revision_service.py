@@ -1633,6 +1633,13 @@ async def _get_revision(
     return revision
 
 
+async def load_revision(
+    session: AsyncSession, project_id: uuid.UUID, revision_id: uuid.UUID
+) -> PlanRevision:
+    """The project's revision row, payload included; 404 for another project's or none."""
+    return await _get_revision(session, project_id, revision_id)
+
+
 async def get_revision(
     session: AsyncSession, slug: str, revision_id: uuid.UUID
 ) -> PlanRevisionDetail:

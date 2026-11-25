@@ -2174,6 +2174,21 @@ enough. Without `branch` it validates against main. With `branch`, it validates
 against that branch's plan, with the usual `400` / `404` for a malformed or
 foreign id.
 
+`?revision=<revision_id>` validates against a stored plan revision
+(`POST /projects/{slug}/revisions` takes one, `GET` lists them) instead of the
+live plan, so the same calls get
+the same verdicts whenever the request is made: archiving an event later does
+not change them. The event types, their fields and contracts, the events, the
+variables and their per-event overrides are read from the revision. Two things
+are not stored in a revision and are always today's: an event type's naming
+rule, which belongs to its scan config, and an installed extension's policy
+rules. `revision` with `branch` is a `400`; an unknown revision, or another
+project's, is a `404`.
+
+The response's `plan` key says which plan answered: `revision`, `plan_hash`
+(the hash of that revision's content) and `created_at`. All three are `null`
+for the live plan.
+
 ```json
 {
   "items": [
