@@ -18,6 +18,7 @@ import re
 import sys
 import textwrap
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -306,6 +307,23 @@ def test_info_findings_only_count_under_strict() -> None:
     assert relaxed.status == "ok"
     assert [finding.severity for finding in relaxed.findings] == ["info"]
     assert result_for(item, verdict, strict=True, sent=True).status == "warning"
+
+
+def test_strict_names_a_field_called_name_as_that_field_not_the_event_name() -> None:
+    item = replace(_item(1, "screen_view"), dynamic=("field:name", "properties"))
+    verdict = {"ref": "i0", "status": "ok", "findings": []}
+
+    result = result_for(item, verdict, strict=True, sent=True)
+
+    assert [(finding.field, finding.message) for finding in result.findings] == [
+        ("name", "the value of 'name' is not known until runtime"),
+        ("properties", "the value of 'properties' is not known until runtime"),
+    ]
+    # The event's own name stays the bare target.
+    unnamed = replace(_item(1, "screen_view"), name=None, dynamic=("name",))
+    [finding] = result_for(unnamed, verdict, strict=True, sent=True).findings
+    assert finding.field is None
+    assert finding.message == "the event name is not known until runtime"
 
 
 def test_branch_is_resolved_by_name_and_sent_as_its_id(

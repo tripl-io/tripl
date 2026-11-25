@@ -4512,7 +4512,7 @@ by status the way the exit code does.
 | `results[].fields` | Field name to value, as sent for validation. A `null` value is dynamic, not missing. |
 | `results[].properties` | The literal property dictionary, or `null` when there was none. |
 | `results[].complete` | `true` for a payload (a whole event, so a missing required field is an error), `false` for a call site. |
-| `results[].dynamic` | The targets whose value was only known at runtime: `name` or field names. |
+| `results[].dynamic` | The targets whose value was only known at runtime: `name`, `properties`, or field names. A field named like a reserved target is `field:<name>` (`field:name`, `field:properties`), as in a call spec and in `check --list`, so it is never read as the event's name or its properties. |
 | `results[].event_id` / `identity` | The plan event the item resolved to, and the identity it was matched by, with `${…}` holes for parts only known at runtime. `event_id` is `null` when nothing matched; both are `null` for a row that was never sent. |
 | `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
 
