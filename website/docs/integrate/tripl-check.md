@@ -395,7 +395,8 @@ message text.
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
 
 Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
-call. The CLI raises them and they never fail the run. They are the rule
+call. The CLI raises them and they do not fail the run, unless
+[`--strict-suppressions`](#strict-suppressions) asks them to. They are the rule
 (`ruleId`) of a SARIF result and the `check_name` of a Code Quality issue
 (`tripl/invalid_suppression`). The text listing has a line for each instead
 (`Suppression ignored:` and `Unused suppression:`), and the JSON document's
@@ -496,7 +497,7 @@ A malformed marker is never a usage error (exit 2) and never removes a report.
 **An unused marker** covers no finding with a code it lists in this run. Two
 markers on one call (one above it, one trailing) that list the same code are
 both used. An unused marker is listed as
-`unused_suppression` and never fails the run, with `--strict` either:
+`unused_suppression` and does not fail the run, with `--strict` either:
 
 ```
 Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
@@ -506,6 +507,50 @@ A suppression changes only whether the run fails. A result's `status` and the
 summary counts stay the plan's verdict. Payload mode reads no source, so it has
 no markers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
+
+### Keep markers clean {#strict-suppressions}
+
+For a team that wants its markers kept clean: with `--strict-suppressions`, a
+malformed marker and an unused one fail the run (exit 1), and a last line says
+so:
+
+```
+Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
+1 suppression marker fails the run (--strict-suppressions).
+```
+
+Unused is decided by this run alone, so give the flag to the run whose other
+flags are the ones your merge check uses:
+
+- **The plan.** A marker is weighed against the plan the run checks:
+  `--branch` and `--revision` can give a call another verdict, so a marker
+  used against one plan can be unused against another.
+- **`dynamic_value`.** Only `--strict` raises that finding, so without
+  `--strict` a marker that names it is never counted unused.
+- **A call nothing was decided about.** A marker on a call that got no verdict,
+  or that the scan could read nothing of, is not counted unused: the run had
+  no way to use it.
+- **The gate.** With `--new-from-rev` or `--new-from-patch`, only a marker in a
+  file the change touches fails the run, the same files the listing names
+  marker problems in. When the gate counts every call as changed (a diff that
+  names a file this checkout does not have, a check root inside a moved
+  submodule or one git does not track, a file it cannot rebuild), every file
+  is in the change, and so is every marker.
+- **No call at all.** With `--allow-empty`, a run that matched no call still
+  reads the markers in the files it scanned, and each one is unused: the flag
+  turns that run's exit 0 into exit 1 until they are removed.
+- **A marker shown as an example.** A comment line that starts with the
+  keyword is a marker, a doc comment that teaches the grammar included
+  (`/// tripl-check-ignore[unknown_event] -- debug menu only`), and an unused
+  or malformed marker cannot itself be waived. Put the example mid-sentence
+  or in backticks, so the line does not start with the keyword.
+
+The JSON document gains `summary.failing_suppressions` and a `fails` on each
+`suppressions` entry, and the [Markdown summary](#summary) names the markers
+that fail. SARIF, Code Quality and JUnit are the same with and without the
+flag. `--write-baseline` ignores it: that run records findings and exits 0,
+a baseline holds no marker, and its JSON has no `failing_suppressions`.
+`--payloads` and `--list` refuse it (exit 2): neither reads a marker to judge.
 
 ## Gate on the change {#new-findings}
 
@@ -980,7 +1025,8 @@ page has [an example](../run/cli.md#tripl-check-list).
 early (`| head`), and 2 for a config error. A stdout it cannot write at all
 (a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
 the flags it has no use for: `--report`, `--branch`, `--strict`,
-`--allow-empty`, and a `--format` other than `text` or `json`.
+`--strict-suppressions`, `--allow-empty`, and a `--format` other than `text`
+or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1235,7 +1281,7 @@ one validation, the same verdicts in every file.
 | `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
 | `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
 | `junit` | JUnit XML, for GitLab's test summary and the test reports of most other CI systems. |
-| `markdown` | A note for a merge request: under a [gate](#new-findings), the events the change adds, removes or changes; then the findings that fail the run. See [Summarise a change](#summary). |
+| `markdown` | A note for a merge request: under a [gate](#new-findings), the events the change adds, removes or changes; then the findings that fail the run, and, with [`--strict-suppressions`](#strict-suppressions), the markers that do. See [Summarise a change](#summary). |
 
 ```bash
 tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
@@ -1308,7 +1354,10 @@ no marker in the scanned files, none of these keys is present. Under a
 and finding gains `in_change` and `fails`, a finding `cause`, and `exit_code`
 is the gated one. With a [baseline](#baseline), and only then, `baseline`
 says what the file held and this run matched, every row gains `fails` and
-every finding `baselined` and `fails`. See the
+every finding `baselined` and `fails`. With
+[`--strict-suppressions`](#strict-suppressions), and only then,
+`summary.failing_suppressions` counts the markers that fail the run and each
+`suppressions` entry gains `fails`. See the
 [`check` document](../run/cli.md#check-document).
 
 **A run that could not finish writes no report**: a configuration or usage
@@ -1331,9 +1380,9 @@ Human text and progress messages go to stderr when stdout carries `json`,
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`, and malformed or unused markers unless you pass [`--strict-suppressions`](#strict-suppressions). `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker fails the run on its own only with [`--strict-suppressions`](#strict-suppressions). Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not

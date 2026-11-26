@@ -567,6 +567,11 @@ def check_document(report: CheckReport) -> JsonDict:
     stays the plan's verdict; ``fails`` says whether it fails the run. With no
     marker the document is exactly what it was before markers existed.
 
+    With ``--strict-suppressions``, and only then, ``summary`` gains
+    ``failing_suppressions`` (the markers that fail the run) and each entry of
+    ``suppressions`` ``fails``. ``summary.failing`` still counts results alone,
+    so ``exit_code`` can be 1 with ``failing`` 0: a marker failed the run.
+
     Under a gate (``--new-from-rev``, ``--new-from-patch``), and only then, the
     top-level ``gate`` says what was compared (``check/gate.py``), ``summary``
     gains ``failing``, each result ``fails`` and ``in_change`` (the change
@@ -612,6 +617,9 @@ def check_document(report: CheckReport) -> JsonDict:
         counts["suppressed"] = report.suppressed
     if weighed:
         counts["failing"] = sum(1 for result in report.results if report.fails(result))
+    failing_markers = set(report.failing_markers)
+    if report.strict_suppressions:
+        counts["failing_suppressions"] = len(failing_markers)
     document["summary"] = counts
     document["exit_code"] = report.exit_code
     if gated:
@@ -676,6 +684,7 @@ def check_document(report: CheckReport) -> JsonDict:
                 "reason": state.marker.reason,
                 "used": state.used,
                 "problem": state.marker.problem,
+                **({"fails": state in failing_markers} if report.strict_suppressions else {}),
             }
             for state in report.markers
         ]
