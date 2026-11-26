@@ -351,6 +351,54 @@ def test_file_scope_constants_in_objective_c_and_typescript_are_compared_per_fil
     ]
 
 
+def test_swift_file_scope_lets_of_one_file_are_compared_with_the_file_as_their_object(
+    tmp_path: Path,
+) -> None:
+    sources = {
+        "app/Ev.swift": 'let saveTap = "save_tap"\nlet shareTap = "save_tap"\n',
+        "app/Other.swift": 'let openTap = "save_tap"\n',
+        "app/Buttons.swift": "func f() { log(saveTap) }\nfunc g() { log(shareTap) }\n",
+        "app/Open.swift": "func h() { log(openTap) }\n",
+    }
+    items = _scanned_items(tmp_path, sources)
+    assert [(item.origin.path, [n.message for n in item.notes]) for item in items] == [
+        (
+            "app/Buttons.swift",
+            [
+                "the event name is read from saveTap = 'save_tap', the same value as shareTap "
+                "of the file app/Ev.swift; one of them probably names the wrong event"
+            ],
+        ),
+        (
+            "app/Buttons.swift",
+            [
+                "the event name is read from shareTap = 'save_tap', the same value as saveTap "
+                "of the file app/Ev.swift; one of them probably names the wrong event"
+            ],
+        ),
+        # The same value in another file: nothing.
+        ("app/Open.swift", []),
+    ]
+
+
+def test_an_objective_c_global_that_can_be_reassigned_is_no_constant(tmp_path: Path) -> None:
+    # Neither pointer is `const`, so the code can point either one at another
+    # string before the call: the names are dynamic and nothing is compared.
+    sources = {
+        "app/U.m": (
+            'static NSString *kA = @"tap";\n'
+            'static const NSString *kB = @"tap";\n'
+            "- (void)f { log(kA); }\n"
+            "- (void)g { log(kB); }\n"
+        ),
+    }
+    items = _scanned_items(tmp_path, sources)
+    assert [(item.name, item.constants, item.notes) for item in items] == [
+        (None, (), ()),
+        (None, (), ()),
+    ]
+
+
 def test_without_a_lint_section_the_scan_adds_no_finding(shop: Path) -> None:
     _write(shop, {".tripl/check.yml": KOTLIN_CONFIG.replace("lint:\n", "")})
     assert all(notes == [] for notes in _scanned(shop).values())

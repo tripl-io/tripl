@@ -23,8 +23,9 @@ call for a marker over a line none of them holds.
     or a key from count, grouped by the type or object that declares them and
     the file it is declared in, so the ``object Events`` of two feature modules
     are two objects. A constant declared at file scope (a Kotlin top-level
-    ``const val``, a TypeScript module-level ``export const``, an Objective-C
-    ``NSString *const`` or ``#define``) has the file as its object, so two of
+    ``const val``, a Swift top-level ``let``, a TypeScript module-level
+    ``export const``, an Objective-C ``NSString *const`` or ``#define``) has
+    the file as its object, so two of
     them in one file with one value are twins, and two in different files are
     not. A reference that may name several declarations (a Swift shorthand
     naming members of several types) reads no constant. The finding is on

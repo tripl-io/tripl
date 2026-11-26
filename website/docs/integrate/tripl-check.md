@@ -326,7 +326,8 @@ enum AppEvents {
 as the constant's value. A bare name (`PlayStart`, from inside the class that
 declares it) resolves only for a constant declared at file scope. Only
 declarations that cannot be reassigned are read: a `var` (Swift or Kotlin), a
-TypeScript `let` or `var`, and a Java `String` field that is not `final` are
+TypeScript `let` or `var`, a Java `String` field that is not `final`, and an
+Objective-C pointer without `const` before its name (`static NSString *X`) are
 not, because the code can change them before the call, so a reference to one is
 dynamic rather than checked against its initial value.
 
@@ -449,7 +450,7 @@ YAML an unquoted `[a-z]…` is a list.
 | Key | Meaning |
 |-----|---------|
 | `characters` | `true` or `false`. Flags an event name, field key or property key with a non-ASCII character, whitespace, or a straight quote (`"`, `'`, `` ` ``). Code `name_characters`. A runtime part of a name (`${id}`) is not read; the text around it is. |
-| `duplicates` | `true` or `false`. Flags a call whose event name or property key is read from a constant that holds the same value as another constant of the same type or object, as `Events.SHARE_TAP = "save_tap"` next to `Events.SAVE_TAP = "save_tap"`. Code `duplicate_constant`. Only constants some tracking call reads a name or key from count, so an unrelated constant with the same value is never flagged. An object is its name in one file: two feature modules that each declare an `object Events` have two objects, and a type split over several files (a Swift `extension`) is compared one file at a time. A constant declared at file scope (a Kotlin top-level `const val`, a TypeScript module-level `export const`, an Objective-C `NSString *const` or `#define`) has its file as its object: two such constants in one file with one value are compared, and two in different files are not. A reference that may name several declarations (a Swift `.home` with a `home` in several types) reads none of them. Every call that reads one of the duplicated constants gets the finding. |
+| `duplicates` | `true` or `false`. Flags a call whose event name or property key is read from a constant that holds the same value as another constant of the same type or object, as `Events.SHARE_TAP = "save_tap"` next to `Events.SAVE_TAP = "save_tap"`. Code `duplicate_constant`. Only constants some tracking call reads a name or key from count, so an unrelated constant with the same value is never flagged. An object is its name in one file: two feature modules that each declare an `object Events` have two objects, and a type split over several files (a Swift `extension`) is compared one file at a time. A constant declared at file scope (a Kotlin top-level `const val`, a Swift top-level `let`, a TypeScript module-level `export const`, an Objective-C `NSString *const` or `#define`) has its file as its object: two such constants in one file with one value are compared, and two in different files are not. A reference that may name several declarations (a Swift `.home` with a `home` in several types) reads none of them. Every call that reads one of the duplicated constants gets the finding. |
 | `name_pattern` | Optional. A regular expression (Python syntax) that must match the **whole** event name. Code `name_pattern`. A name with a runtime part (`promo_${id}_shown`) is not matched, because only the plan's name rule can say what fills it. |
 | `key_pattern` | Optional. The same, for every field key and property key. Code `name_pattern`, with the key as the finding's field. |
 

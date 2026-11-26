@@ -597,10 +597,12 @@ def _index_objc(index: SymbolIndex, tokens: list[Token]) -> None:
             depth += 1
         elif token.is_punct("}"):
             depth -= 1
-        elif depth == 0 and token.is_punct("=") and 1 <= position < len(tokens) - 1:
+        elif depth == 0 and token.is_punct("=") and 2 <= position < len(tokens) - 1:
             name = tokens[position - 1]
             raw = literal_text(tokens[position + 1])
-            if name.kind == IDENT and raw is not None:
+            # Only `NSString *const X`: without `const` right before the name
+            # the pointer can be set to another string before the call.
+            if name.kind == IDENT and raw is not None and tokens[position - 2].is_ident("const"):
                 index.add((name.text,), raw, member=False)
         elif (
             token.is_punct("#")
