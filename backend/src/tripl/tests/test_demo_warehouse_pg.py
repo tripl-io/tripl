@@ -147,14 +147,18 @@ def test_the_writer_writes_each_row_once_and_resumes(warehouse: datetime) -> Non
         for table in schema.TABLE_COLUMNS
     )
     assert resumed.rows_written == expected
+    # The window as of the second write: past midnight UTC it starts a day later,
+    # and the writer has dropped the day before it.
+    kept_later = writer.retention_start(later)
+    assert resumed.oldest == kept_later
 
     with psycopg.connect(**connection.writer_connection().kwargs()) as conn:  # type: ignore[arg-type]
         stored = conn.execute(
             "SELECT count(*), count(DISTINCT (event_time, event_name, user_id, platform)) "
             "FROM warehouse.events WHERE event_time >= %s AND event_time < %s",
-            (keep_from, rows.available_through(later)),
+            (kept_later, rows.available_through(later)),
         ).fetchone()
-    model = list(rows.rows_between("events", keep_from, rows.available_through(later)))
+    model = list(rows.rows_between("events", kept_later, rows.available_through(later)))
     assert stored is not None and stored[0] == len(model)
 
 

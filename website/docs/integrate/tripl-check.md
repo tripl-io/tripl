@@ -966,6 +966,12 @@ present.
 what it found. It needs no URL and no API key, and it sends nothing. Use it to
 write `.tripl/check.yml`: run it after each change to the file.
 
+Because it talks to no instance, it does not read the connection settings at
+all: `--url`, `--api-key`, `--config`, `TRIPL_BASE_URL`, `TRIPL_API_KEY` and
+the config file. A `TRIPL_BASE_URL` without `https://`, a config file that is
+not valid TOML or a `--config` path that does not exist fails a `tripl check`
+run that validates against the plan with exit 2, and does not stop this one.
+
 ```bash
 tripl check --list
 ```
@@ -992,9 +998,10 @@ the [`check --list` document](../run/cli.md#check---list-document). The CLI
 page has [an example](../run/cli.md#tripl-check-list).
 
 `--list` exits 0 whenever the scan ran, even when the reader closed the pipe
-early (`| head`), and 2 for a config error. It refuses the flags it has no use
-for: `--report`, `--branch`, `--strict`, `--allow-empty`, and a `--format`
-other than `text` or `json`.
+early (`| head`), and 2 for a config error. A stdout it cannot write at all
+(a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
+the flags it has no use for: `--report`, `--branch`, `--strict`,
+`--allow-empty`, and a `--format` other than `text` or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1007,10 +1014,10 @@ that kind of value yet.
 | `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
 | `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
-| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), look at what it says the argument is. A parameter of the function around the call (`: parameter evt of send (line 1)`): the object is built by that function's callers, so add a call spec for the function with `object_arg:` (see [Functions that forward their parameter](#list-forwarders)). Anything else: configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
 | `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
-| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
+| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. A comparison, a range or a word operator does the same, so `a < y.format(z)`, `a..y.format(z)` and Kotlin's `a to y.format(z)` are an `expression`; type arguments, as in `pick<String>(a).format(z)`, are no comparison. A word operator is any name between two operands in Kotlin, where it is an infix call such as `to` or `zip`, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
 | `concatenation` | Values joined with `+`, with no string literal among them, or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | Nothing to configure: the scan does not join these yet. |
 | `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
@@ -1063,7 +1070,62 @@ The calls are counted by name, in the function's own file and elsewhere,
 leaving out those in its own body: a call of that name there is the tracking
 call it forwards to, or the function calling itself. By name alone, so a call
 of another function with the same name counts too, a tracking call named like
-it included. A Swift `init` or a TypeScript `constructor` is listed under its
+it included.
+
+A function can also pass its parameter on whole, as the object a tracking call
+reads its name and fields from:
+
+```ts
+export function send(evt: StructuredEvent) {
+  trackStructEvent(evt);
+}
+```
+
+The call in it reads nothing (`name: not passed, object argument evt is not a
+literal: parameter evt of send (line 1)`), and `--list` names `send` as
+`forwards evt (#0) as the object argument`. The object is built where `send`
+is called, so give `send` a call spec that reads its argument as the object:
+
+```yaml
+event_types:
+  se:
+    calls:
+      - function: "trackStructEvent"
+        object_arg: 0
+        args: {category: category, action: action}
+      - function: "send"           # the wrapper --list named
+        object_arg: 0
+        args: {category: category, action: action}
+```
+
+`object_arg:` reads an argument by its position, and only one written without
+a label. Swift callers write `send(evt: […])` unless the parameter is declared
+`_ evt`, and Kotlin callers may write `send(evt = …)`. Such a call is matched
+by the call spec for `send` but its object is not read: it lists as
+`name: not passed` with `not mapped: evt`. `--list` says so in the function's
+row, before you add the spec:
+`forwards evt (#0) as the object argument (object_arg does not read an argument labelled evt)`.
+In Kotlin the calls that pass the argument by position are still read. In
+Swift none is, so there is nothing to configure for that function, short of
+declaring the parameter `_ evt`.
+
+A function is listed this way also when the tracking call in it is otherwise
+read, such as `function opened(props: Props) { track("opened", props) }`: the
+name is in the function's body and only the object comes from its callers. A
+call spec for `opened` then reads what the callers put in the object, not the
+name. `tripl check` builds one item per matched call, so each caller then
+gives a second item, with the fields from its object and no name, next to the
+named one from the function's body: the event is not put together from the
+two. Add that spec only when the callers' fields are worth checking on their
+own.
+
+Only a bare parameter counts, never a property of one (`evt.inner`). The
+function is found the way a `parameter` reason is (see above), with the same
+limits: an Objective-C method is not listed, and a parameter is still taken
+for one after the function assigns it a new value, or inside a lambda whose
+own parameter has its name.
+
+A Swift `init` or a TypeScript `constructor` is listed under its
 type's name, which is what its callers write (`ScreenView(screen: name)`,
 `new PageView(path)`), though the reason line under the call, and
 `declared.function` in the JSON, still name it `init` or `constructor`. One in
@@ -1282,7 +1344,8 @@ error (exit 2), an instance that refused a request (exit 1) or was unavailable
 (exit 4), or a crash. Nothing goes to stdout or to any `--report` file, and a
 file an earlier run left at a `--report` path is removed, so it cannot pass for
 this run's. That includes connection settings that do not resolve, such as a
-`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist.
+`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist
+(`--list` does not read them, so they cannot fail it).
 Only a regular file is ever replaced or removed: a `--report` path that is or
 names a directory (`reports/`), a link or a special file is refused (exit 2). A
 command line the parser rejects outright, such as an unknown flag, leaves every
@@ -1297,7 +1360,7 @@ Human text and progress messages go to stderr when stdout carries `json`,
 | Code | Meaning |
 |------|---------|
 | **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
 | **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
@@ -1309,7 +1372,8 @@ accepts it, for a repository with no tracking code yet, and also accepts a
 
 `tripl check --list` checks nothing, so it never fails because nothing
 matched: it exits 0 whenever the scan ran, and 2 for a config error or a flag
-it refuses (see [List what the scan reads](#list)).
+it refuses (see [List what the scan reads](#list)). Like every other mode, it
+exits 1 when its output cannot be written to stdout.
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was

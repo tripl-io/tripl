@@ -767,11 +767,7 @@ def check_list_document(
                 "unmapped": list(call.read.unmapped),
                 # An object argument the scan could not read, which is why
                 # none of its keys reached a target; null otherwise.
-                "object_argument": (
-                    None
-                    if call.read.unread_object is None
-                    else _value_document(call.read.unread_object)
-                ),
+                "object_argument": _read_document(call.read.unread_object),
             },
             "dynamic": dict(call.dynamic),
             "items": [
@@ -833,6 +829,8 @@ def _forwarder_document(forwarder: Forwarder) -> JsonDict:
                 "index": parameter.index,
                 "label": parameter.label,
                 "targets": list(parameter.targets),
+                # Passed on whole as a tracking call's object argument.
+                "object_argument": parameter.object_argument,
             }
             for parameter in forwarder.parameters
         ],
