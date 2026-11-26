@@ -22,13 +22,13 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from types import FrameType
-from typing import Any, SupportsIndex
+from typing import Any, SupportsIndex, overload
 
 import pytest
 
 from tripl_cli.check import inventory as inventory_module
 from tripl_cli.check import yamlish
-from tripl_cli.check.calls import find_calls
+from tripl_cli.check.calls import closers, find_calls, matching
 from tripl_cli.check.config import CheckConfig, parse
 from tripl_cli.check.inventory import Inventory, ListedCall, Location, inventory, summarize
 from tripl_cli.check.lexer import STRING, Interp, Token, tokenize
@@ -1905,6 +1905,150 @@ def test_a_long_macro_is_not_read_again_for_each_line_it_continues() -> None:
     # Walking back to the `#define` from each of its lines would read the
     # macro once per line: twice the lines, four times the reading.
     assert _macro_read(400) < 3 * _macro_read(200)
+
+
+@pytest.mark.parametrize(
+    ("language", "source"),
+    [
+        ("ts", "f(a, [b, {c: d}], g(h()))"),
+        ("kotlin", "fun f(a: (Int) -> Unit = { x -> g(x) }) { h[0] }"),
+        ("java", "int f(int[] a) { return g(a[0]); }"),
+        # Never closed, closed twice, closed by the other kind.
+        ("ts", "f(a, (b, [c"),
+        ("ts", ") ] f(a)) } g("),
+        ("swift", "f(a: [b) ] { c ) }"),
+        ("objc", "( ] [ ) { ( } )"),
+        ("ts", ""),
+    ],
+)
+def test_the_bracket_table_closes_each_bracket_where_matching_does(
+    language: str, source: str
+) -> None:
+    tokens = tokenize(source, language)
+    table = closers(tokens)
+    assert len(table) == len(tokens)
+    for index, token in enumerate(tokens):
+        if token.is_punct("(", "[", "{"):
+            assert table[index] == matching(tokens, index), (index, token.text)
+
+
+class _Counted(list[Token]):
+    """A token list that counts the tokens its reads pass over: one per index, a slice's length."""
+
+    read = 0
+
+    @overload
+    def __getitem__(self, key: SupportsIndex) -> Token: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[Token]: ...
+
+    def __getitem__(self, key: SupportsIndex | slice) -> Token | list[Token]:
+        part = super().__getitem__(key)
+        self.read += len(part) if isinstance(part, list) else 1
+        return part
+
+
+def _nest_read(language: str, nest: str, inside: str, close: str, depth: int) -> int:
+    """How many tokens ``ScopeIndex`` reads on ``nest`` written ``depth`` times inside itself."""
+    text = nest * depth + inside + close * depth
+    tokens = _Counted(tokenize(text, language))
+    ScopeIndex(tokens, language, text)
+    return tokens.read
+
+
+@pytest.mark.parametrize(
+    ("language", "nest", "inside", "close"),
+    [
+        # Calls, which a TypeScript method's shape reads as declarations to rule out.
+        ("ts", "f(", "x", ")"),
+        ("ts", "f({a: ", "1", "})"),
+        # Declarations with no body, each in the last one's parameter list.
+        ("java", "int f(", "x", ")"),
+        ("objc", "int f(", "x", ")"),
+        ("kotlin", "fun f(", "", ")"),
+        ("swift", "func f(", "", ")"),
+        ("ts", "const a = async (a): (", "x", ")"),
+        # Declarations with a body, each in the last one's default value.
+        ("ts", "function f(a = ", "1", ") {}"),
+        ("ts", "function f({ a = ", "1", " }) {}"),
+        ("kotlin", "fun f(a: Int = ", "1", ") {}"),
+        ("swift", "func f(a: Int = ", "1", ") {}"),
+    ],
+)
+def test_brackets_nested_deep_are_not_read_again_at_each_level(
+    language: str, nest: str, inside: str, close: str
+) -> None:
+    # Looking for each level's closing bracket from its opening one, or
+    # reading each level's parameter list whole, reads all the levels inside
+    # it again: twice the depth, four times the reading.
+    shallow = _nest_read(language, nest, inside, close, 500)
+    assert _nest_read(language, nest, inside, close, 1000) < 3 * shallow
+
+
+def test_a_typescript_parameter_list_tells_a_declaration_from_a_call() -> None:
+    # With no body, no return type and no modifier, only the parameters say
+    # this is a member's declaration: a type, a `?`, or a destructured
+    # parameter's type, past decorators and modifiers. An argument has none.
+    source = """
+        class Base {
+          optional(event?);
+          rest(...names: string[]);
+          decorated(@Inject() readonly service: Service);
+          destructured({ a, b }: Props);
+          listed([first, second]: string[]);
+          generic(map: Map<string, number>, other);
+          nested({ a: { b } }: Deep);
+          maybe(count?: number);
+          f(a, b);
+          f({ a: g({ b: 1 }) });
+          f([a, b]);
+          f(a ? b : c);
+          f(...rest);
+        }
+        """
+    assert _bodiless("ts", source) == [
+        "optional(event?)",
+        "rest(...names: string[])",
+        "decorated(@Inject() readonly service: Service)",
+        "destructured({ a, b }: Props)",
+        "listed([first, second]: string[])",
+        "generic(map: Map<string, number>, other)",
+        "nested({ a: { b } }: Deep)",
+        "maybe(count?: number)",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "names"),
+    [
+        (
+            "kotlin",
+            "fun f(a: Int = g(1, 2), b: (Int) -> Unit = { x -> h(x) }, vararg c: String) {}",
+            [("a", 0, "a"), ("b", 1, "b"), ("c", 2, "c")],
+        ),
+        (
+            "swift",
+            "func f(_ a: Int = g(x: 1), label b: [String: Int] = [:], c: (Int) -> Void) {}",
+            [("a", 0, None), ("b", 1, "label"), ("c", 2, "c")],
+        ),
+        (
+            "ts",
+            "function f({ a, b }: Props, c = { d: [1, 2] }, @Inject() e?: E, ...rest: R[]) {}",
+            [("c", 1, None), ("e", 2, None), ("rest", 3, None)],
+        ),
+        (
+            "java",
+            'void f(@Named("x") final Map<String, List<Integer>> a, int[] b, String... c) {}',
+            [("a", 0, None), ("b", 1, None), ("c", 2, None)],
+        ),
+    ],
+)
+def test_a_parameter_is_named_by_what_stands_before_its_default(
+    language: str, source: str, names: list[tuple[str, int, str | None]]
+) -> None:
+    (scope,) = ScopeIndex(tokenize(source, language), language, source).functions
+    assert [(found.name, found.index, found.label) for found in scope.parameters] == names
 
 
 @pytest.mark.parametrize("language", ["java", "objc"])

@@ -56,7 +56,6 @@ _NOT_TYPES = frozenset(
 # What a Java or C type's `<…>` arguments may hold besides names (`Map<K, ? extends V>`).
 _TYPE_ARGUMENT_PUNCT = (",", ".", "?", "[", "]", "*", "&")
 _OPENERS = ("(", "[", "{")
-_CLOSERS = (")", "]", "}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,14 +74,27 @@ class Parameter:
 
 
 def parameters(
-    tokens: list[Token], opening: int, close: int, language: str
+    tokens: list[Token], opening: int, close: int, language: str, closes: Sequence[int]
 ) -> tuple[Parameter, ...]:
-    """The parameters of the list from ``tokens[opening]`` (its ``(``) to ``tokens[close]``."""
+    """The parameters of the list from ``tokens[opening]`` (its ``(``) to ``tokens[close]``.
+
+    ``closes`` is ``calls.closers(tokens)``. Each parameter is read up to its
+    default value only, so a default that holds a whole function (``a =
+    function f(…) {…}``) is passed over rather than read again at each level
+    of a nest of them. Outside Java and Objective-C the bracketed groups in
+    what is read are cut to their two brackets as well (see ``_shallow``): a
+    name there is read from top-level tokens only. A Java or C parameter's
+    name is the last word read, and a function pointer (``int (*compare)(int)``)
+    has words inside its brackets, so those parameters are read whole.
+    """
     found: list[Parameter] = []
     index = 0
-    for part in _parts(tokens[opening + 1 : close]):
-        if not part:
+    shallow = language not in ("java", "objc")
+    for start, end in _part_ranges(tokens, opening, close, closes):
+        if start == end:
             continue  # a trailing comma: no parameter, and no position either
+        head = _default_at(tokens, start, end, closes)
+        part = _shallow(tokens, start, head, closes) if shallow else tokens[start:head]
         name, label = _name_of(_undecorated(part), language)
         if name is not None:
             found.append(Parameter(name, index, label))
@@ -91,22 +103,29 @@ def parameters(
 
 
 def declares(
-    tokens: list[Token], source: str, language: str, name: int, opening: int, close: int
+    tokens: list[Token],
+    source: str,
+    language: str,
+    name: int,
+    opening: int,
+    close: int,
+    closes: Sequence[int],
 ) -> bool:
     """``name(…)``, with no body after its list, still declares a function.
 
     Java and C: a return type before the name and a ``;`` after the list
     (``throws …`` or attribute macros between). A TypeScript method: a typed
     parameter, a modifier on the name's line, or a return type on a member of
-    its own. ``source`` is read for line breaks only.
+    its own. ``source`` is read for line breaks only; ``closes`` is
+    ``calls.closers(tokens)``.
     """
     if language in ("java", "objc"):
         return _returns(tokens, source, name, language) and _prototype_end(
-            tokens, close + 1, language
+            tokens, close + 1, language, closes
         )
     if language != "ts":
         return False
-    if _typed(tokens, opening, close) or _modified(tokens, source, name):
+    if _typed(tokens, opening, close, closes) or _modified(tokens, source, name):
         return True
     return (
         close + 1 < len(tokens)
@@ -116,36 +135,89 @@ def declares(
 
 
 # --- parameters ---------------------------------------------------------------------
-def _parts(tokens: Sequence[Token]) -> list[list[Token]]:
-    """A parameter list split at its top-level commas.
+def _part_ranges(
+    tokens: list[Token], opening: int, close: int, closes: Sequence[int]
+) -> list[tuple[int, int]]:
+    """The list from ``tokens[opening]`` to ``tokens[close]`` split at its top-level commas.
 
-    Type arguments count as brackets (``Map<String, Any>`` is one part), but
-    only before a part's default value, where ``<`` and ``>`` compare.
+    Each part as the token range ``(start, end)``, empty for a trailing comma;
+    none at all for an empty list. Type arguments count as brackets
+    (``Map<String, Any>`` is one part), but only before a part's default
+    value, where ``<`` and ``>`` compare. A bracketed group is stepped over
+    through ``closes``, so the list costs its own top-level tokens however
+    deeply its arguments nest.
     """
-    parts: list[list[Token]] = [[]]
-    depth = 0
+    if opening + 1 >= close:
+        return []
+    ranges: list[tuple[int, int]] = []
+    start = opening + 1
     angles = 0
     defaulted = False
-    for token in tokens:
-        if token.kind == PUNCT and token.text in _OPENERS:
-            depth += 1
-        elif token.kind == PUNCT and token.text in _CLOSERS:
-            depth -= 1
-        elif depth == 0 and token.kind == PUNCT:
+    position = start
+    while position < close:
+        token = tokens[position]
+        if token.kind == PUNCT:
+            if token.text in _OPENERS:
+                position = closes[position] + 1
+                continue
             if token.text == "," and (defaulted or not angles):
-                parts.append([])
+                ranges.append((start, position))
+                start = position + 1
                 angles = 0
                 defaulted = False
-                continue
-            if not defaulted:
+            elif not defaulted:
                 if token.text == "<":
                     angles += 1
                 elif token.text == ">" and angles:
                     angles -= 1
                 elif token.text == "=" and not angles:
                     defaulted = True
-        parts[-1].append(token)
-    return [] if parts == [[]] else parts
+        position += 1
+    ranges.append((start, close))
+    return ranges
+
+
+def _default_at(tokens: list[Token], start: int, end: int, closes: Sequence[int]) -> int:
+    """The index of the first top-level ``=`` in ``tokens[start:end]``, else ``end``.
+
+    Where a parameter's default value starts, which nothing about its name
+    comes after. Bracketed groups are stepped over through ``closes``.
+    """
+    position = start
+    while position < end:
+        token = tokens[position]
+        if token.kind == PUNCT:
+            if token.text in _OPENERS:
+                position = closes[position] + 1
+                continue
+            if token.text == "=":
+                return position
+        position += 1
+    return end
+
+
+def _shallow(tokens: list[Token], start: int, end: int, closes: Sequence[int]) -> list[Token]:
+    """``tokens[start:end]`` with each bracketed group cut to its opening and closing token.
+
+    For a reader that looks at a parameter's top-level tokens only: ``{ a, b
+    }: Props`` reads as ``{ }: Props``, and splitting it, matching its
+    brackets or taking its first and last tokens gives the answer the whole
+    part would. What it does not give is a count of the tokens inside a group,
+    or the words there.
+    """
+    found: list[Token] = []
+    position = start
+    while position < end:
+        token = tokens[position]
+        found.append(token)
+        if token.kind == PUNCT and token.text in _OPENERS:
+            closing = closes[position]
+            if closing >= end:
+                break  # never closes inside the range: nothing past it is in this part
+            found.append(tokens[closing])
+            position = closing
+        position += 1
+    return found
 
 
 def _undecorated(part: list[Token]) -> list[Token]:
@@ -338,7 +410,9 @@ def _angles_back(tokens: list[Token], close: int) -> int:
     return -1
 
 
-def _prototype_end(tokens: list[Token], position: int, language: str) -> bool:
+def _prototype_end(
+    tokens: list[Token], position: int, language: str, closes: Sequence[int]
+) -> bool:
     """A Java or C declaration with no body ends at ``position``: a ``;``.
 
     Java's ``throws A, B`` and C's attribute macros (``NS_SWIFT_NAME(…)``,
@@ -355,15 +429,20 @@ def _prototype_end(tokens: list[Token], position: int, language: str) -> bool:
         while position < limit and tokens[position].kind == IDENT:
             position += 1
             if position < len(tokens) and tokens[position].is_punct("("):
-                position = matching(tokens, position) + 1
+                position = closes[position] + 1
     return position < len(tokens) and tokens[position].is_punct(";")
 
 
 # --- TypeScript: a type, a modifier, a member of its own ------------------------------
-def _typed(tokens: list[Token], opening: int, close: int) -> bool:
-    """A parameter in the list has a type or a ``?``, which no argument has."""
-    for part in _parts(tokens[opening + 1 : close]):
-        kept = _undecorated(part)
+def _typed(tokens: list[Token], opening: int, close: int, closes: Sequence[int]) -> bool:
+    """A parameter in the list has a type or a ``?``, which no argument has.
+
+    Each part is read cut to its top-level tokens (``_shallow``): that is all
+    this looks at, and a call's argument list may hold another call, and that
+    one another, each read here once per level.
+    """
+    for start, end in _part_ranges(tokens, opening, close, closes):
+        kept = _undecorated(_shallow(tokens, start, end, closes))
         if kept and kept[0].is_punct("..."):
             kept = kept[1:]
         if not kept:
