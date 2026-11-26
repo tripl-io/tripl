@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import posixpath
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator
 
+from tripl.core.bucketing import optional_to_utc
 from tripl.schemas.plan_validation import MAX_VALIDATION_ITEMS
 from tripl.schemas.text_filters import strip_nul_bytes
 
@@ -67,13 +68,6 @@ def check_root(value: str | None) -> str:
 #: ``apps/ios/`` finds the runs stored as ``apps/ios``, and a directory no
 #: upload could name is a 422, not an empty page.
 CheckRootFilter = Annotated[str, BeforeValidator(strip_nul_bytes), AfterValidator(check_root)]
-
-
-def _aware(value: datetime | None) -> datetime | None:
-    """A timestamp with no offset is read as UTC, so two runs always compare."""
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=UTC)
 
 
 class CheckRunFinding(BaseModel):
@@ -150,7 +144,8 @@ class CheckRunCreate(BaseModel):
     @field_validator("pipeline_created_at", "committed_at")
     @classmethod
     def _check_time(cls, value: datetime | None) -> datetime | None:
-        return _aware(value)
+        # No offset is read as UTC, so two runs always compare.
+        return optional_to_utc(value)
 
 
 class CheckRunCounts(BaseModel):

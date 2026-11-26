@@ -35,6 +35,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.check_run import CheckRun, CheckRunCall
 from tripl.models.event import Event
 from tripl.models.plan_branch import BranchKind, PlanBranch
@@ -76,13 +77,8 @@ def is_older_than(data: CheckRunCreate, current: CheckRun) -> bool:
     )
     for uploaded, stored in pairs:
         if uploaded is not None and stored is not None:
-            return uploaded < _aware(stored)
+            return uploaded < to_utc(stored)
     return False
-
-
-def _aware(value: datetime) -> datetime:
-    """SQLite hands a timezone-aware column back without its offset; it was UTC."""
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 async def _lock_repository(
@@ -234,8 +230,8 @@ def run_response(run: CheckRun) -> CheckRunResponse:
         is_default_branch=run.is_default_branch,
         is_current=run.is_current,
         pipeline_url=run.pipeline_url,
-        pipeline_created_at=_optional_aware(run.pipeline_created_at),
-        committed_at=_optional_aware(run.committed_at),
+        pipeline_created_at=optional_to_utc(run.pipeline_created_at),
+        committed_at=optional_to_utc(run.committed_at),
         strict=run.strict,
         calls=CheckRunCounts(
             total=run.calls_total,
@@ -246,10 +242,6 @@ def run_response(run: CheckRun) -> CheckRunResponse:
         ),
         created_at=run.created_at,
     )
-
-
-def _optional_aware(value: datetime | None) -> datetime | None:
-    return None if value is None else _aware(value)
 
 
 async def list_runs(
