@@ -352,6 +352,29 @@ class PlanPin:
 
 
 @dataclass(frozen=True)
+class UploadOutcome:
+    """What ``--upload`` did with the run: ``check --json``'s ``upload`` key.
+
+    ``ok`` is whether tripl recorded it; ``error`` says why not, else None.
+    ``run_id`` and ``current`` come from tripl's answer and are None when
+    nothing was recorded: ``current`` is whether the run became what "used in
+    code" shows. The rest is what was sent.
+    """
+
+    ok: bool
+    error: str | None
+    run_id: str | None
+    current: bool | None
+    repository: str
+    check_root: str
+    commit_sha: str
+    ref: str
+    default_branch: str | None
+    merge_request: bool
+    calls: int
+
+
+@dataclass(frozen=True)
 class CheckReport:
     run: Run
     project: str
@@ -384,6 +407,8 @@ class CheckReport:
     # Set when the run was pinned to a plan revision (``--revision``, or
     # ``revision:`` in the check config); None for the live plan.
     plan: PlanPin | None = None
+    # Set with ``--upload``: whether tripl recorded the run, and as what.
+    upload: UploadOutcome | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)

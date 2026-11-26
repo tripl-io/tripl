@@ -726,10 +726,10 @@ run, and the same jobs started through the API). They go after
 still unfinished after that long is one whose worker died, and it goes too.
 
 A task of its own deletes the [`tripl check` runs CI uploaded](../integrate/tripl-check.md#send-results-to-tripl)
-after `CHECK_RUN_RETENTION_DAYS`, measured from the upload. The latest run on
-each repository's default branch is never deleted for its age: it is what
-"used in code" shows, until a newer default-branch run of that repository
-replaces it.
+after `CHECK_RUN_RETENTION_DAYS`, measured from the upload. The current
+default-branch run of each repository and check directory is never deleted for
+its age: it is what "used in code" shows, until a newer default-branch run of
+the same repository and directory replaces it.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -737,7 +737,7 @@ replaces it.
 | `DISTRIBUTION_DRIFT_RETENTION_DAYS` | `90` | Age limit for significant distribution drift. |
 | `DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS` | `30` | Age limit for stable and minor distribution drift. |
 | `SCAN_PREVIEW_RETENTION_DAYS` | `7` | Age limit for scan previews and dry runs, measured from `completed_at`. |
-| `CHECK_RUN_RETENTION_DAYS` | `90` | Age limit for uploaded `tripl check` runs, measured from the upload; the latest default-branch run of each repository stays. |
+| `CHECK_RUN_RETENTION_DAYS` | `90` | Age limit for uploaded `tripl check` runs, measured from the upload; the current default-branch run of each repository and check directory stays. |
 
 ---
 

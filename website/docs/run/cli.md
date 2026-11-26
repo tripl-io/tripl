@@ -2306,7 +2306,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--report FORMAT=PATH` | Also write the result in `FORMAT` (any of the six) to the file `PATH`. Repeat it for more files: one run, one validation, the same verdicts in each, for example `--report codequality=gl-code-quality-report.json --report junit=tripl-check.xml`. A run that cannot finish writes none, and removes what an earlier run left at those paths; only a command line the parser rejects outright, such as an unknown flag, leaves them. |
 | `--allow-empty` | Exit 0 when there is nothing to check. Without it, a configuration that matches no call, or a `--payloads` file with no events, is exit 2: a check that checked nothing must not read as a pass. Refused with `--list`, which never fails because nothing matched. |
 | `--coverage` | Also report [plan coverage](#tripl-check-coverage): the planned events (status `ready_for_dev`, `implemented` or `live`) that no scanned call sends. It adds two reads to the run and never changes the exit code. Refused with `--payloads` and `--list`. |
-| `--upload` | Also record the run in tripl, once the check has finished and its reports are written: every call with its location, event and findings, under the commit, ref, repository and pipeline that GitLab CI or GitHub Actions variables name (`CI_COMMIT_SHA`, `CI_COMMIT_REF_NAME`, `CI_PROJECT_PATH`, `CI_PIPELINE_URL`; `GITHUB_SHA`, `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`, `GITHUB_REPOSITORY`, the run's URL). A run on the repository's default branch becomes what "used in code" shows on each event; a run on any other ref, and every merge request or pull request run, goes to the check history only. One line on stderr says which, or why nothing was recorded: a failed upload is a warning and never changes the exit code. Outside those two CI systems, with `--payloads`, `--list`, a plan branch or a pinned plan revision (from a flag or the check configuration; `--revision live` is fine), it is refused before anything is sent (exit 2). Needs a [`check_upload` or `write` key](../integrate/tripl-check.md#send-results-to-tripl); a run of more than 5,000 calls is not uploaded. |
+| `--upload` | Also record the run in tripl, once the check has finished and before its reports are written: every call with its location, event and findings, under the commit, ref, repository and pipeline that GitLab CI or GitHub Actions variables name (`CI_COMMIT_SHA`, `CI_COMMIT_REF_NAME`, `CI_PROJECT_PATH`, `CI_PIPELINE_URL`; `GITHUB_SHA`, `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`, `GITHUB_REPOSITORY`, the run's URL), and the check directory: the check configuration's `root` relative to the repository root, `.` for the root. A run on the repository's default branch becomes what "used in code" shows on each event, one snapshot per repository and check directory, unless it is older than the one tripl holds (by `CI_PIPELINE_CREATED_AT`, else by the commit's timestamp); a run on any other ref, and every merge request or pull request run, goes to the check history only. One line on stderr, after the run's output, says which, or why nothing was recorded, and with `--json` so does the document's [`upload` key](#check-document): a failed upload is a warning and never changes the exit code. Outside those two CI systems, with `--payloads`, `--list`, a plan branch or a pinned plan revision (from a flag or the check configuration; `--revision live` is fine), it is refused before anything is sent (exit 2). Needs a [`check_upload` or `write` key](../integrate/tripl-check.md#send-results-to-tripl); a run of more than 5,000 calls is not uploaded. |
 | `--default-branch NAME` | With `--upload`: the repository's default branch, instead of the one the CI names (`CI_DEFAULT_BRANCH`, or `repository.default_branch` of the GitHub Actions event). Without either, the run goes to the history only. Refused without `--upload` (exit 2). |
 | `--json` | One JSON document on stdout, every human line on stderr. The same as `--format json`. With `--list`, the [`check --list` document](#check---list-document). |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. `--list` ignores it: it sends no request. |
@@ -2316,7 +2316,8 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 [`POST /projects/{slug}/plan/validate`](../integrate/agent-api-guide.md#plan-validation).
 It changes nothing. `--upload` adds one write,
 [`POST /projects/{slug}/check-runs`](../integrate/agent-api-guide.md#check-runs),
-which needs a `tk_c_` (`check_upload`) key bound to the project, or a write key.
+which needs a `tk_c_` (`check_upload`) key bound to the project (its user may be
+a viewer there), or a write key of an editor.
 
 ```bash
 tripl check                                   # static: scan the sources in .tripl/check.yml
@@ -4634,6 +4635,20 @@ With `--coverage`, and only then, the document has a `coverage` key:
 | `coverage.maybe_dynamic[]` | The events a call the scan could not fully read may send, in the same shape. See [Plan coverage](#tripl-check-coverage). |
 | `coverage.not_scanned` | Event type name to its number of planned events, for the types the check configuration has no call spec for. |
 | `coverage.unread_calls` | The calls that matched no event and have a value the scan did not read. |
+
+With `--upload`, and only then, the document has an `upload` key: whether
+tripl recorded the run, and as what. A failed upload is `ok: false`, and
+`exit_code` is the check's own either way.
+
+| Key | Meaning |
+|-----|---------|
+| `upload.ok` | Whether tripl recorded the run. |
+| `upload.error` | Why it did not (a refused key, an outage, a run of more than 5,000 calls), or `null`. |
+| `upload.run_id` | The id tripl gave the run, or `null` when nothing was recorded. |
+| `upload.current` | Whether the run became what "used in code" shows: `true` for the newest default-branch run of its repository and check directory, `false` for a run that went to the history only (another ref, a merge request, or a default-branch run older than the current one), `null` when nothing was recorded. |
+| `upload.repository` / `upload.check_root` | The repository as the CI names it, and the check directory: the check configuration's `root` relative to the repository root, `.` for the root. |
+| `upload.commit_sha` / `upload.ref` / `upload.default_branch` / `upload.merge_request` | What was sent for the run, from the CI's variables (`default_branch` is `null` when none was known). |
+| `upload.calls` | How many calls the run has. |
 
 With `--format sarif` stdout carries a SARIF 2.1.0 log instead, and none of the
 keys above: each finding is a result whose `ruleId` is its `code`.

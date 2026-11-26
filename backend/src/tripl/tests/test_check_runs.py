@@ -18,13 +18,15 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from tripl.api.deps import CHECK_UPLOAD_SCOPE_ONLY
 from tripl.models import Base
 from tripl.models.check_run import CheckRun, CheckRunCall
 from tripl.models.project import Project
+from tripl.models.project_member import ProjectMember
+from tripl.models.user import User
 from tripl.services import project_permissions
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
@@ -186,7 +188,7 @@ async def test_a_read_key_cannot_upload_and_a_write_key_can(
 
 
 @pytest.mark.asyncio
-async def test_a_viewer_cannot_upload_and_a_non_member_sees_no_project(
+async def test_a_viewer_uploads_with_a_check_upload_key_and_only_with_one(
     client: AsyncClient,
 ) -> None:
     opened, _closed = await _project_with_event(client, "cr-viewer")
@@ -198,16 +200,53 @@ async def test_a_viewer_cannot_upload_and_a_non_member_sees_no_project(
     )
     assert registered.status_code == 201, registered.text
 
+    # Not a member yet: no project to upload to, and no key minted for it.
     hidden = await client.post("/api/v1/projects/cr-viewer/check-runs", json=body)
     assert hidden.status_code == 404
+    minted = await client.post(
+        "/api/v1/me/api-keys",
+        json={"name": "ci", "scope": "check_upload", "project_slug": "cr-viewer"},
+    )
+    assert minted.status_code == 404, minted.text
 
     await add_member_by_slug("cr-viewer", "cr-viewer@example.com", "viewer")
+    # The browser session of a viewer still may not record a run...
     refused = await client.post("/api/v1/projects/cr-viewer/check-runs", json=body)
     assert refused.status_code == 403
-    # A viewer still reads the history and the usage.
+    # ...and the viewer's check_upload key may: it is the narrow permission.
+    token = await _issue_key(client, "check_upload", "cr-viewer")
+    uploaded = await client.post(
+        "/api/v1/projects/cr-viewer/check-runs", json=body, headers=_bearer(token)
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["is_current"] is True
+    # It writes nothing else, the viewer's role aside.
+    other = await client.post(
+        "/api/v1/projects/cr-viewer/event-types",
+        json={"name": "other", "display_name": "Other"},
+        headers=_bearer(token),
+    )
+    assert other.status_code == 403
+    # A viewer reads the history and the usage.
     assert (await client.get("/api/v1/projects/cr-viewer/check-runs")).status_code == 200
     usage = await client.get(f"/api/v1/projects/cr-viewer/events/{opened}/code-usage")
     assert usage.status_code == 200, usage.text
+    assert [len(repo["calls"]) for repo in usage.json()["repositories"]] == [1]
+
+    # Taken out of the project, the key reaches nothing there.
+    async with TestSessionLocal() as session:
+        project_id = await session.scalar(select(Project.id).where(Project.slug == "cr-viewer"))
+        user_id = await session.scalar(select(User.id).where(User.email == "cr-viewer@example.com"))
+        await session.execute(
+            delete(ProjectMember).where(
+                ProjectMember.project_id == project_id, ProjectMember.user_id == user_id
+            )
+        )
+        await session.commit()
+    gone = await client.post(
+        "/api/v1/projects/cr-viewer/check-runs", json=body, headers=_bearer(token)
+    )
+    assert gone.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -411,9 +450,139 @@ async def test_an_upload_is_capped_at_one_validate_batch(client: AsyncClient) ->
     assert over.status_code == 422
 
 
-def test_the_upload_route_asks_for_the_plan_edit_permission() -> None:
+def test_the_upload_route_asks_for_its_own_permission() -> None:
     path = "/api/v1/projects/{slug}/check-runs"
-    assert project_permissions.classify(path) == project_permissions.PLAN_EDIT
+    assert project_permissions.classify(path) == project_permissions.CHECK_RUNS_UPLOAD
+    assert project_permissions.CHECK_RUNS_UPLOAD in project_permissions.PERMISSION_KEYS
+
+
+@pytest.mark.asyncio
+async def test_each_check_directory_of_a_repository_keeps_its_own_snapshot(
+    client: AsyncClient,
+) -> None:
+    opened, _closed = await _project_with_event(client, "cr-dirs")
+    base = "/api/v1/projects/cr-dirs"
+    ios = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [_call(opened, "apps/ios/Cart.swift", 3)], check_root="apps/ios/"),
+    )
+    assert ios.status_code == 201, ios.text
+    assert ios.json()["check_root"] == "apps/ios"
+    web = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [_call(opened, "apps/web/cart.ts", 8)], check_root="./apps/web"),
+    )
+    assert web.status_code == 201, web.text
+    root = await client.post(f"{base}/check-runs", json=_run("main", []))
+    assert root.status_code == 201, root.text
+    assert root.json()["check_root"] == "."
+
+    # A second app in the repository did not replace the first one's snapshot.
+    usage = (await client.get(f"{base}/events/{opened}/code-usage")).json()
+    assert [
+        (repo["repository"], repo["check_root"], [c["path"] for c in repo["calls"]])
+        for repo in usage["repositories"]
+    ] == [
+        ("shop/web", ".", []),
+        ("shop/web", "apps/ios", ["apps/ios/Cart.swift"]),
+        ("shop/web", "apps/web", ["apps/web/cart.ts"]),
+    ]
+
+    # The next run of one directory replaces that directory's snapshot only.
+    again = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [], check_root="apps/ios", commit_sha=SHA_2),
+    )
+    assert again.status_code == 201, again.text
+    after = (await client.get(f"{base}/events/{opened}/code-usage")).json()
+    assert {repo["check_root"]: len(repo["calls"]) for repo in after["repositories"]} == {
+        ".": 0,
+        "apps/ios": 0,
+        "apps/web": 1,
+    }
+    only_ios = (await client.get(f"{base}/check-runs?check_root=apps/ios")).json()
+    assert only_ios["total"] == 2
+    assert [item["is_current"] for item in only_ios["items"]] == [True, False]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["/abs/path", "..", "../other", "apps/../../x"])
+async def test_a_check_directory_outside_the_repository_is_refused(
+    client: AsyncClient, bad: str
+) -> None:
+    await client.post("/api/v1/projects", json={"name": "Dir", "slug": "cr-baddir"})
+    resp = await client.post(
+        "/api/v1/projects/cr-baddir/check-runs", json=_run("main", [], check_root=bad)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("current", "late"),
+    [
+        # A re-run of an older pipeline that finishes last.
+        (
+            {"pipeline_created_at": "2026-11-20T10:00:00Z"},
+            {"pipeline_created_at": "2026-11-19T10:00:00Z"},
+        ),
+        # No pipeline time on one side: the commit timestamps decide.
+        (
+            {"pipeline_created_at": "2026-11-20T10:00:00Z", "committed_at": "2026-11-20T09:00:00Z"},
+            {"committed_at": "2026-11-19T12:00:00+02:00"},
+        ),
+    ],
+)
+async def test_an_older_default_branch_run_goes_to_the_history_only(
+    client: AsyncClient, current: dict[str, str], late: dict[str, str]
+) -> None:
+    opened, closed = await _project_with_event(client, "cr-order")
+    base = "/api/v1/projects/cr-order"
+    newer = await client.post(
+        f"{base}/check-runs", json=_run("main", [_call(opened, "src/new.ts", 1)], **current)
+    )
+    assert newer.status_code == 201, newer.text
+    older = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [_call(closed, "src/old.ts", 2)], commit_sha=SHA_2, **late),
+    )
+    assert older.status_code == 201, older.text
+    body = older.json()
+    assert (body["is_default_branch"], body["is_current"]) == (True, False)
+
+    usage = (await client.get(f"{base}/events/{opened}/code-usage")).json()
+    assert usage["repositories"][0]["run"]["id"] == newer.json()["id"]
+    assert [c["path"] for c in usage["repositories"][0]["calls"]] == ["src/new.ts"]
+    assert (
+        usage["repositories"][0]["run"]["pipeline_created_at"]
+        == (newer.json()["pipeline_created_at"])
+    )
+    async with TestSessionLocal() as session:
+        kept = (await session.scalars(select(CheckRunCall.path))).all()
+    assert kept == ["src/new.ts"]
+
+
+@pytest.mark.asyncio
+async def test_a_newer_or_unordered_default_branch_run_replaces_the_current_one(
+    client: AsyncClient,
+) -> None:
+    opened, _closed = await _project_with_event(client, "cr-newer")
+    base = "/api/v1/projects/cr-newer"
+    first = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [], pipeline_created_at="2026-11-20T10:00:00Z"),
+    )
+    assert first.json()["is_current"] is True
+    newer = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [], pipeline_created_at="2026-11-21T10:00:00Z", commit_sha=SHA_2),
+    )
+    assert newer.json()["is_current"] is True
+    # Nothing to compare with (no time sent): the later upload wins, as before.
+    unordered = await client.post(f"{base}/check-runs", json=_run("main", []))
+    assert unordered.json()["is_current"] is True
+    history = (await client.get(f"{base}/check-runs?default_branch=true")).json()
+    assert [item["is_current"] for item in history["items"]] == [True, False, False]
 
 
 # ---------------------------------------------------------------------------

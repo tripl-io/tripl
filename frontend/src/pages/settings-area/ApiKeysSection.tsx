@@ -19,7 +19,7 @@ import { Field, SCard, SHeader, NativeSelect, TextInput } from '@/components/set
 import { OneTimeSecretDialog } from '@/components/settings/one-time-secret'
 import { describeKeyCounts, describeRevealedKey, isKeyInactive } from './apiKeyStatus'
 import type { ApiKey, ApiKeyScope, ApiKeyWithToken } from '@/types'
-import { canWrite, canWriteProject } from '@/lib/permissions'
+import { canWrite } from '@/lib/permissions'
 
 const MAX_EXPIRY_DAYS = 3650
 const NEW_KEY_FORM_ID = 'new-api-key-form'
@@ -178,13 +178,12 @@ export default function ApiKeysSection() {
         ]
       : []),
   ]
-  // A check upload key acts in one project, and every upload needs an editing
-  // role there: a project the user only views would mint a key whose every
-  // upload is refused, so only the projects they can edit are offered.
-  const uploadProjects = (projectsQuery.data ?? []).filter((p) => canWriteProject(user, p))
+  // A check upload key acts in one project. Recording a run is not a plan
+  // edit, so any project the user is in will do, one they only view included.
+  const uploadProjects = projectsQuery.data ?? []
   const projectProblem =
     scope === 'check_upload' && !uploadProjects.some((p) => p.slug === projectSlug)
-      ? 'A check upload key needs a project you can edit.'
+      ? 'A check upload key needs a project.'
       : null
   const revokedCount = keys.filter((k) => k.revoked_at != null).length
   const shownKeys = showRevoked ? keys : keys.filter((k) => k.revoked_at == null)
@@ -195,7 +194,7 @@ export default function ApiKeysSection() {
   const projectOptions =
     scope === 'check_upload'
       ? [
-          { value: '', label: 'Pick a project you can edit' },
+          { value: '', label: 'Pick a project' },
           ...uploadProjects.map((p) => ({ value: p.slug, label: p.name })),
         ]
       : [

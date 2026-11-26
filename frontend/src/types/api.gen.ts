@@ -2379,12 +2379,14 @@ export interface paths {
         put?: never;
         /**
          * Upload Check Run
-         * @description Record one ``tripl check`` run of a repository.
+         * @description Record one ``tripl check`` run of a repository directory.
          *
-         *     A run whose ``ref`` is its ``default_branch`` becomes the repository's
-         *     current run: its calls replace the previous default-branch run's as what
-         *     "used in code" shows. Any other run is kept as a summary only, for the
-         *     history. At most 5000 calls per run.
+         *     A run whose ``ref`` is its ``default_branch`` becomes the current run of
+         *     its repository and ``check_root``: its calls replace the previous
+         *     default-branch run's as what "used in code" shows. A default-branch run
+         *     older than the current one (by ``pipeline_created_at`` when both carry it,
+         *     else by ``committed_at``) goes to the history only, and so does any other
+         *     run, kept as a summary. At most 5000 calls per run.
          */
         post: operations["upload_check_run_api_v1_projects__slug__check_runs_post"];
         delete?: never;
@@ -3377,9 +3379,9 @@ export interface paths {
         };
         /**
          * Get Event Code Usage
-         * @description Where the code sends this event: per repository, its latest default-branch run's calls.
+         * @description Where the code sends this event: the calls in each repository directory's current run.
          *
-         *     A repository whose latest run has no call of the event is listed with no
+         *     A directory whose current run has no call of the event is listed with no
          *     calls; one that never uploaded a default-branch run is not listed.
          */
         get: operations["get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get"];
@@ -8478,8 +8480,15 @@ export interface components {
         CheckRunCreate: {
             /** Calls */
             calls?: components["schemas"]["CheckRunCallIn"][];
+            /**
+             * Check Root
+             * @default .
+             */
+            check_root: string;
             /** Commit Sha */
             commit_sha: string;
+            /** Committed At */
+            committed_at?: string | null;
             /** Default Branch */
             default_branch?: string | null;
             /**
@@ -8487,6 +8496,8 @@ export interface components {
              * @default false
              */
             merge_request: boolean;
+            /** Pipeline Created At */
+            pipeline_created_at?: string | null;
             /** Pipeline Url */
             pipeline_url?: string | null;
             /** Ref */
@@ -8533,8 +8544,12 @@ export interface components {
          */
         CheckRunResponse: {
             calls: components["schemas"]["CheckRunCounts"];
+            /** Check Root */
+            check_root: string;
             /** Commit Sha */
             commit_sha: string;
+            /** Committed At */
+            committed_at: string | null;
             /**
              * Created At
              * Format: date-time
@@ -8553,6 +8568,8 @@ export interface components {
             is_default_branch: boolean;
             /** Merge Request */
             merge_request: boolean;
+            /** Pipeline Created At */
+            pipeline_created_at: string | null;
             /** Pipeline Url */
             pipeline_url: string | null;
             /** Ref */
@@ -10688,14 +10705,17 @@ export interface components {
         };
         /**
          * EventCodeUsageRepository
-         * @description One repository's latest default-branch run, and the calls in it that send the event.
+         * @description One repository's current run of one check directory, and its calls that send the event.
          *
          *     ``calls`` is empty when that run found no call of the event: the event is
-         *     not used in that repository's code, as of ``run``.
+         *     not used in that directory's code, as of ``run``. ``check_root`` is ``.``
+         *     for a check of the whole repository.
          */
         EventCodeUsageRepository: {
             /** Calls */
             calls: components["schemas"]["CheckRunCallLocation"][];
+            /** Check Root */
+            check_root: string;
             /** Repository */
             repository: string;
             /** Repository Url */
@@ -10704,7 +10724,7 @@ export interface components {
         };
         /**
          * EventCodeUsageResponse
-         * @description Where the code sends an event, per repository that uploads check runs.
+         * @description Where the code sends an event, per repository and check directory that upload runs.
          */
         EventCodeUsageResponse: {
             /**
@@ -26996,6 +27016,8 @@ export interface operations {
             query?: {
                 /** @description Only the runs of this repository. */
                 repository?: string | null;
+                /** @description Only the runs of this check directory (`.` for the repository root). */
+                check_root?: string | null;
                 /** @description Only the runs on their repository's default branch. */
                 default_branch?: boolean;
                 limit?: number;

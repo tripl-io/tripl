@@ -1,13 +1,15 @@
 """Uploaded ``tripl check`` runs (``tripl check --upload``).
 
 ``POST /projects/{slug}/check-runs`` records one run. It is a write, behind
-:func:`~tripl.api.deps.get_check_upload_user`: a browser session or a
-``write`` key of an editor, or the narrow ``check_upload`` key a CI job holds,
-which may do this and read, nothing else. A ``read`` key is refused.
+:func:`~tripl.api.deps.get_check_upload_user` and its own permission
+(``check_runs.upload``, not ``plan.edit``): a browser session or a ``write``
+key of an editor, or the narrow ``check_upload`` key a CI job holds, which may
+do this and read, nothing else, and needs only a viewer's role in the project.
+A ``read`` key is refused.
 
 The two reads are what a project member sees: the run history, every run as a
-summary, and "used in code" for one event, the calls of each repository's
-latest default-branch run that send it. The rules live in
+summary, and "used in code" for one event, the calls that send it in the
+current run of each repository and check directory. The rules live in
 :mod:`tripl.services.check_run_service`.
 """
 
@@ -37,12 +39,14 @@ router = APIRouter(prefix="/projects/{slug}", tags=["check-runs"])
 async def upload_check_run(
     session: SessionDep, slug: str, data: CheckRunCreate, user: CheckUploadUserDep
 ) -> CheckRunResponse:
-    """Record one ``tripl check`` run of a repository.
+    """Record one ``tripl check`` run of a repository directory.
 
-    A run whose ``ref`` is its ``default_branch`` becomes the repository's
-    current run: its calls replace the previous default-branch run's as what
-    "used in code" shows. Any other run is kept as a summary only, for the
-    history. At most 5000 calls per run.
+    A run whose ``ref`` is its ``default_branch`` becomes the current run of
+    its repository and ``check_root``: its calls replace the previous
+    default-branch run's as what "used in code" shows. A default-branch run
+    older than the current one (by ``pipeline_created_at`` when both carry it,
+    else by ``committed_at``) goes to the history only, and so does any other
+    run, kept as a summary. At most 5000 calls per run.
     """
     project_id = await resolve_project_id(session, slug)
     run = await check_run_service.record_run(session, project_id, data, user_id=user.id)
@@ -59,6 +63,13 @@ async def list_check_runs(
         FreeTextFilter | None,
         Query(max_length=255, description="Only the runs of this repository."),
     ] = None,
+    check_root: Annotated[
+        FreeTextFilter | None,
+        Query(
+            max_length=1000,
+            description="Only the runs of this check directory (`.` for the repository root).",
+        ),
+    ] = None,
     default_branch: Annotated[
         bool, Query(description="Only the runs on their repository's default branch.")
     ] = False,
@@ -71,6 +82,7 @@ async def list_check_runs(
         session,
         project_id,
         repository=repository,
+        check_root=check_root,
         default_branch_only=default_branch,
         limit=limit,
         offset=offset,
@@ -81,9 +93,9 @@ async def list_check_runs(
 async def get_event_code_usage(
     session: SessionDep, slug: str, event_id: uuid.UUID
 ) -> EventCodeUsageResponse:
-    """Where the code sends this event: per repository, its latest default-branch run's calls.
+    """Where the code sends this event: the calls in each repository directory's current run.
 
-    A repository whose latest run has no call of the event is listed with no
+    A directory whose current run has no call of the event is listed with no
     calls; one that never uploaded a default-branch run is not listed.
     """
     project_id = await resolve_project_id(session, slug)

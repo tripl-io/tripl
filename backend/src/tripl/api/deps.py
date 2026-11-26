@@ -577,13 +577,20 @@ async def get_check_upload_user(
 ) -> User:
     """The write gate for recording a ``tripl check`` run, and nothing else.
 
-    :func:`get_editor_user` with one more scope let through: a ``check_upload``
-    key, the narrow project-bound key a CI job holds, passes here as a
-    ``write`` key and a browser session do. A ``read`` key is still 403. The
-    caller still needs an editing role in the path's project, like any write.
+    A ``check_upload`` key, the narrow project-bound key a CI job holds, needs
+    only membership of the path's project: a viewer's key uploads, since
+    recording what the code does changes nothing in the plan. Its user's role
+    is resolved like every slug route's (a non-member gets the membership
+    gate's 404), and an extension is not asked: the key is the permission.
+
+    Anything else is :func:`get_editor_user`: a browser session or a ``write``
+    key of an editor, whom an extension may refuse ``check_runs.upload``. A
+    ``read`` key is 403.
     """
-    if getattr(request.state, "api_key_scope", None) != ApiKeyScope.check_upload:
-        require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) == ApiKeyScope.check_upload:
+        await _project_role(request, session, user)
+        return user
+    require_write_scope(request)
     await require_project_mutation_access(request, session, user)
     return user
 
@@ -903,9 +910,11 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
 # the replay table's keys, so a gate cannot be a write gate without a replay.
 WRITE_GATES = frozenset(_WRITE_GATE_REPLAYS)
 # Gates that resolve the path's project as well as the caller's role:
-# ``get_editor_user`` and ``get_check_upload_user`` run
-# :func:`require_project_mutation_access` (an editing
-# project role: org owner/admin or ``editor`` member), and the two owner gates
+# ``get_editor_user`` runs :func:`require_project_mutation_access` (an editing
+# project role: org owner/admin or ``editor`` member), ``get_check_upload_user``
+# does the same for a session or a ``write`` key and resolves the path
+# project's role for a ``check_upload`` key (a viewer passes: that key is bound
+# to the project and may record check runs only), and the two owner gates
 # demand org owner/admin of the bound organization AND project role ``owner``
 # in the path's project, which only an owner/admin of that project's own
 # organization holds; the slug is resolved inside the bound organization, so

@@ -1,14 +1,22 @@
 """Uploaded ``tripl check`` runs: record one, list the history, and "used in code" for an event.
 
-The rule the whole module keeps: per project and repository, at most one run
-is *current*, the latest run on that repository's default branch, and only a
-current run keeps its calls. Recording a default-branch run makes it the
-current one and deletes the calls of the run it replaces, in the same
-transaction, so "used in code" is always one snapshot per repository and a
-call removed from the code disappears from the event. A run on any other ref
-is stored as a summary (counts, commit, ref, pipeline) and never touches the
-current run, and so is a merge request run whatever its ref: it checks a
-merged tree, not the default branch. Summaries older than
+The rule the whole module keeps: per project, repository and check directory
+(``check_root``, the directory the check scanned, so several apps in one
+repository keep a snapshot each), at most one run is *current*, the newest run
+on that repository's default branch, and only a current run keeps its calls.
+Recording a default-branch run makes it the current one and deletes the calls
+of the run it replaces, in the same transaction, so "used in code" is always
+one snapshot per repository and directory and a call removed from the code
+disappears from the event. A run on any other ref is stored as a summary
+(counts, commit, ref, pipeline) and never touches the current run, and so is a
+merge request run whatever its ref: it checks a merged tree, not the default
+branch.
+
+"Newest" is by what the CI says, not by arrival: a default-branch run older
+than the current one goes to the history only (:func:`is_older_than`), so a
+re-run of an old pipeline that finishes last never puts old code back. The
+pipeline creation times decide when both runs carry one; else the commit
+timestamps, when both carry one; else the later upload wins. Summaries older than
 ``CHECK_RUN_RETENTION_DAYS`` are deleted by the daily
 ``maintenance.cleanup_check_runs``; a current run is never deleted for its
 age, since it is what the event pages show.
@@ -20,6 +28,7 @@ import uuid
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select, text, update
@@ -54,8 +63,32 @@ def is_default_branch_run(data: CheckRunCreate) -> bool:
     )
 
 
-async def _lock_repository(session: AsyncSession, project_id: uuid.UUID, repository: str) -> None:
-    """Serialize two uploads of one repository on PostgreSQL, so one run stays current.
+def is_older_than(data: CheckRunCreate, current: CheckRun) -> bool:
+    """Whether the uploaded run is older than the current run it would replace.
+
+    By pipeline creation time when both runs carry one, else by commit
+    timestamp when both carry one; a tie, or nothing to compare, is not older,
+    so the later upload replaces the current run.
+    """
+    pairs = (
+        (data.pipeline_created_at, current.pipeline_created_at),
+        (data.committed_at, current.committed_at),
+    )
+    for uploaded, stored in pairs:
+        if uploaded is not None and stored is not None:
+            return uploaded < _aware(stored)
+    return False
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite hands a timezone-aware column back without its offset; it was UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+async def _lock_repository(
+    session: AsyncSession, project_id: uuid.UUID, repository: str, check_root: str
+) -> None:
+    """Serialize two uploads of one repository directory on PostgreSQL, so one run stays current.
 
     Two default-branch pipelines finishing together would each demote the
     other's run before inserting their own. A transaction-scoped advisory lock
@@ -66,7 +99,7 @@ async def _lock_repository(session: AsyncSession, project_id: uuid.UUID, reposit
         return
     await session.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-        {"key": f"check_runs:{project_id}:{repository}"},
+        {"key": f"check_runs:{project_id}:{repository}:{check_root}"},
     )
 
 
@@ -101,23 +134,32 @@ async def record_run(
     *,
     user_id: uuid.UUID | None,
 ) -> CheckRun:
-    """Store one uploaded run; a default-branch run becomes its repository's current one."""
-    await _lock_repository(session, project_id, data.repository)
-    current = is_default_branch_run(data)
+    """Store one uploaded run; a newer default-branch run becomes its directory's current one."""
+    await _lock_repository(session, project_id, data.repository, data.check_root)
+    default_branch = is_default_branch_run(data)
+    current = default_branch
+    if default_branch:
+        replaced_run = await session.scalar(
+            select(CheckRun).where(*_current_of(project_id, data.repository, data.check_root))
+        )
+        current = replaced_run is None or not is_older_than(data, replaced_run)
     counts = Counter(call.status for call in data.calls)
     now = datetime.now(UTC)
     run = CheckRun(
         id=uuid.uuid4(),
         project_id=project_id,
         repository=data.repository,
+        check_root=data.check_root,
         repository_url=data.repository_url,
         commit_sha=data.commit_sha.lower(),
         ref=data.ref,
         default_branch=data.default_branch,
         merge_request=data.merge_request,
-        is_default_branch=current,
+        is_default_branch=default_branch,
         is_current=current,
         pipeline_url=data.pipeline_url,
+        pipeline_created_at=data.pipeline_created_at,
+        committed_at=data.committed_at,
         strict=data.strict,
         calls_total=len(data.calls),
         calls_ok=counts["ok"],
@@ -130,9 +172,7 @@ async def record_run(
     )
     if current:
         replaced = select(CheckRun.id).where(
-            CheckRun.project_id == project_id,
-            CheckRun.repository == data.repository,
-            CheckRun.is_current.is_(True),
+            *_current_of(project_id, data.repository, data.check_root)
         )
         await session.execute(
             delete(CheckRunCall)
@@ -141,11 +181,7 @@ async def record_run(
         )
         await session.execute(
             update(CheckRun)
-            .where(
-                CheckRun.project_id == project_id,
-                CheckRun.repository == data.repository,
-                CheckRun.is_current.is_(True),
-            )
+            .where(*_current_of(project_id, data.repository, data.check_root))
             .values(is_current=False)
             .execution_options(synchronize_session=False)
         )
@@ -175,10 +211,21 @@ async def record_run(
     return run
 
 
+def _current_of(project_id: uuid.UUID, repository: str, check_root: str) -> tuple[Any, ...]:
+    """The conditions that pick the current run of one repository directory."""
+    return (
+        CheckRun.project_id == project_id,
+        CheckRun.repository == repository,
+        CheckRun.check_root == check_root,
+        CheckRun.is_current.is_(True),
+    )
+
+
 def run_response(run: CheckRun) -> CheckRunResponse:
     return CheckRunResponse(
         id=run.id,
         repository=run.repository,
+        check_root=run.check_root,
         repository_url=run.repository_url,
         commit_sha=run.commit_sha,
         ref=run.ref,
@@ -187,6 +234,8 @@ def run_response(run: CheckRun) -> CheckRunResponse:
         is_default_branch=run.is_default_branch,
         is_current=run.is_current,
         pipeline_url=run.pipeline_url,
+        pipeline_created_at=_optional_aware(run.pipeline_created_at),
+        committed_at=_optional_aware(run.committed_at),
         strict=run.strict,
         calls=CheckRunCounts(
             total=run.calls_total,
@@ -199,11 +248,16 @@ def run_response(run: CheckRun) -> CheckRunResponse:
     )
 
 
+def _optional_aware(value: datetime | None) -> datetime | None:
+    return None if value is None else _aware(value)
+
+
 async def list_runs(
     session: AsyncSession,
     project_id: uuid.UUID,
     *,
     repository: str | None,
+    check_root: str | None,
     default_branch_only: bool,
     limit: int,
     offset: int,
@@ -212,6 +266,8 @@ async def list_runs(
     conditions = [CheckRun.project_id == project_id]
     if repository is not None:
         conditions.append(CheckRun.repository == repository)
+    if check_root is not None:
+        conditions.append(CheckRun.check_root == check_root)
     if default_branch_only:
         conditions.append(CheckRun.is_default_branch.is_(True))
     total = await session.scalar(select(func.count()).select_from(CheckRun).where(*conditions))
@@ -228,7 +284,7 @@ async def list_runs(
 async def event_code_usage(
     session: AsyncSession, project_id: uuid.UUID, event_id: uuid.UUID
 ) -> EventCodeUsageResponse:
-    """Each repository's current run, with the calls in it that send ``event_id``.
+    """Each repository directory's current run, with the calls in it that send ``event_id``.
 
     404 for an event that is not this project's.
     """
@@ -241,7 +297,7 @@ async def event_code_usage(
         await session.scalars(
             select(CheckRun)
             .where(CheckRun.project_id == project_id, CheckRun.is_current.is_(True))
-            .order_by(CheckRun.repository, CheckRun.created_at.desc())
+            .order_by(CheckRun.repository, CheckRun.check_root, CheckRun.created_at.desc())
         )
     ).all()
     calls_by_run: dict[uuid.UUID, list[CheckRunCallLocation]] = {run.id: [] for run in runs}
@@ -266,6 +322,7 @@ async def event_code_usage(
         repositories=[
             EventCodeUsageRepository(
                 repository=run.repository,
+                check_root=run.check_root,
                 repository_url=run.repository_url,
                 run=run_response(run),
                 calls=calls_by_run[run.id],
@@ -279,7 +336,7 @@ def prune_runs(session: Session, cutoff: datetime) -> int:
     """Delete every run older than ``cutoff`` that is not a current one; the worker's half.
 
     A current run stays whatever its age: it is the snapshot "used in code"
-    shows until a newer default-branch run of its repository replaces it.
+    shows until a newer default-branch run of its repository directory replaces it.
     Does not commit.
     """
     result = session.execute(

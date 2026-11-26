@@ -4,10 +4,12 @@
   like a ``read`` key and may also record check runs, nothing else. Autocommit
   block, as for every enum value added: PostgreSQL cannot ``ALTER TYPE ... ADD
   VALUE`` inside a transaction on every supported version.
-* ``check_runs``: one uploaded ``tripl check`` run, a summary (repository,
-  commit, ref, pipeline, counts per status). ``is_current`` marks the latest
-  default-branch run of each repository, the only one that keeps its calls;
-  ``merge_request`` marks a merge request pipeline, which never is one.
+* ``check_runs``: one uploaded ``tripl check`` run, a summary (repository and
+  check directory, commit, ref, pipeline, counts per status). ``is_current``
+  marks the newest default-branch run of each repository and check directory,
+  the only one that keeps its calls; ``merge_request`` marks a merge request
+  pipeline, which never is one. ``pipeline_created_at`` and ``committed_at``
+  order two default-branch runs.
 * ``check_run_calls``: the calls of a current run, each with its location, the
   event it resolved to and its findings.
 
@@ -43,6 +45,7 @@ def upgrade() -> None:
         "check_runs",
         sa.Column("project_id", sa.Uuid(), nullable=False),
         sa.Column("repository", sa.String(255), nullable=False),
+        sa.Column("check_root", sa.String(1000), server_default=".", nullable=False),
         sa.Column("repository_url", sa.String(2000), nullable=True),
         sa.Column("commit_sha", sa.String(64), nullable=False),
         sa.Column("ref", sa.String(255), nullable=False),
@@ -51,6 +54,8 @@ def upgrade() -> None:
         sa.Column("is_default_branch", sa.Boolean(), nullable=False),
         sa.Column("is_current", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("pipeline_url", sa.String(2000), nullable=True),
+        sa.Column("pipeline_created_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("committed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("strict", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("calls_total", sa.Integer(), nullable=False),
         sa.Column("calls_ok", sa.Integer(), nullable=False),
@@ -73,7 +78,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_check_runs_project_repository_current",
         "check_runs",
-        ["project_id", "repository", "is_current"],
+        ["project_id", "repository", "check_root", "is_current"],
     )
 
     op.create_table(

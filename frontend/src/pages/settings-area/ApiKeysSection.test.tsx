@@ -322,7 +322,7 @@ describe('ApiKeysSection', () => {
       target: { value: 'check_upload' },
     })
 
-    expect(screen.getByText('A check upload key needs a project you can edit.')).toBeInTheDocument()
+    expect(screen.getByText('A check upload key needs a project.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
 
     await screen.findByRole('option', { name: 'Shop' })
@@ -344,9 +344,9 @@ describe('ApiKeysSection', () => {
     ).toBeInTheDocument()
   })
 
-  // Uploading needs an editing role in the key's project: a project the user
-  // only views is not offered, since every upload with that key is refused.
-  it('offers a check upload key only for projects the user can edit', async () => {
+  // Recording a run is not a plan edit: a viewer's check upload key uploads,
+  // so a project the user only views is offered too.
+  it('offers a check upload key for projects the user only views', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([
       { id: 'p1', slug: 'shop', name: 'Shop', can_mutate: true },
@@ -365,10 +365,10 @@ describe('ApiKeysSection', () => {
     })
 
     const project = screen.getByRole('combobox', { name: 'Project' })
-    expect(within(project).queryByRole('option', { name: 'Blog' })).toBeNull()
+    expect(within(project).getByRole('option', { name: 'Blog' })).toBeInTheDocument()
     expect(within(project).getByRole('option', { name: 'Shop' })).toBeInTheDocument()
-    expect(screen.getByText('A check upload key needs a project you can edit.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
+    expect(project).toHaveValue('blog')
+    expect(screen.queryByText('A check upload key needs a project.')).toBeNull()
   })
 
   describe('one-time token reveal', () => {

@@ -17,6 +17,14 @@ it, so it is read from the event payload the runner writes
 whose payload names no repository, runs on the default branch by GitHub's own
 rule. ``--default-branch`` overrides either. With none known, the run goes to
 the history only.
+
+tripl keeps one such snapshot per repository and check directory: the check
+config's ``root`` relative to the repository root (``.`` for the root), so
+several apps checked in one repository keep one each. And it keeps the newest:
+the pipeline's creation time (GitLab's ``CI_PIPELINE_CREATED_AT``) and the
+commit's timestamp (GitLab's ``CI_COMMIT_TIMESTAMP``, the pushed commit's
+``timestamp`` in a GitHub push payload) go with the run, and a default-branch
+run older than the one tripl holds goes to the history only.
 """
 
 from __future__ import annotations
@@ -24,10 +32,12 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from tripl_cli.api import check_runs as api
-from tripl_cli.check.model import CheckReport, CheckResult
+from tripl_cli.check.model import CheckReport, CheckResult, UploadOutcome
 from tripl_cli.errors import TriplConfigError
 from tripl_cli.model import JsonDict
 
@@ -39,6 +49,8 @@ GITHUB_PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target", "
 # GitLab pipeline sources that run for a merge request, or for a GitHub pull
 # request mirrored into GitLab.
 GITLAB_MERGE_REQUEST_SOURCES = frozenset({"merge_request_event", "external_pull_request_event"})
+#: The check directory of a check of the whole repository.
+REPOSITORY_ROOT = "."
 
 
 @dataclass(frozen=True)
@@ -54,6 +66,9 @@ class CiContext:
     pipeline_url: str | None
     # A merge request or pull request pipeline: history only, whatever its ref.
     merge_request: bool = False
+    # ISO 8601, as the CI wrote them; they order two default-branch runs.
+    pipeline_created_at: str | None = None
+    committed_at: str | None = None
 
     @property
     def on_default_branch(self) -> bool:
@@ -95,22 +110,29 @@ def _gitlab(env: Mapping[str, str]) -> dict[str, str | None]:
         "default_branch": _text(env, "CI_DEFAULT_BRANCH"),
         "repository_url": _text(env, "CI_PROJECT_URL"),
         "pipeline_url": _text(env, "CI_PIPELINE_URL"),
+        "pipeline_created_at": _text(env, "CI_PIPELINE_CREATED_AT"),
+        "committed_at": _text(env, "CI_COMMIT_TIMESTAMP"),
     }
 
 
-def _github_default_branch(env: Mapping[str, str]) -> str | None:
-    """``repository.default_branch`` of the event payload; None when it cannot be read."""
+def _github_payload(env: Mapping[str, str]) -> dict[str, Any]:
+    """The event payload the runner wrote; empty when it cannot be read."""
     path = _text(env, "GITHUB_EVENT_PATH")
     if path is None:
-        return None
+        return {}
     try:
         with open(path, encoding="utf-8") as handle:
             payload = json.load(handle)
     except (OSError, ValueError):
-        return None
-    repository = payload.get("repository") if isinstance(payload, dict) else None
-    branch = repository.get("default_branch") if isinstance(repository, dict) else None
-    return (branch.strip() or None) if isinstance(branch, str) else None
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _nested_text(payload: Mapping[str, Any], outer: str, inner: str) -> str | None:
+    """``payload[outer][inner]`` when it is a non-blank string, else None."""
+    section = payload.get(outer)
+    value = section.get(inner) if isinstance(section, dict) else None
+    return (value.strip() or None) if isinstance(value, str) else None
 
 
 def _github(env: Mapping[str, str]) -> dict[str, str | None]:
@@ -118,7 +140,8 @@ def _github(env: Mapping[str, str]) -> dict[str, str | None]:
     repository = _text(env, "GITHUB_REPOSITORY")
     run_id = _text(env, "GITHUB_RUN_ID")
     web = f"{server.rstrip('/')}/{repository}" if repository else None
-    default_branch = _github_default_branch(env)
+    payload = _github_payload(env)
+    default_branch = _nested_text(payload, "repository", "default_branch")
     if default_branch is None and _text(env, "GITHUB_EVENT_NAME") == "schedule":
         # A schedule always runs on the default branch, and its payload has no
         # ``repository`` to name it.
@@ -131,6 +154,9 @@ def _github(env: Mapping[str, str]) -> dict[str, str | None]:
         "default_branch": default_branch,
         "repository_url": web,
         "pipeline_url": f"{web}/actions/runs/{run_id}" if web and run_id else None,
+        # A workflow run's creation time is in no variable; a push names its commit's.
+        "pipeline_created_at": None,
+        "committed_at": _nested_text(payload, "head_commit", "timestamp"),
     }
 
 
@@ -167,7 +193,38 @@ def ci_context(env: Mapping[str, str], *, default_branch: str | None = None) -> 
         repository_url=_url(found["repository_url"]),
         pipeline_url=_url(found["pipeline_url"]),
         merge_request=merge_request,
+        pipeline_created_at=_timestamp(found["pipeline_created_at"]),
+        committed_at=_timestamp(found["committed_at"]),
     )
+
+
+def _timestamp(value: str | None) -> str | None:
+    """An ISO 8601 timestamp as given, or None: one tripl could not read orders nothing."""
+    if value is None:
+        return None
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return value
+
+
+def check_directory(scan_root: Path | None, repo_root: Path | None) -> str:
+    """The directory the check scanned, relative to the repository root, POSIX style.
+
+    ``.`` for the repository root itself, and when either is unknown or the
+    scan root is outside the repository: one snapshot for the whole repository.
+    """
+    if scan_root is None or repo_root is None:
+        return REPOSITORY_ROOT
+    try:
+        relative = scan_root.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return REPOSITORY_ROOT
+    directory = relative.as_posix()
+    if directory in ("", ".") or len(directory) > api.CHECK_ROOT_MAX_LENGTH:
+        return REPOSITORY_ROOT
+    return directory
 
 
 def _url(value: str | None) -> str | None:
@@ -205,31 +262,95 @@ def _call(report: CheckReport, result: CheckResult) -> JsonDict:
     }
 
 
-def run_body(report: CheckReport, context: CiContext) -> dict[str, Any]:
+def run_body(
+    report: CheckReport, context: CiContext, check_root: str = REPOSITORY_ROOT
+) -> dict[str, Any]:
     """The ``POST /check-runs`` body: the CI's fields and every call of the run."""
     return {
         "repository": context.repository,
+        "check_root": check_root,
         "repository_url": context.repository_url,
         "commit_sha": context.commit_sha,
         "ref": context.ref,
         "default_branch": context.default_branch,
         "pipeline_url": context.pipeline_url,
         "merge_request": context.merge_request,
+        "pipeline_created_at": context.pipeline_created_at,
+        "committed_at": context.committed_at,
         "strict": report.strict,
         "calls": [_call(report, result) for result in report.results],
     }
 
 
-def uploaded_line(context: CiContext, calls: int) -> str:
-    """The stderr line after a recorded upload: what it recorded, and what it is for."""
-    if context.on_default_branch:
+def outcome(
+    context: CiContext,
+    check_root: str,
+    calls: int,
+    *,
+    answer: object = None,
+    error: str | None = None,
+) -> UploadOutcome:
+    """What the upload did: tripl's ``answer`` to it, or the ``error`` that stopped it."""
+    stored = answer if isinstance(answer, dict) else {}
+    run_id = stored.get("id")
+    current = stored.get("is_current")
+    return UploadOutcome(
+        ok=error is None,
+        error=error,
+        run_id=str(run_id) if error is None and run_id is not None else None,
+        current=current if error is None and isinstance(current, bool) else None,
+        repository=context.repository,
+        check_root=check_root,
+        commit_sha=context.commit_sha,
+        ref=context.ref,
+        default_branch=context.default_branch,
+        merge_request=context.merge_request,
+        calls=calls,
+    )
+
+
+def upload_document(upload: UploadOutcome) -> JsonDict:
+    """``check --json``'s ``upload`` key."""
+    return {
+        "ok": upload.ok,
+        "error": upload.error,
+        "run_id": upload.run_id,
+        "current": upload.current,
+        "repository": upload.repository,
+        "check_root": upload.check_root,
+        "commit_sha": upload.commit_sha,
+        "ref": upload.ref,
+        "default_branch": upload.default_branch,
+        "merge_request": upload.merge_request,
+        "calls": upload.calls,
+    }
+
+
+def uploaded_line(
+    context: CiContext,
+    calls: int,
+    *,
+    check_root: str = REPOSITORY_ROOT,
+    current: bool | None = None,
+) -> str:
+    """The stderr line after a recorded upload: what it recorded, and what it is for.
+
+    ``current`` is tripl's answer: False for a default-branch run older than
+    the one tripl holds, which went to the history only.
+    """
+    repository = context.repository
+    if check_root != REPOSITORY_ROOT:
+        repository = f"{repository} ({check_root})"
+    if context.on_default_branch and current is False:
         where = (
-            f"the current {context.default_branch} run of {context.repository}: "
-            "used in code shows it"
+            f"{repository} at {context.ref}, history only (older than the current "
+            f"{context.default_branch} run)"
         )
+    elif context.on_default_branch:
+        where = f"the current {context.default_branch} run of {repository}: used in code shows it"
     elif context.merge_request:
         request = "pull request" if context.system == CI_GITHUB else "merge request"
-        where = f"{context.repository} at {context.ref}, history only (a {request} run)"
+        where = f"{repository} at {context.ref}, history only (a {request} run)"
     else:
-        where = f"{context.repository} at {context.ref}, history only (not the default branch)"
+        where = f"{repository} at {context.ref}, history only (not the default branch)"
     return f"Uploaded the check run ({calls} calls) as {where}."

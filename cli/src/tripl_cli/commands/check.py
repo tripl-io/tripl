@@ -128,6 +128,7 @@ from tripl_cli.check.model import (
     PlanBranchComparison,
     PlanPin,
     SkippedFile,
+    UploadOutcome,
 )
 from tripl_cli.check.presets import PRESETS, preset_yaml
 from tripl_cli.check.render import nothing_matched, render_text, sarif_document
@@ -951,6 +952,20 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         plan=_plan_pin(pin, answered),
     )
     report, written = _with_baseline(args, report, baseline)
+    uploaded: str | None = None
+    if ci is not None:
+        # Before the reports, so the JSON document can say what it did; its
+        # stderr line waits for the end, after the run's own output.
+        recorded, uploaded = _upload(
+            config,
+            context.reader,
+            project,
+            report,
+            ci,
+            check_root=upload_mod.check_directory(scan_root, repo_root),
+            timeout=args.timeout,
+        )
+        report = replace(report, upload=recorded)
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.
     # The baseline last, so a run that fails writing a report leaves it alone.
@@ -972,8 +987,8 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
-    if ci is not None:
-        _upload(config, context.reader, project, report, ci, timeout=args.timeout)
+    if uploaded is not None:
+        _emit(uploaded, sys.stderr, primary=False)
     return report.exit_code
 
 
@@ -1028,23 +1043,23 @@ def _upload(
     report: CheckReport,
     ci: upload_mod.CiContext,
     *,
+    check_root: str,
     timeout: float,
-) -> None:
-    """Send the finished run; say on stderr what it recorded, or why it did not.
+) -> tuple[UploadOutcome, str]:
+    """Send the finished run: what it recorded, or why it did not, and the stderr line saying so.
 
-    After every report and the output: the verdicts are this run's whatever the
-    upload does, so a failed upload is a warning and the exit code stays the check's.
+    The verdicts are this run's whatever the upload does, so a failed upload
+    is a warning (and ``ok: false`` in the JSON document) and the exit code
+    stays the check's.
     """
-    body = upload_mod.run_body(report, ci)
+    body = upload_mod.run_body(report, ci, check_root)
     calls = len(body["calls"])
     if calls > check_runs_api.MAX_CALLS:
-        _emit(
-            f"Not uploaded: the run has {calls} calls, and tripl records at most "
-            f"{check_runs_api.MAX_CALLS} per run. The check result stands.",
-            sys.stderr,
-            primary=False,
+        reason = (
+            f"the run has {calls} calls, and tripl records at most "
+            f"{check_runs_api.MAX_CALLS} per run"
         )
-        return
+        return _not_uploaded(ci, check_root, calls, reason)
 
     async def send(client: httpx.AsyncClient) -> object:
         return await reader_of(client).send(check_runs_api.upload(project, body))
@@ -1052,12 +1067,21 @@ def _upload(
     # Not ``run_gate``: its outage message says nothing was checked (exit 4),
     # and here the check has run and its exit code stands.
     try:
-        run_async(config, send, timeout=timeout)
+        answer = run_async(config, send, timeout=timeout)
     except TriplError as exc:
-        reason = str(exc).rstrip(".")
-        _emit(f"Not uploaded: {reason}. The check result stands.", sys.stderr, primary=False)
-        return
-    _emit(upload_mod.uploaded_line(ci, calls), sys.stderr, primary=False)
+        return _not_uploaded(ci, check_root, calls, str(exc).rstrip("."))
+    recorded = upload_mod.outcome(ci, check_root, calls, answer=answer)
+    line = upload_mod.uploaded_line(ci, calls, check_root=check_root, current=recorded.current)
+    return recorded, line
+
+
+def _not_uploaded(
+    ci: upload_mod.CiContext, check_root: str, calls: int, reason: str
+) -> tuple[UploadOutcome, str]:
+    return (
+        upload_mod.outcome(ci, check_root, calls, error=reason),
+        f"Not uploaded: {reason}. The check result stands.",
+    )
 
 
 def _pinned_revision(

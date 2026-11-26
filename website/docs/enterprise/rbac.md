@@ -58,8 +58,9 @@ only what the role allows. The permissions:
 
 | Permission | What it covers |
 |---|---|
-| Edit the tracking plan (`plan.edit`) | Events, event types, fields, properties, relations, expected windows, branches and their reviews, reconciliation, recording `tripl check` runs |
+| Edit the tracking plan (`plan.edit`) | Events, event types, fields, properties, relations, expected windows, branches and their reviews, reconciliation |
 | Merge branches (`plan.merge`) | Merging a branch into the plan, reverting a merge |
+| Upload check runs (`check_runs.upload`) | Recording [`tripl check` runs](../integrate/tripl-check.md#send-results-to-tripl). A `check_upload` API key does it with any role in the project, a viewer's included: the key is the permission |
 | Comment (`comments.write`) | Comments on events, screenshots and branches |
 | Edit docs (`docs.edit`) | The project's notes, folders, translations and sharing |
 | Manage metrics (`metrics.manage`) | The metrics catalog, its previews, chart annotations |

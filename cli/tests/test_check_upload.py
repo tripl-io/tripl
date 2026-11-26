@@ -14,7 +14,13 @@ from typing import Any
 import httpx
 import pytest
 
-from tripl_cli.check.upload import CI_GITHUB, CI_GITLAB, ci_context, uploaded_line
+from tripl_cli.check.upload import (
+    CI_GITHUB,
+    CI_GITLAB,
+    check_directory,
+    ci_context,
+    uploaded_line,
+)
 from tripl_cli.cli import main
 from tripl_cli.errors import TriplConfigError
 from tripl_cli.model import ACCESS_CHECK_UPLOAD, access_of_key
@@ -52,6 +58,8 @@ CI_VARIABLES = (
     "CI_PIPELINE_SOURCE",
     "CI_MERGE_REQUEST_IID",
     "CI_EXTERNAL_PULL_REQUEST_IID",
+    "CI_PIPELINE_CREATED_AT",
+    "CI_COMMIT_TIMESTAMP",
 )
 
 
@@ -434,3 +442,183 @@ def test_without_upload_nothing_is_uploaded(
 def test_whoami_tells_a_check_upload_key_by_its_prefix() -> None:
     # A project-bound key cannot read /auth/me, so its access comes from the prefix.
     assert access_of_key("tk_c_abcdef") == ACCESS_CHECK_UPLOAD
+
+
+# --- the check directory, the run's time, and the JSON document --------------------
+
+
+def test_the_check_directory_is_relative_to_the_repository(tmp_path: Path) -> None:
+    app = tmp_path / "apps" / "ios"
+    app.mkdir(parents=True)
+    assert check_directory(app, tmp_path) == "apps/ios"
+    assert check_directory(tmp_path, tmp_path) == "."
+    # Unknown, or outside the repository: one snapshot for the whole repository.
+    assert check_directory(None, tmp_path) == "."
+    assert check_directory(app, None) == "."
+    assert check_directory(tmp_path, app) == "."
+
+
+def test_an_app_in_a_subdirectory_is_uploaded_under_its_check_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "mono"
+    _write(
+        root,
+        {
+            "apps/ios/.tripl/check.yml": CONFIG,
+            "apps/ios/Sources/Feed.swift": """
+                func show() {
+                    Analytics.shared.log(category: "home", action: "open", label: "card")
+                }
+            """,
+        },
+    )
+    (root / ".git").mkdir()
+    monkeypatch.chdir(root / "apps" / "ios")
+    assert main(["check", "--upload"]) == 0
+    body = json.loads(uploads.calls.last.request.content)
+    assert body["check_root"] == "apps/ios"
+    assert [call["path"] for call in body["calls"]] == ["apps/ios/Sources/Feed.swift"]
+    assert "shop/ios (apps/ios)" in capsys.readouterr().err
+
+
+def test_a_run_at_the_repository_root_is_sent_as_one(
+    repo: Path, validator: Any, uploads: Any, configured_env: None, gitlab: None
+) -> None:
+    assert main(["check", "--upload"]) == 0
+    assert json.loads(uploads.calls.last.request.content)["check_root"] == "."
+
+
+def test_gitlab_sends_when_the_pipeline_and_the_commit_were_made() -> None:
+    context = ci_context(
+        {
+            **GITLAB,
+            "CI_PIPELINE_CREATED_AT": "2026-11-20T10:00:00Z",
+            "CI_COMMIT_TIMESTAMP": "2026-11-20T09:58:12+01:00",
+        }
+    )
+    assert context.pipeline_created_at == "2026-11-20T10:00:00Z"
+    assert context.committed_at == "2026-11-20T09:58:12+01:00"
+    # A value that is no timestamp orders nothing, and is not sent.
+    unreadable = ci_context({**GITLAB, "CI_PIPELINE_CREATED_AT": "yesterday"})
+    assert unreadable.pipeline_created_at is None
+    assert ci_context(GITLAB).committed_at is None
+
+
+def test_github_sends_the_pushed_commit_s_timestamp(tmp_path: Path) -> None:
+    env = _github_env(
+        tmp_path,
+        {
+            "repository": {"default_branch": "main"},
+            "head_commit": {"timestamp": "2026-11-20T09:58:12-05:00"},
+        },
+        GITHUB_EVENT_NAME="push",
+        GITHUB_REF_NAME="main",
+    )
+    context = ci_context(env)
+    assert context.committed_at == "2026-11-20T09:58:12-05:00"
+    assert context.pipeline_created_at is None
+
+
+def test_the_times_go_in_the_body(
+    repo: Path,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CI_PIPELINE_CREATED_AT", "2026-11-20T10:00:00Z")
+    monkeypatch.setenv("CI_COMMIT_TIMESTAMP", "2026-11-20T09:58:12Z")
+    assert main(["check", "--upload"]) == 0
+    body = json.loads(uploads.calls.last.request.content)
+    assert (body["pipeline_created_at"], body["committed_at"]) == (
+        "2026-11-20T10:00:00Z",
+        "2026-11-20T09:58:12Z",
+    )
+
+
+def test_an_older_default_branch_run_is_said_to_be_history_only(
+    repo: Path,
+    validator: Any,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.handler(
+        UPLOAD_URL,
+        lambda _request: httpx.Response(201, json={"id": "run-2", "is_current": False}),
+        method="POST",
+    )
+    assert main(["check", "--upload"]) == 0
+    err = capsys.readouterr().err
+    assert "history only (older than the current main run)" in err
+    assert "used in code shows it" not in err
+
+
+def test_json_says_what_the_upload_recorded(
+    repo: Path,
+    validator: Any,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.handler(
+        UPLOAD_URL,
+        lambda _request: httpx.Response(201, json={"id": "run-1", "is_current": True}),
+        method="POST",
+    )
+    assert main(["check", "--upload", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["upload"] == {
+        "ok": True,
+        "error": None,
+        "run_id": "run-1",
+        "current": True,
+        "repository": "shop/ios",
+        "check_root": ".",
+        "commit_sha": SHA,
+        "ref": "main",
+        "default_branch": "main",
+        "merge_request": False,
+        "calls": 2,
+    }
+    assert document["exit_code"] == 0
+
+
+def test_json_says_why_an_upload_failed_and_keeps_the_exit_code(
+    repo: Path,
+    validator: Any,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.handler(
+        UPLOAD_URL,
+        lambda _request: httpx.Response(403, json={"detail": "API key has read-only scope"}),
+        method="POST",
+    )
+    assert main(["check", "--upload", "--json"]) == 0
+    captured = capsys.readouterr()
+    upload = json.loads(captured.out)["upload"]
+    assert upload["ok"] is False
+    assert "read-only scope" in upload["error"]
+    assert (upload["run_id"], upload["current"]) == (None, None)
+    # Still a warning on stderr, after the document.
+    assert captured.err.strip().splitlines()[-1].startswith("Not uploaded:")
+
+
+def test_json_has_no_upload_key_without_upload(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["check", "--json"]) == 0
+    assert "upload" not in json.loads(capsys.readouterr().out)

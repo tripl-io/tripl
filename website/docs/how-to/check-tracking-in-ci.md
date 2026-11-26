@@ -455,8 +455,9 @@ and every other run goes to the check history. See
    step 1 is refused (the job says `Not uploaded:` and its result stands).
    Create a key with the scope **Read & upload check runs** (`tk_c_`) for the
    one project, and put it in `TRIPL_API_KEY` instead: it reads like the
-   read-only key and may record check runs, nothing else. The bot user needs
-   the **editor** role in the project for the upload, as for any write.
+   read-only key and may record check runs, nothing else. The **viewer** role
+   in the project is enough for the bot user: recording a run edits nothing in
+   the plan. The key is minted only for a project its user can open.
 2. **The flag.** With the GitLab template, `args: "--upload"`; with the GitHub
    action, `args: --upload`; in a job of your own, add `--upload` to the
    `tripl check` line. The commit, ref, repository, pipeline and default
@@ -466,10 +467,15 @@ and every other run goes to the check history. See
 3. **Run it on the default branch.** Only a default-branch run says where the
    code sends each event, so keep the job on the default branch (both setups
    above do) and on its schedule. A merge request's run is history only, and
-   never replaces it, even from a branch named like the default branch.
+   never replaces it, even from a branch named like the default branch. Nor
+   does a retried old pipeline that finishes last: a default-branch run older
+   than the current one goes to the history.
+4. **Several apps in one repository.** Give each app its own check config and
+   job. Each keeps its own "used in code", told apart by its check directory
+   (the config's `root` relative to the repository root).
 
-The upload is sent after the reports are written and never changes the exit
-code. It is refused (exit 2) with `--branch` and with a pinned plan revision:
+The upload never changes the exit code; with `--json`, the document's `upload`
+key says whether it was recorded (`ok`, `error`). It is refused (exit 2) with `--branch` and with a pinned plan revision:
 what it records is where the code sends the events of the live plan.
 
 ## Accept one call on purpose {#accept-one-call}

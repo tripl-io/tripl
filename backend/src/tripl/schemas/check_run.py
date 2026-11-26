@@ -1,16 +1,18 @@
 """Uploaded ``tripl check`` runs: the upload, the history, and "used in code" on an event.
 
 ``POST /projects/{slug}/check-runs`` takes one run as a CI job saw it: the
-repository, the commit and ref, the pipeline, and every call with its verdict.
-A run on the repository's default branch keeps its calls (until the next
-default-branch run of that repository replaces them); any other run is kept as
-a summary only. See :mod:`tripl.services.check_run_service`.
+repository and the directory checked in it, the commit and ref, the pipeline,
+and every call with its verdict. The newest run on the repository's default
+branch keeps its calls, per repository and check directory (until a newer
+default-branch run of the same two replaces them); any other run is kept as a
+summary only. See :mod:`tripl.services.check_run_service`.
 """
 
 from __future__ import annotations
 
+import posixpath
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -22,6 +24,9 @@ from tripl.schemas.plan_validation import MAX_VALIDATION_ITEMS
 MAX_CHECK_RUN_CALLS = MAX_VALIDATION_ITEMS
 MAX_FINDINGS_PER_CALL = 50
 URL_MAX_LENGTH = 2000
+CHECK_ROOT_MAX_LENGTH = 1000
+#: The check directory of a check run at the repository's root.
+REPOSITORY_ROOT = "."
 
 CheckCallStatus = Literal["ok", "warning", "error", "dynamic"]
 CheckFindingSeverity = Literal["error", "warning", "info"]
@@ -38,6 +43,30 @@ def _http_url(value: str | None) -> str | None:
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ValueError("must be an http(s) URL")
     return trimmed
+
+
+def check_root(value: str | None) -> str:
+    """A directory relative to the repository root, normalized; ``.`` for the root itself.
+
+    ``apps/ios/`` and ``./apps/ios`` are one directory, so they key one
+    snapshot. An absolute path, or one that leaves the repository, is refused.
+    """
+    trimmed = (value or "").strip().replace("\\", "/")
+    if not trimmed:
+        return REPOSITORY_ROOT
+    if trimmed.startswith("/"):
+        raise ValueError("must be relative to the repository root")
+    normalized = posixpath.normpath(trimmed)
+    if normalized == ".." or normalized.startswith("../"):
+        raise ValueError("must be inside the repository")
+    return normalized
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    """A timestamp with no offset is read as UTC, so two runs always compare."""
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=UTC)
 
 
 class CheckRunFinding(BaseModel):
@@ -69,8 +98,13 @@ class CheckRunCreate(BaseModel):
     """One ``tripl check --upload`` run."""
 
     # What the CI system calls the repository: GitLab's CI_PROJECT_PATH,
-    # GitHub's GITHUB_REPOSITORY. "Used in code" keeps one run per repository.
+    # GitHub's GITHUB_REPOSITORY.
     repository: str = Field(min_length=1, max_length=255)
+    # The directory the check scanned, relative to the repository root (the
+    # check config's ``root``); ``.`` for the root. "Used in code" keeps one run
+    # per repository and check directory, so several apps checked in one
+    # repository keep a snapshot each.
+    check_root: str = Field(default=REPOSITORY_ROOT, max_length=CHECK_ROOT_MAX_LENGTH)
     repository_url: str | None = Field(default=None, max_length=URL_MAX_LENGTH)
     commit_sha: str = Field(min_length=4, max_length=64, pattern=r"^[0-9a-fA-F]+$")
     ref: str = Field(min_length=1, max_length=255)
@@ -84,6 +118,13 @@ class CheckRunCreate(BaseModel):
     # branch has the default branch's name (``main`` into ``release``, a fork's
     # ``main``).
     merge_request: bool = False
+    # When the pipeline was created (GitLab's CI_PIPELINE_CREATED_AT) and when
+    # the commit was made (GitLab's CI_COMMIT_TIMESTAMP, the pushed commit's
+    # timestamp on GitHub). They order two default-branch runs: one older than
+    # the current run goes to the history only, so a re-run of an old pipeline
+    # never puts old code back in "used in code".
+    pipeline_created_at: datetime | None = None
+    committed_at: datetime | None = None
     strict: bool = False
     calls: list[CheckRunCallIn] = Field(default_factory=list, max_length=MAX_CHECK_RUN_CALLS)
 
@@ -91,6 +132,16 @@ class CheckRunCreate(BaseModel):
     @classmethod
     def _check_url(cls, value: str | None) -> str | None:
         return _http_url(value)
+
+    @field_validator("check_root", mode="before")
+    @classmethod
+    def _check_root(cls, value: str | None) -> str:
+        return check_root(value)
+
+    @field_validator("pipeline_created_at", "committed_at")
+    @classmethod
+    def _check_time(cls, value: datetime | None) -> datetime | None:
+        return _aware(value)
 
 
 class CheckRunCounts(BaseModel):
@@ -106,16 +157,20 @@ class CheckRunResponse(BaseModel):
 
     id: uuid.UUID
     repository: str
+    check_root: str
     repository_url: str | None
     commit_sha: str
     ref: str
     default_branch: str | None
     merge_request: bool
     is_default_branch: bool
-    # The latest default-branch run of its repository: its calls are what
-    # "used in code" shows. Every other run is a summary.
+    # The newest default-branch run of its repository and check directory: its
+    # calls are what "used in code" shows. Every other run is a summary, and so
+    # is a default-branch run older than the current one when it arrived.
     is_current: bool
     pipeline_url: str | None
+    pipeline_created_at: datetime | None
+    committed_at: datetime | None
     strict: bool
     calls: CheckRunCounts
     created_at: datetime
@@ -135,20 +190,22 @@ class CheckRunCallLocation(BaseModel):
 
 
 class EventCodeUsageRepository(BaseModel):
-    """One repository's latest default-branch run, and the calls in it that send the event.
+    """One repository's current run of one check directory, and its calls that send the event.
 
     ``calls`` is empty when that run found no call of the event: the event is
-    not used in that repository's code, as of ``run``.
+    not used in that directory's code, as of ``run``. ``check_root`` is ``.``
+    for a check of the whole repository.
     """
 
     repository: str
+    check_root: str
     repository_url: str | None
     run: CheckRunResponse
     calls: list[CheckRunCallLocation]
 
 
 class EventCodeUsageResponse(BaseModel):
-    """Where the code sends an event, per repository that uploads check runs."""
+    """Where the code sends an event, per repository and check directory that upload runs."""
 
     event_id: uuid.UUID
     repositories: list[EventCodeUsageRepository]

@@ -585,12 +585,17 @@ def check_document(report: CheckReport) -> JsonDict:
 
     With ``--coverage``, and only then, the top-level ``coverage`` lists the
     planned events no call of this run sends (``check/coverage.py``).
+
+    With ``--upload``, and only then, the top-level ``upload`` says whether
+    tripl recorded the run and as what (``check/upload.py``). A failed upload
+    is ``ok: false`` with its ``error``; it never changes ``exit_code``.
     """
     from tripl_cli.check.baseline import baseline_document
     from tripl_cli.check.coverage import coverage_document
     from tripl_cli.check.fingerprint import finding_fingerprints
     from tripl_cli.check.gate import gate_document
     from tripl_cli.check.model import finding_fails
+    from tripl_cli.check.upload import upload_document
     from tripl_cli.check.validate import summary
 
     document = _run_envelope("check", report.run)
@@ -626,6 +631,8 @@ def check_document(report: CheckReport) -> JsonDict:
         }
     if report.coverage is not None:
         document["coverage"] = coverage_document(report.coverage)
+    if report.upload is not None:
+        document["upload"] = upload_document(report.upload)
     document["results"] = [
         {
             "status": result.status,

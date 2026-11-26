@@ -277,7 +277,7 @@ Scopes:
 - `read`: read-only. Mutation endpoints reject it, while read/query operations
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
-- `check_upload`: the key a CI job running `tripl check --upload` holds. It reads like a `read` key and may also call [`POST /projects/{slug}/check-runs`](#check-runs); every other mutation answers `403 API key may only upload check runs`. It must be bound to a project (`project_slug`; without one, creation answers `422`), and the upload still needs an editing project role of the user behind the key.
+- `check_upload`: the key a CI job running `tripl check --upload` holds. It reads like a `read` key and may also call [`POST /projects/{slug}/check-runs`](#check-runs); every other mutation answers `403 API key may only upload check runs`. It must be bound to a project (`project_slug`; without one, creation answers `422`, and for a project its user cannot open, `404`). A viewer of the project may mint one and upload with it: recording a run is its own permission (`check_runs.upload`), not a plan edit.
 - `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
 - Owner-only security and administration routes (data sources, scan SQL, members, invitations, a project's audit history) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The Platform settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
 - A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
@@ -2322,36 +2322,53 @@ where the code sends each event are in tripl, not only in CI logs.
 curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
   -H "Authorization: Bearer $TRIPL_API_KEY" -H 'Content-Type: application/json' \
   -d '{
-    "repository": "shop/ios",
-    "repository_url": "https://gitlab.example.com/shop/ios",
+    "repository": "shop/mobile",
+    "check_root": "apps/ios",
+    "repository_url": "https://gitlab.example.com/shop/mobile",
     "commit_sha": "0123456789abcdef0123456789abcdef01234567",
     "ref": "main",
     "default_branch": "main",
-    "pipeline_url": "https://gitlab.example.com/shop/ios/-/pipelines/42",
+    "pipeline_url": "https://gitlab.example.com/shop/mobile/-/pipelines/42",
+    "pipeline_created_at": "2026-11-20T10:00:00Z",
+    "committed_at": "2026-11-20T09:58:12Z",
     "merge_request": false,
     "strict": false,
     "calls": [
-      {"path": "App/Cart.swift", "line": 42, "column": 9, "status": "ok",
+      {"path": "apps/ios/App/Cart.swift", "line": 42, "column": 9, "status": "ok",
        "event_id": "6f1c…", "event_type": "se", "name": null,
        "identity": "cart:open:tap", "findings": []}
     ]
   }'
 ```
 
-- **A write.** It needs a `check_upload` key (`tk_c_`, bound to the project) or
-  a `write` key, and the user behind the key needs an editing role in the
-  project. A `read` key gets `403`.
+- **A write of its own.** A `check_upload` key (`tk_c_`, bound to the
+  project) needs only membership of the project: its user may be a viewer. A
+  browser session or a `write` key needs an editing role, and the permission
+  `check_runs.upload` where [custom roles](../enterprise/rbac.md#custom-roles)
+  are in use. A `read` key gets `403`.
 - **One run per request,** at most 5,000 calls. `repository` is what the CI
   calls the repository (`CI_PROJECT_PATH`, `GITHUB_REPOSITORY`); one project
-  can be checked from several. `repository_url` and `pipeline_url` must be
-  `http(s)` URLs. `commit_sha` is hex.
+  can be checked from several. `check_root` (default `.`) is the directory the
+  check scanned, relative to the repository root, so several apps of one
+  repository are told apart; `apps/ios/` and `./apps/ios` are one directory,
+  and an absolute path or one leaving the repository is `422`.
+  `repository_url` and `pipeline_url` must be `http(s)` URLs. `commit_sha` is
+  hex.
 - **The default branch decides what the run is for.** A run whose `ref` equals
-  its `default_branch`, and that is not a merge request, becomes the
-  repository's *current* run: its calls, with their locations and findings, are
-  what "used in code" shows, and the calls of the run it replaces are deleted,
-  so a call removed from the code disappears. Any other run (a feature branch,
-  a tag, or no `default_branch`) is kept as a summary only: counts, commit, ref,
-  pipeline.
+  its `default_branch`, and that is not a merge request, becomes the *current*
+  run of its repository and `check_root`: its calls, with their locations and
+  findings, are what "used in code" shows, and the calls of the run it replaces
+  are deleted, so a call removed from the code disappears. Any other run (a
+  feature branch, a tag, or no `default_branch`) is kept as a summary only:
+  counts, commit, ref, pipeline.
+- **The newest default-branch run is current, not the last uploaded.**
+  `pipeline_created_at` and `committed_at` (ISO 8601; without an offset, UTC)
+  say when the run was made. A default-branch run older than the current one
+  is kept as a summary only (`is_default_branch: true`, `is_current: false`),
+  so a retried old pipeline that finishes last never puts old code back. Older
+  is by `pipeline_created_at` when both runs carry it, else by `committed_at`
+  when both carry it; with neither, or a tie, the new run replaces the current
+  one.
 - **`merge_request`** (default `false`) marks a merge request or pull request
   pipeline. It checks a merged tree, not the default branch, so it is a summary
   only even when its `ref`, the source branch, has the default branch's name
@@ -2363,20 +2380,21 @@ curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
   `CHECK_RUN_RETENTION_DAYS` (default 90).
 
 The answer (`201`) is the run as the history lists it: `id`, the fields above
-but `calls`, `is_default_branch`, `is_current`, `calls` as counts
+but `calls` (`check_root` normalized), `is_default_branch`, `is_current`,
+`calls` as counts
 (`total`, `ok`, `warning`, `error`, `dynamic`) and `created_at`.
 
 Two reads, for any project member:
 
-- `GET /projects/{slug}/check-runs?repository=&default_branch=&limit=&offset=`:
-  the runs, newest first, as `{items, total}`. `default_branch=true` keeps the
-  default-branch runs only.
-- `GET /projects/{slug}/events/{event_id}/code-usage`: per repository that has
-  a current run, `{repository, repository_url, run, calls}`, where `calls` are
-  that run's calls of the event (`path`, `line`, `column`, `status`,
-  `findings`), sorted by file and line. An empty `calls` means the event is not
-  sent in that repository's code as of `run`. `404` for an event of another
-  project.
+- `GET /projects/{slug}/check-runs?repository=&check_root=&default_branch=&limit=&offset=`:
+  the runs, newest first (by upload), as `{items, total}`. `default_branch=true`
+  keeps the default-branch runs only.
+- `GET /projects/{slug}/events/{event_id}/code-usage`: per repository and check
+  directory that has a current run, `{repository, check_root, repository_url,
+  run, calls}`, where `calls` are that run's calls of the event (`path`,
+  `line`, `column`, `status`, `findings`), sorted by file and line. An empty
+  `calls` means the event is not sent in that directory's code as of `run`.
+  `404` for an event of another project.
 
 ## Plan export {#plan-export}
 

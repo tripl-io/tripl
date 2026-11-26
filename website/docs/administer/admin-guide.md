@@ -907,8 +907,9 @@ The create form (and the `POST /api/v1/me/api-keys` endpoint) takes:
   job running [`tripl check --upload`](../integrate/tripl-check.md#send-results-to-tripl)
   holds: what a `read` key may, plus recording check runs. Every other
   mutation returns `403 API key may only upload check runs`. It must be bound
-  to a project (`422` without one), and the upload still needs an editing
-  project role of the key's user.
+  to a project (`422` without one, `404` for a project its user cannot open).
+  Its user needs only a role in that project, a **viewer**'s included:
+  recording a run is its own permission, `check_runs.upload`, not a plan edit.
 
 **Project binding** is orthogonal to scope. A project-bound key authenticates
 **only** `/projects/{slug}/...` routes for that one project; any other project

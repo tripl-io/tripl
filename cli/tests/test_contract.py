@@ -673,6 +673,10 @@ def test_the_check_run_upload_limits_are_the_ones_the_route_enforces(
             _bound(run["repository"], "maxLength"),
         ),
         "ref maxLength": (check_runs.REF_MAX_LENGTH, _bound(run["ref"], "maxLength")),
+        "check_root maxLength": (
+            check_runs.CHECK_ROOT_MAX_LENGTH,
+            _bound(run["check_root"], "maxLength"),
+        ),
         "default_branch maxLength": (
             check_runs.REF_MAX_LENGTH,
             _bound(run["default_branch"], "maxLength"),

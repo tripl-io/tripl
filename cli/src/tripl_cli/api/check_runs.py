@@ -33,11 +33,12 @@ MAX_FINDINGS_PER_CALL = 50
 # Of the run itself.
 REPOSITORY_MAX_LENGTH = 255
 REF_MAX_LENGTH = 255
+CHECK_ROOT_MAX_LENGTH = 1000
 URL_MAX_LENGTH = 2000
 
 
 def upload(slug: str, run: Mapping[str, Any]) -> ApiRequest:
-    """One run: ``repository``, ``commit_sha``, ``ref``, ``default_branch``, ``calls``, ...
+    """One run: ``repository``, ``check_root``, ``commit_sha``, ``ref``, ``calls``, ...
 
     ``run["calls"]`` is sent as given, so it must already be at most ``MAX_CALLS``.
     """

@@ -1365,35 +1365,52 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   `CI_PIPELINE_SOURCE`, `CI_MERGE_REQUEST_IID` and
   `CI_EXTERNAL_PULL_REQUEST_IID` in GitLab, and from `GITHUB_EVENT_NAME`
   (`pull_request`, `pull_request_target`, `merge_group`) in GitHub Actions.
+  When the run was made comes from `CI_PIPELINE_CREATED_AT` and
+  `CI_COMMIT_TIMESTAMP` in GitLab, and from the pushed commit's
+  `head_commit.timestamp` in a GitHub push payload.
   Anywhere else it is refused (exit 2) before anything is scanned or sent.
 - **The default branch decides what the run is for.** A run on the
   repository's default branch becomes its *current* run: each call it found,
   with its file, line and findings, is what "used in code" shows on the event,
-  until the next default-branch run replaces it, so a call removed from the
+  until a newer default-branch run replaces it, so a call removed from the
   code disappears. A run on any other ref (a feature branch, a tag) goes to the
   check history only, as a summary: counts per status, commit, ref and
   pipeline. So does every merge request or pull request run, even one whose
   source branch has the default branch's name (`main` into `release`, a
-  fork's `main`): it checks a merged tree, not the default branch. `--default-branch NAME` names the default branch when the
-  CI's is not the one you mean; with none known, the run goes to the history
-  only.
-- **One snapshot per repository.** A project checked from several repositories
-  (iOS, Android, web) keeps one current run for each. Two check jobs of one
-  repository (a repository holding several apps, each checked from its own
-  `directory`) share that one snapshot, and each default-branch upload replaces
-  the other's: upload from one of them only.
+  fork's `main`): it checks a merged tree, not the default branch.
+  `--default-branch NAME` names the default branch when the CI's is not the
+  one you mean; with none known, the run goes to the history only.
+- **The newest run wins, not the last to finish.** A default-branch run older
+  than the current one goes to the history only, so a retried old pipeline
+  that finishes last never puts old code back. Older is by pipeline creation
+  time when both runs carry one (GitLab), else by commit timestamp when both
+  carry one; with neither to compare, the later upload replaces the current
+  run.
+- **One snapshot per repository and check directory.** A project checked from
+  several repositories (iOS, Android, web) keeps one current run for each. In a
+  repository holding several apps, each checked with its own check config, the
+  check directory (the config's `root`, by default the directory holding
+  `.tripl/`, relative to the repository root) tells them apart: each keeps its
+  own snapshot, and "used in code" lists them one by one. A check of the whole
+  repository is directory `.`.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
   flag or from the check config (`--revision live` is fine), and with
   `--payloads` and `--list`.
-- **It never changes the verdict.** The upload is sent after the reports are
-  written; one line on stderr says what was recorded, or why not. A failed
-  upload (a `read` key, an outage, a run of more than 5,000 calls) is a warning,
-  and the exit code is the check's own.
-- **The key.** The upload is a write. Mint a key of scope `check_upload`
-  (`tk_c_`, under **Settings → API keys**, bound to the project): it reads like
-  a read key, which is all the check itself needs, and may record check runs
-  and nothing else. The user behind it needs an editing role in the project.
+- **It never changes the verdict.** The upload is sent once the check has
+  finished, before the reports are written, and one line on stderr, after the
+  run's own output, says what was recorded, or why not. A failed upload (a
+  `read` key, an outage, a run of more than 5,000 calls) is a warning, and the
+  exit code is the check's own. With `--json` the document's
+  [`upload` key](../run/cli.md#check-document) says the same: `ok`, and
+  `error` when it failed.
+- **The key.** The upload is a write of its own, not a plan edit. Mint a key
+  of scope `check_upload` (`tk_c_`, under **Settings → API keys**, bound to the
+  project): it reads like a read key, which is all the check itself needs, and
+  may record check runs and nothing else. A **viewer** of the project may mint
+  one and upload with it; tripl refuses to mint one for a project its user
+  cannot open. A browser session or a `write` key still needs an editing role
+  (permission `check_runs.upload`).
 - **Retention.** Every run but the current ones is deleted after
   `CHECK_RUN_RETENTION_DAYS` (default 90; see
   [Configuration](../run/configuration.md#operational-history-retention)).

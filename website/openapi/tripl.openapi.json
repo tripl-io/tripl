@@ -9262,7 +9262,7 @@
           "check-runs"
         ],
         "summary": "Upload Check Run",
-        "description": "Record one ``tripl check`` run of a repository.\n\nA run whose ``ref`` is its ``default_branch`` becomes the repository's\ncurrent run: its calls replace the previous default-branch run's as what\n\"used in code\" shows. Any other run is kept as a summary only, for the\nhistory. At most 5000 calls per run.",
+        "description": "Record one ``tripl check`` run of a repository directory.\n\nA run whose ``ref`` is its ``default_branch`` becomes the current run of\nits repository and ``check_root``: its calls replace the previous\ndefault-branch run's as what \"used in code\" shows. A default-branch run\nolder than the current one (by ``pipeline_created_at`` when both carry it,\nelse by ``committed_at``) goes to the history only, and so does any other\nrun, kept as a summary. At most 5000 calls per run.",
         "operationId": "upload_check_run_api_v1_projects__slug__check_runs_post",
         "security": [
           {
@@ -9385,6 +9385,25 @@
             "description": "Only the runs of this repository."
           },
           {
+            "name": "check_root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the runs of this check directory (`.` for the repository root).",
+              "title": "Check Root"
+            },
+            "description": "Only the runs of this check directory (`.` for the repository root)."
+          },
+          {
             "name": "default_branch",
             "in": "query",
             "required": false,
@@ -9483,7 +9502,7 @@
           "check-runs"
         ],
         "summary": "Get Event Code Usage",
-        "description": "Where the code sends this event: per repository, its latest default-branch run's calls.\n\nA repository whose latest run has no call of the event is listed with no\ncalls; one that never uploaded a default-branch run is not listed.",
+        "description": "Where the code sends this event: the calls in each repository directory's current run.\n\nA directory whose current run has no call of the event is listed with no\ncalls; one that never uploaded a default-branch run is not listed.",
         "operationId": "get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get",
         "security": [
           {
@@ -42756,6 +42775,12 @@
             "minLength": 1,
             "title": "Repository"
           },
+          "check_root": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Check Root",
+            "default": "."
+          },
           "repository_url": {
             "anyOf": [
               {
@@ -42810,6 +42835,30 @@
             "type": "boolean",
             "title": "Merge Request",
             "default": false
+          },
+          "pipeline_created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Created At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
           },
           "strict": {
             "type": "boolean",
@@ -42914,6 +42963,10 @@
             "type": "string",
             "title": "Repository"
           },
+          "check_root": {
+            "type": "string",
+            "title": "Check Root"
+          },
           "repository_url": {
             "anyOf": [
               {
@@ -42967,6 +43020,30 @@
             ],
             "title": "Pipeline Url"
           },
+          "pipeline_created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Created At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
           "strict": {
             "type": "boolean",
             "title": "Strict"
@@ -42984,6 +43061,7 @@
         "required": [
           "id",
           "repository",
+          "check_root",
           "repository_url",
           "commit_sha",
           "ref",
@@ -42992,6 +43070,8 @@
           "is_default_branch",
           "is_current",
           "pipeline_url",
+          "pipeline_created_at",
+          "committed_at",
           "strict",
           "calls",
           "created_at"
@@ -48142,6 +48222,10 @@
             "type": "string",
             "title": "Repository"
           },
+          "check_root": {
+            "type": "string",
+            "title": "Check Root"
+          },
           "repository_url": {
             "anyOf": [
               {
@@ -48167,12 +48251,13 @@
         "type": "object",
         "required": [
           "repository",
+          "check_root",
           "repository_url",
           "run",
           "calls"
         ],
         "title": "EventCodeUsageRepository",
-        "description": "One repository's latest default-branch run, and the calls in it that send the event.\n\n``calls`` is empty when that run found no call of the event: the event is\nnot used in that repository's code, as of ``run``."
+        "description": "One repository's current run of one check directory, and its calls that send the event.\n\n``calls`` is empty when that run found no call of the event: the event is\nnot used in that directory's code, as of ``run``. ``check_root`` is ``.``\nfor a check of the whole repository."
       },
       "EventCodeUsageResponse": {
         "properties": {
@@ -48195,7 +48280,7 @@
           "repositories"
         ],
         "title": "EventCodeUsageResponse",
-        "description": "Where the code sends an event, per repository that uploads check runs."
+        "description": "Where the code sends an event, per repository and check directory that upload runs."
       },
       "EventCommentActionRequest": {
         "properties": {
