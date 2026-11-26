@@ -13,8 +13,10 @@ import argparse
 import errno
 import io
 import os
+import subprocess
 import sys
 from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 
@@ -189,6 +191,86 @@ def test_no_stderr_left_still_leaves_the_exit_code_to_say_it(
     command(lambda: EXIT_OK)
     monkeypatch.setattr(sys, "stderr", None)  # `2>&-`
     assert main(["dummy"]) == EXIT_FAILURE
+
+
+# --- a stderr that cannot be written either -------------------------------------------
+@pytest.fixture
+def full_stderr(monkeypatch: pytest.MonkeyPatch) -> Iterator[Redirect]:
+    """``2> /dev/full``, line-buffered like the real stderr, so a print fails at once."""
+    stream = open("/dev/full", "w", buffering=1, encoding="utf-8")  # noqa: SIM115
+    yield lambda: monkeypatch.setattr(sys, "stderr", stream)
+    stream.flush()  # the interpreter's flush at exit: it fails unless stderr was silenced
+    stream.close()
+
+
+@needs_dev_full
+def test_a_full_stderr_leaves_the_exit_code_to_report_a_full_stdout(
+    command: Install, full_stdout: Redirect, full_stderr: Redirect
+) -> None:
+    full_stdout()
+    full_stderr()
+    command(lambda: EXIT_OK)
+    assert main(["dummy"]) == EXIT_FAILURE
+
+
+@needs_dev_full
+def test_a_full_stderr_keeps_an_expected_failures_exit_code(
+    command: Install, full_stderr: Redirect
+) -> None:
+    full_stderr()
+
+    def fail() -> int:
+        raise TriplError("the instance said no")
+
+    command(fail)
+    assert main(["dummy"]) == EXIT_FAILURE
+
+
+@needs_dev_full
+def test_a_full_stderr_keeps_exit_130(command: Install, full_stderr: Redirect) -> None:
+    full_stderr()
+
+    def interrupt() -> int:
+        raise KeyboardInterrupt
+
+    command(interrupt)
+    assert main(["dummy"]) == EXIT_INTERRUPTED
+
+
+@needs_dev_full
+def test_a_full_stderr_keeps_a_usage_errors_exit_2(full_stderr: Redirect) -> None:
+    full_stderr()
+    with pytest.raises(SystemExit) as excinfo:
+        main(["nope"])
+    assert excinfo.value.code == 2
+
+
+# The whole process, because exit 120 is decided by the interpreter's own flush
+# of stdout and stderr after main has returned, which no in-process test sees.
+@needs_dev_full
+@pytest.mark.parametrize(
+    ("argv", "stderr_too", "expected"),
+    [
+        (["--version"], "2>&1", EXIT_FAILURE),
+        (["--version"], "2>/dev/full", EXIT_FAILURE),
+        (["check", "--print-preset"], "2>&1", EXIT_FAILURE),
+        (["check", "--print-preset"], "2>/dev/full", EXIT_FAILURE),
+        (["nope"], "2>/dev/full", 2),
+    ],
+)
+def test_the_process_exit_code_survives_a_full_stdout_and_stderr(
+    argv: list[str], stderr_too: str, expected: int, tmp_path: Path
+) -> None:
+    with open("/dev/full", "w") as full:
+        stderr = subprocess.STDOUT if stderr_too == "2>&1" else full
+        done = subprocess.run(
+            [sys.executable, "-m", "tripl_cli", *argv],
+            stdout=full,
+            stderr=stderr,
+            cwd=tmp_path,
+            check=False,
+        )
+    assert done.returncode == expected
 
 
 # --- finish_stdout itself --------------------------------------------------------------

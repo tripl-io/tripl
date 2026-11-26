@@ -11,7 +11,7 @@ from tripl_cli import __version__
 from tripl_cli.commands import Abandon, Handler, Offline, register_all
 from tripl_cli.config import ENV_API_KEY, ENV_BASE_URL, Config, resolve, unresolved
 from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, EXIT_USAGE, TriplError
-from tripl_cli.streams import finish_stdout
+from tripl_cli.streams import finish_stderr, finish_stdout, say
 
 # 128 + SIGINT, the shell convention for "killed by Ctrl-C".
 EXIT_INTERRUPTED = 130
@@ -140,16 +140,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     The parser's own exits (``--help``, ``--version``, a usage error) still
     leave as ``SystemExit``, with the same rule applied on the way out.
+
+    stderr is flushed last. When it cannot be written either (``2>/dev/full``,
+    or ``> log 2>&1`` on a full disk), what it could not take is dropped and
+    the exit code alone reports the outcome, rather than becoming 120.
     """
     try:
-        code = _dispatch(argv)
-    except SystemExit as exc:
-        if _stdout_was_lost() and exc.code in (None, EXIT_OK):
-            raise SystemExit(EXIT_FAILURE) from None
-        raise
-    if _stdout_was_lost() and code == EXIT_OK:
-        return EXIT_FAILURE
-    return code
+        try:
+            code = _dispatch(argv)
+        except SystemExit as exc:
+            if _stdout_was_lost() and exc.code in (None, EXIT_OK):
+                raise SystemExit(EXIT_FAILURE) from None
+            raise
+        if _stdout_was_lost() and code == EXIT_OK:
+            return EXIT_FAILURE
+        return code
+    finally:
+        finish_stderr()
 
 
 def _stdout_was_lost() -> bool:
@@ -157,11 +164,7 @@ def _stdout_was_lost() -> bool:
     problem = finish_stdout()
     if problem is None:
         return False
-    try:
-        if sys.stderr is not None:
-            print(f"tripl: {problem}", file=sys.stderr)
-    except (OSError, ValueError):
-        pass  # stderr is gone as well: the exit code is all that is left to say it
+    say(f"tripl: {problem}")
     return True
 
 
@@ -185,13 +188,13 @@ def _dispatch(argv: Sequence[str] | None) -> int:
     except TriplError as exc:
         # Every expected failure is a message, never a traceback. A future
         # --debug that re-raises for the traceback goes here.
-        print(f"tripl: {exc}", file=sys.stderr)
+        say(f"tripl: {exc}")
         return exc.exit_code
     except KeyboardInterrupt:
         # Reached without a real SIGINT by `tripl watch`, whose loop catches the
         # interrupt only long enough to print its footer and then RE-RAISES so
         # this stays the only place 130 is decided.
-        print(file=sys.stderr)
+        say()
         return EXIT_INTERRUPTED
 
 

@@ -11,6 +11,10 @@ a reader that left is not a failure, anything else is one line on stderr and
 exit 1. Either way the stream's descriptor is then pointed at the null device,
 so whatever is still buffered, and the interpreter's own last flush, land
 harmlessly.
+
+stderr gets the same treatment (``2>/dev/full``, or ``> log 2>&1`` on a full
+disk): what cannot be said there is dropped, and the exit code stays the one
+the command decided.
 """
 
 from __future__ import annotations
@@ -36,6 +40,43 @@ def silence(stream: TextIO) -> None:
 def write_failure(exc: OSError) -> str:
     """The one-line message for a stdout that could not be written."""
     return f"cannot write to stdout: {exc.strerror or exc}"
+
+
+def say(line: str = "") -> None:
+    """Print ``line`` to stderr; if stderr cannot be written, silence it.
+
+    stderr is line-buffered, so a failing write raises right here. What did
+    not get out stays in the buffer and would fail again at the interpreter's
+    last flush (exit 120), so the stream is pointed at the null device and the
+    exit code is all that is left to report the outcome.
+    """
+    stream = sys.stderr
+    if stream is None:
+        return  # `2>&-`
+    try:
+        print(line, file=stream)
+    except ValueError:
+        pass  # closed: the interpreter skips it at exit too
+    except OSError:
+        silence(stream)
+
+
+def finish_stderr() -> None:
+    """Flush stderr now; if that fails, silence it so the exit code stands.
+
+    Covers what was written to stderr without ``say``: argparse's usage
+    message, for one, swallows its own write error and leaves the text in the
+    buffer.
+    """
+    stream = sys.stderr
+    if stream is None:
+        return
+    try:
+        stream.flush()
+    except ValueError:
+        pass
+    except OSError:
+        silence(stream)
 
 
 def finish_stdout() -> str | None:

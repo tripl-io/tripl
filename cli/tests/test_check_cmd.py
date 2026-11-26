@@ -2065,6 +2065,24 @@ def test_a_listing_to_a_full_disk_is_one_line_and_exit_1(
 
 
 @pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs a device that is always full")
+def test_a_listing_with_stderr_on_the_full_disk_too_still_exits_1(
+    listed: Path, offline: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `tripl check --list > /dev/full 2>&1`: the one line cannot be said either,
+    # so the exit code is what reports it. stderr is line-buffered, as for real.
+    out = open("/dev/full", "w", encoding="utf-8")  # noqa: SIM115 - closed below
+    err = open("/dev/full", "w", buffering=1, encoding="utf-8")  # noqa: SIM115
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", err)
+    assert main(["check", "--list"]) == 1
+    # The interpreter's flushes at exit: they would fail, and exit 120, on a
+    # stream still pointing at the full device.
+    for stream in (out, err):
+        stream.flush()
+        stream.close()
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs a device that is always full")
 @pytest.mark.parametrize("flags", [[], ["--json"], ["--format", "sarif"]])
 def test_a_check_that_passed_but_could_not_print_fails_and_leaves_no_report(
     repo: Path,
