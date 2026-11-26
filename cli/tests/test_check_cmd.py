@@ -1840,6 +1840,103 @@ def test_list_refuses_a_flag_it_has_no_use_for_and_removes_old_reports(
     assert not stale.exists()
 
 
+def _broken_settings(setting: str, root: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Make one connection setting unresolvable; the flags that carry it, if any."""
+    if setting == "env url":
+        monkeypatch.setenv("TRIPL_BASE_URL", "tripl.example.com")  # no scheme
+        return []
+    if setting == "flag url":
+        return ["--url", "not a url"]
+    if setting == "missing config":
+        return ["--config", str(root / "missing.toml")]
+    default = Path.home() / ".config" / "tripl" / "config.toml"
+    default.parent.mkdir(parents=True)
+    default.write_text(
+        "base_url = [" if setting == "invalid toml" else "base_url = 8000\n", encoding="utf-8"
+    )
+    return []
+
+
+BROKEN_SETTINGS = ["env url", "flag url", "missing config", "invalid toml", "wrong type"]
+# What resolving each of them says. A check that never resolved its settings
+# would also exit 2, for having no URL at all, so the refusal is told apart by
+# its message.
+BROKEN_SETTINGS_REFUSALS = {
+    "env url": "$TRIPL_BASE_URL is not a valid tripl URL",
+    "flag url": "--url is not a valid tripl URL",
+    "missing config": "config file not found",
+    "invalid toml": "is not valid TOML",
+    "wrong type": "'base_url' must be a string",
+}
+
+
+@pytest.mark.parametrize("setting", BROKEN_SETTINGS)
+def test_list_does_not_read_connection_settings_so_a_malformed_one_does_not_stop_it(
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    setting: str,
+) -> None:
+    flags = _broken_settings(setting, listed, monkeypatch)
+    assert main(["check", "--list", *flags]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out.startswith("tripl check --list - ")
+    assert "4 call sites in 2 files" in captured.out
+
+
+@pytest.mark.parametrize("setting", BROKEN_SETTINGS)
+def test_the_same_settings_still_stop_a_check_that_would_use_them(
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    setting: str,
+) -> None:
+    flags = _broken_settings(setting, listed, monkeypatch)
+    assert main(["check", *flags]) == 2
+    captured = capsys.readouterr()
+    assert captured.err.startswith("tripl: ")
+    # The setting itself is what stopped it, so it was resolved.
+    assert BROKEN_SETTINGS_REFUSALS[setting] in captured.err
+    assert "no tripl instance URL configured" not in captured.err
+    assert captured.out == ""
+
+
+def test_print_preset_runs_no_command_so_a_malformed_setting_does_not_stop_it(
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # It acts while the arguments are parsed, before any settings are resolved.
+    monkeypatch.setenv("TRIPL_BASE_URL", "tripl.example.com")  # no scheme
+    with pytest.raises(SystemExit) as exit_:
+        main(["check", "--print-preset"])
+    assert exit_.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out.startswith("# preset ")
+
+
+def test_list_with_a_report_is_refused_for_the_report_whatever_the_settings_are(
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("TRIPL_BASE_URL", "tripl.example.com")  # no scheme
+    stale = listed / "gl-code-quality-report.json"
+    stale.write_text("[]", encoding="utf-8")
+    assert main(["check", "--list", "--report", f"codequality={stale}"]) == 2
+    captured = capsys.readouterr()
+    # The refusal is --list's own, not the URL's: the URL was never looked at.
+    assert "--report" in captured.err
+    assert "TRIPL_BASE_URL" not in captured.err
+    assert not stale.exists()
+
+
 def test_list_and_payloads_are_one_or_the_other(listed: Path, offline: None) -> None:
     kept = listed / "gl-code-quality-report.json"
     kept.write_text("[]", encoding="utf-8")

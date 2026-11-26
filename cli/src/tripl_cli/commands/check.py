@@ -16,8 +16,9 @@ Three modes, one scan and one validator between them:
   call it matches with what was read and why a value was not, the functions
   that forward their own parameter into a tracking call, and the calls that
   look like tracking but match no call spec. It needs no URL and no key, opens
-  no connection and sends nothing; with no check config found it scans the
-  whole repository it runs in (discovery).
+  no connection and sends nothing, and the connection settings are not read at
+  all, so a malformed one does not stop it; with no check config found it
+  scans the whole repository it runs in (discovery).
 
 The first two batch their items to ``POST /projects/{slug}/plan/validate`` — a
 READ that happens to be a POST, so any project member's key works, ``tk_r_``
@@ -374,7 +375,7 @@ def register(
     )
     add_json(parser)
     add_timeout(parser)
-    parser.set_defaults(handler=run, abandon=abandon)
+    parser.set_defaults(handler=run, abandon=abandon, offline=sends_nothing)
 
 
 def _format(args: argparse.Namespace) -> str:
@@ -468,6 +469,15 @@ def abandon(args: argparse.Namespace) -> None:
     )
 
 
+def sends_nothing(args: argparse.Namespace) -> bool:
+    """Whether this run talks to no instance, so ``cli.main`` reads no connection settings.
+
+    True for ``--list`` alone. Every other mode validates against the plan, so
+    it needs the URL and the key resolved, and is refused when they are malformed.
+    """
+    return bool(args.list)
+
+
 def run(args: argparse.Namespace, config: Config) -> int:
     targets = _report_targets(args)
     try:
@@ -486,7 +496,9 @@ def _list(args: argparse.Namespace) -> int:
     """``--list``: the static scan alone, each matched call shown in full. 0 once it ran.
 
     Never ``begin(config)``: no URL, no key, no client, nothing sent, so it
-    works with no connection settings at all. ``--timeout`` always has a value
+    works with no connection settings at all, and with malformed ones:
+    ``cli.main`` does not resolve them for this mode (``sends_nothing``).
+    ``--timeout`` always has a value
     and cannot be told from its default, so it is ignored rather than refused.
     """
     started = time.monotonic()

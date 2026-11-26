@@ -17,8 +17,11 @@ not resolved here.
 
 Nothing here touches the network, and absent values are never an error at
 resolution time — only a malformed file, a bad value, or an explicit ``--config``
-that does not exist. That is what lets ``main`` resolve unconditionally, before
-it knows whether the subcommand needs credentials at all.
+that does not exist. That is what lets ``main`` resolve before it knows whether
+the subcommand needs credentials at all. The runs it does not resolve for are
+the ones that say they talk to no instance (``tripl check --list``,
+``tripl reproduce``, ``tripl journey-capture``): such a run gets
+``unresolved()``, so a setting it would never use cannot fail it.
 """
 
 from __future__ import annotations
@@ -170,7 +173,9 @@ def _load_file(path: Path, *, explicit: bool) -> dict[str, Any] | None:
 
     A missing DEFAULT file is not an error — the CLI is fully usable from flags
     and environment alone. A missing ``--config`` path is: an explicit request
-    that cannot be honoured must never be silently ignored.
+    that cannot be honoured must never be silently ignored. (A run that reads
+    no connection settings at all, such as ``tripl check --list``, never gets
+    here: see ``unresolved``.)
     """
     try:
         raw = path.read_bytes()
@@ -295,6 +300,24 @@ def resolve(
         path=path,
         path_exists=file_data is not None,
         sources=sources,
+    )
+
+
+def unresolved() -> Config:
+    """The settings of a run that talks to no instance: nothing read, nothing checked.
+
+    No flag, no environment variable and no file is looked at, so a malformed
+    URL, a config file that is not valid TOML or a ``--config`` path that does
+    not exist cannot stop a command that would never have used them. ``path``
+    is the default location only because the field is always set; the file is
+    not opened.
+    """
+    return Config(
+        base_url=None,
+        api_key=None,
+        path=default_config_path(),
+        path_exists=False,
+        sources={},
     )
 
 

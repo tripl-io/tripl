@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tripl_cli.commands import add_json, bounded_text
+from tripl_cli.commands import add_json, bounded_text, never_connects
 from tripl_cli.config import Config
 from tripl_cli.errors import TriplConfigError
 
@@ -35,7 +35,9 @@ def register(
     )
     parser.add_argument("test_command", nargs=argparse.REMAINDER, help="-- PROGRAM [ARGS ...]")
     add_json(parser)
-    parser.set_defaults(handler=run)
+    # It runs a local command and writes a local file: no instance, so the
+    # connection settings are not read and a malformed one cannot stop it.
+    parser.set_defaults(handler=run, offline=never_connects)
 
 
 def run(args: argparse.Namespace, config: Config) -> int:
