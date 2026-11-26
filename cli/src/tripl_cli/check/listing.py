@@ -10,8 +10,9 @@ JSON document is ``tripl_cli.report.check_list_document``; both read their
 counts from ``inventory.summarize``, so the two cannot disagree.
 
 A value the scan did not read is "not read", never "only known at runtime":
-many are knowable at scan time (a format's template, two constants joined), and
-the scan just does not read them yet. ASCII only, like every other listing.
+many are knowable at scan time (a local set from a constant, a choice between
+constants), and the scan just does not read them yet. ASCII only, like every
+other listing.
 """
 
 from __future__ import annotations
@@ -65,7 +66,11 @@ REASON_TEXT: dict[str, str] = {
         "or sources:, or name its type more fully when several share the name; "
         "an enum case needs a string raw value; a local named like a constant needs nothing"
     ),
-    REASON_FORMAT: "a printf-style format, which the scan does not fill in yet",
+    REASON_FORMAT: (
+        "a printf-style format the scan does not fill in: a template it cannot read, "
+        "a conversion other than a plain %s, %d or %@, arguments the conversions do not "
+        "use up exactly, a spread, or an argument that is several values"
+    ),
     # Examples of the declarations whose returns `symbols` reads, a shape per
     # language; any declared return type String, string or NSString will do.
     REASON_FUNCTION: (
@@ -74,7 +79,10 @@ REASON_TEXT: dict[str, str] = {
         "or function f(): string, in a file under sources: or enums:"
     ),
     REASON_CONDITIONAL: "a choice between values (if / when / a ternary / a fallback)",
-    REASON_CONCATENATION: "a concatenation the scan does not join yet",
+    REASON_CONCATENATION: (
+        "a concatenation the scan does not join: no string literal in it and a part "
+        "that is not a constant, or a part that is several values or a dictionary"
+    ),
     REASON_EXPRESSION: "an expression the scan does not evaluate",
     REASON_PARAMETER: (
         "a parameter of the function the call sits in: the value comes from its "

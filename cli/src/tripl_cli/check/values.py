@@ -6,7 +6,10 @@ Four outcomes, and the distinction between them is the whole point:
     A string known at scan time. ``interpolated`` is set when it carries
     ``${name}`` plan-variable tokens (``"promo_sheet_\\(id)_shown"`` becomes
     ``promo_sheet_${id}_shown``), which the validator matches against the plan's
-    naming rules rather than as a literal.
+    naming rules rather than as a literal. Besides literals and constants, a
+    concatenation (``"a_" + id``, or constants alone: ``Events.A + Params.B``)
+    and a printf-style format (``"promo_%s_shown".format(id)``) read as text,
+    each part the scan cannot read becoming a ``${name}`` token named after it.
 ``Value.choices``
     One of several known strings (a function whose every ``return`` is a
     literal). The caller checks each.
@@ -39,13 +42,14 @@ where it gives up:
     without re-reading the text. ``.home`` has none: it names a case of the
     type the call expects, never a name in scope.
 ``format``
-    A printf-style format: ``x.format(…)`` / ``x.formatted(…)`` whatever ``x``
-    is, Swift ``String(format: …)`` and Objective-C ``stringWithFormat:`` (a
-    message only there: in Swift and TypeScript ``[…]`` is a literal). Told
-    from the shape before anything else, since a format is a call too. A member
-    call binds tighter than an operator, so ``"a" + y.format(z)`` is a
-    concatenation and ``("a" + y).format(z)`` a format. When the format string
-    reads as text, ``expression`` is ``format of <template>``.
+    A printf-style format the scan does not fill in: ``x.format(…)`` /
+    ``x.formatted(…)`` whatever ``x`` is, Swift ``String(format: …)`` and
+    Objective-C ``stringWithFormat:`` (a message only there: in Swift and
+    TypeScript ``[…]`` is a literal). Told from the shape before anything else,
+    since a format is a call too. A member call binds tighter than an operator,
+    so ``"a" + y.format(z)`` is a concatenation and ``("a" + y).format(z)`` a
+    format. When the format string reads as text, ``expression`` is ``format of
+    <template>``. ``Evaluator._format`` says which formats are filled in.
 ``function``
     A call of a function the index cannot read: it reads one whose every
     ``return`` is a string literal and that is declared to return a string
@@ -56,8 +60,9 @@ where it gives up:
     A choice between values: ``if`` / ``when`` / ``switch``, a ternary,
     Kotlin's ``?:``, Swift's ``??``.
 ``concatenation``
-    A top-level ``+`` with no string literal among its operands, or one whose
-    operand is several values or a dictionary.
+    A top-level ``+`` with no string literal among its operands and one the
+    scan cannot read as text, or one whose operand is several values or a
+    dictionary.
 ``expression``
     Anything else: a chained call, an operator, a subscript, a lambda, an
     unparsable number.
@@ -65,8 +70,10 @@ where it gives up:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from tripl_cli.check.calls import matching, split_top_level
 from tripl_cli.check.lexer import IDENT, NUMBER, PUNCT, STRING, Interp, Token, tokenize
@@ -88,6 +95,9 @@ from tripl_cli.check.symbols import (
     variable_name,
 )
 
+if TYPE_CHECKING:
+    from tripl_cli.check.places import FilePlaces
+
 # The longest ``Value.expression``; a longer one is cut and ends in "...".
 EXPRESSION_MAX = 60
 
@@ -102,8 +112,30 @@ _TRANSPARENT_PREFIXES = frozenset({"try", "await", "new"})
 # What joins the segments of a plain path: `a.b`, `a?.b`, `A::b`, `a!!.b`.
 _PATH_JOINS = (".", "?.", "::", "?", "!")
 _FORMAT_METHODS = frozenset({"format", "formatted"})
+# The format each language's printf is written as, which the evaluator fills in.
+_FORMAT_FORMS = {"kotlin": "method", "java": "method", "swift": "swift", "objc": "objc"}
 _OBJC_FORMATS = frozenset({"stringWithFormat", "localizedStringWithFormat"})
 _CHOICE_KEYWORDS = frozenset({"if", "when", "switch"})
+# One printf conversion: `%s`, `%1$s`, `%ld`, `%-5.2f`, `%%`. Its parts are told
+# apart so that `_conversions` can refuse what it does not fill in.
+_CONVERSION = re.compile(
+    r"%(?:(?P<index>[1-9][0-9]*)\$)?(?P<flags>[-#+ 0,(<']*)(?P<width>[0-9]+|\*)?"
+    r"(?:\.(?P<precision>[0-9]+|\*))?(?P<length>hh|h|ll|l|q|z|j|t|L)?(?P<conversion>.?)",
+    re.DOTALL,
+)
+# The conversions a format is filled in for, per language, and the ones of them
+# that print an integer. Any other (`%f`, `%x`, `%S`, Java's `%n` and dates) is
+# printed in a way the scan does not reproduce, so the format stays unread.
+_FILLED_CONVERSIONS = {
+    "kotlin": frozenset("sd"),
+    "java": frozenset("sd"),
+    "swift": frozenset("s@diu"),
+    "objc": frozenset("s@diu"),
+}
+_INTEGER_CONVERSIONS = frozenset("diu")
+# Length modifiers (`%ld`, `%lld`, `%lu`) exist in C's printf only.
+_LENGTH_LANGUAGES = frozenset({"swift", "objc"})
+_INTEGER = re.compile(r"-?[0-9]+")
 # Binary operators, assignment and a lambda's arrow: each binds looser than a
 # member call.
 _OPERATORS = frozenset(
@@ -188,12 +220,29 @@ class Evaluator:
     ``tripl check --list`` shows. Plain ``tripl check`` leaves it off, and a
     value it gives up on is then its hint alone: no time spent on a reason
     nobody reads, and no stack a deeply nested argument would run out of.
+
+    ``places`` is the file the spans come from, for the values that depend on
+    where they are written (a type's own member named without its type). An
+    evaluator without one reads every such value as dynamic.
     """
 
-    def __init__(self, symbols: SymbolIndex, language: str, *, explain: bool = False) -> None:
+    def __init__(
+        self,
+        symbols: SymbolIndex,
+        language: str,
+        *,
+        explain: bool = False,
+        places: FilePlaces | None = None,
+    ) -> None:
         self.symbols = symbols
         self.language = language
         self.explain = explain
+        self.places = places
+        # Set while a format is being filled in: a format inside it is not.
+        self._formats = 0
+        # Set while an interpolation is read: its tokens' offsets are not the
+        # file's, so nothing is looked up by where it is written.
+        self._detached = 0
 
     def evaluate(self, tokens: Sequence[Token], *, field: str | None = None) -> Value:
         span = _strip(list(tokens))
@@ -216,6 +265,9 @@ class Evaluator:
         concatenated = self._concatenation(span, field)
         if concatenated is not None:
             return concatenated
+        formatted = self._format(span, field)
+        if formatted is not None:
+            return formatted
         reference = self._reference(span, field)
         if reference is not None:
             return reference
@@ -242,6 +294,8 @@ class Evaluator:
             if token.text in _FALSE:
                 return text("false")
             resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
+            if resolved is None:
+                resolved = self._member(token, field)
             if resolved is not None:
                 return text(resolved)
             if not self.explain:
@@ -271,12 +325,64 @@ class Evaluator:
             tokens = tokenize(expr, self.language)
         except ValueError:
             return None
-        value = self.evaluate(tokens, field=field)
+        self._detached += 1
+        try:
+            value = self.evaluate(tokens, field=field)
+        finally:
+            self._detached -= 1
         return value.text if value.kind == "text" and not value.interpolated else None
+
+    def _member(self, token: Token, field: str | None) -> str | None:
+        """A Kotlin or Java constant named without its type, inside that type's body.
+
+        ``HOME`` inside ``class Screen`` (or a type nested in it) is
+        ``Screen.HOME``, a companion's or a static one included. Looked for
+        only when no file-scope constant has the name, only for a name that
+        reads as a constant (``HOME``, ``kHome``), and from the innermost type
+        out: the first type that declares it decides, an ambiguous one
+        included. A parameter of a function around the call, or a local
+        declared before it in the innermost one, hides the constant.
+        """
+        places = self.places
+        name = token.text
+        if (
+            places is None
+            or self._detached
+            or self.language not in ("kotlin", "java")
+            or _path_reason(name, shorthand=False) != REASON_UNKNOWN_CONSTANT
+            or not self.symbols.names_member(name)
+        ):
+            return None
+        for owner in places.types_around(token.offset):
+            path = (*owner, name)
+            if not self.symbols.declares(path):
+                continue
+            if places.shadowed(token.offset, name):
+                return None
+            return self.symbols.member(path, hint=field)
+        return None
+
+    def _own_type(self, path: list[str], offset: int, field: str | None) -> str | None:
+        """Swift's ``Self.x``: ``x`` of the type whose body holds ``offset``."""
+        places = self.places
+        if places is None or self._detached or self.language != "swift":
+            return None
+        owners = places.types_around(offset)
+        if not owners:
+            return None
+        return self.symbols.resolve([*owners[0], *path[1:]], hint=field, language=self.language)
 
     # --- compound forms ------------------------------------------------------
     def _concatenation(self, span: list[Token], field: str | None) -> Value | None:
-        """``"a" + x + "b"`` and C's adjacent literals ``@"a" @"b"``; needs at least one literal."""
+        """``"a" + x + "b"``, C's adjacent literals ``@"a" @"b"``, and constants: ``A + B``.
+
+        With a string literal among the operands, an operand the scan cannot
+        read is a ``${name}`` token. Without one, ``+`` is a concatenation only
+        when every operand reads as text (a constant, a format, a function's
+        one string): ``a + b`` over values not read may be a sum, and so may
+        an operand that is a number or a boolean. Objective-C has no ``+``
+        for strings at all.
+        """
         operands: list[list[Token]] = [[]]
         depth = 0
         for token in span:
@@ -294,7 +400,10 @@ class Evaluator:
                 operands = [[token] for token in span]
             else:
                 return None
-        if not any(len(op) == 1 and op[0].kind == STRING for op in operands):
+        literal = any(len(op) == 1 and op[0].kind == STRING for op in operands)
+        if not literal and (
+            self.language == "objc" or not all(_may_be_text(operand) for operand in operands)
+        ):
             return None
         pieces: list[str] = []
         interpolated = False
@@ -303,6 +412,8 @@ class Evaluator:
             if value.kind == "text" and value.text is not None:
                 pieces.append(value.text)
                 interpolated = interpolated or value.interpolated
+            elif not literal:
+                return None
             elif value.kind == "dynamic":
                 pieces.append(f"${{{value.hint}}}")
                 interpolated = True
@@ -362,6 +473,8 @@ class Evaluator:
         resolved = self.symbols.resolve(
             path, hint=field, shorthand=shorthand, language=self.language
         )
+        if resolved is None and not shorthand and len(path) > 1 and path[0] == "Self":
+            resolved = self._own_type(path, body[0].offset, field)
         if resolved is not None:
             return text(resolved)
         hint = variable_name(".".join(path))
@@ -410,21 +523,72 @@ class Evaluator:
     def _template(self, format_string: list[Token], field: str | None) -> str | None:
         """What a format's format string reads as, when that is text.
 
-        Only ``expression`` shows it. The reader explains nothing, so a format
-        inside the format string (``x.format(a).format(b)``,
-        ``String.format(…, String.format(…))``) is not read in turn: its own
-        template would change its own ``expression``, never what the outer one
-        reads as. So reading never nests, however long the chain, and a format
-        string nested past the stack is not read at all.
+        Only ``expression`` shows it. The reader explains nothing and fills in
+        no format, so a format inside the format string
+        (``x.format(a).format(b)``, ``String.format(…, String.format(…))``) is
+        not read in turn: its own template would change its own
+        ``expression``, never what the outer one reads as. So reading never
+        nests, however long the chain, and a format string nested past the
+        stack is not read at all.
         """
         if not format_string:
             return None
-        reader = Evaluator(self.symbols, self.language)
+        reader = self._reader()
+        reader._formats = 1
         try:
             template = reader.evaluate(format_string, field=field)
         except RecursionError:
             return None
         return template.text if template.kind == "text" else None
+
+    def _reader(self) -> Evaluator:
+        """An evaluator that explains nothing, for the same file: ``self`` when it does not."""
+        if not self.explain:
+            return self
+        reader = Evaluator(self.symbols, self.language, places=self.places)
+        reader._detached = self._detached
+        return reader
+
+    def _format(self, span: list[Token], field: str | None) -> Value | None:
+        """A printf-style format filled in, or None when ``span`` is none or is not filled in.
+
+        Filled in: Kotlin and Java ``template.format(…)``, ``.formatted(…)``
+        and ``String.format([Locale, ]template, …)``, Swift ``String(format:
+        template, …)`` and Objective-C ``stringWithFormat:``, whose template
+        reads as text. Each ``%s`` (``%@``, ``%d``; ``%1$s`` by position) takes
+        its argument: its text when that reads as text, else a ``${name}``
+        token named after it, as in a concatenation; ``%%`` is ``%``. Not
+        filled in: any other conversion, a flag, a width or a precision, an
+        argument count the conversions do not use up exactly, a spread
+        (``*args``, Swift's ``arguments:``), an argument that is several
+        values or a dictionary, and a format inside another one (in its
+        template or an argument), which keeps reading from nesting. The
+        template and the arguments are read without explaining: a value
+        inside a format never shows its own reason.
+        """
+        found = _format_call(span, self.language)
+        if found is None:
+            return None
+        reader = self._reader()
+        if reader._formats:
+            return None
+        template_tokens, arguments = found
+        # Read here, not in a helper: each frame below `evaluate` is a level
+        # of nesting less before the stack runs out.
+        values: list[Value] = []
+        reader._formats += 1
+        try:
+            template = reader.evaluate(template_tokens, field=field)
+            conversions = _conversions(template, self.language, len(arguments))
+            if conversions is None:
+                return None
+            for argument in arguments:
+                values.append(reader.evaluate(argument, field=field))
+        except RecursionError:
+            return None
+        finally:
+            reader._formats -= 1
+        return _filled(template, conversions, values)
 
     def _dictionary(self, span: list[Token]) -> tuple[tuple[str, Value], ...] | None:
         """A dictionary literal's ``(key, value)`` pairs, or None when ``span`` is not one."""
@@ -592,6 +756,91 @@ def _accessor_call(body: Sequence[Token], language: str) -> bool:
     )
 
 
+def _may_be_text(operand: list[Token]) -> bool:
+    """Whether a ``+`` operand can be a string: not empty, a number, a boolean or a null."""
+    span = _strip(list(operand))
+    if not span:
+        return False
+    if len(span) == 1:
+        token = span[0]
+        return token.kind != NUMBER and token.text not in _TRUE | _FALSE | _NULLS
+    return not (len(span) == 2 and span[0].is_punct("-") and span[1].kind == NUMBER)
+
+
+def _conversions(
+    template: Value, language: str, arguments: int
+) -> list[tuple[int, int, int, str]] | None:
+    """Each printf conversion in ``template``: start, end, the argument it takes, its kind.
+
+    The kind is the conversion letter, ``%`` for ``%%`` (which takes argument
+    -1). None when ``template`` is not text, when one conversion is not
+    filled in (see ``Evaluator._format``) or a ``%`` ends it, when both
+    ``%1$s`` and ``%s`` are in it (an order the scan does not guess), and
+    when the conversions do not use up exactly ``arguments`` arguments.
+    """
+    if template.kind != "text" or template.text is None:
+        return None
+    found: list[tuple[int, int, int, str]] = []
+    filled = _FILLED_CONVERSIONS.get(language, frozenset())
+    explicit = implicit = 0
+    for match in _CONVERSION.finditer(template.text):
+        kind = match["conversion"]
+        decorated = bool(match["flags"] or match["width"] or match["precision"] is not None)
+        if kind == "%":
+            if decorated or match["index"] or match["length"]:
+                return None
+            found.append((match.start(), match.end(), -1, kind))
+            continue
+        if kind not in filled or decorated or not _length_fits(match["length"], kind, language):
+            return None
+        if match["index"]:
+            position = int(match["index"]) - 1
+            explicit = max(explicit, position + 1)
+        else:
+            position = implicit
+            implicit += 1
+        found.append((match.start(), match.end(), position, kind))
+    if explicit and implicit:
+        return None
+    return found if max(explicit, implicit) == arguments else None
+
+
+def _filled(
+    template: Value, conversions: list[tuple[int, int, int, str]], values: list[Value]
+) -> Value | None:
+    """``template`` with each conversion replaced by its argument's text or a ``${name}`` token."""
+    source = template.text or ""
+    pieces: list[str] = []
+    interpolated = template.interpolated
+    last = 0
+    for start, end, position, kind in conversions:
+        pieces.append(source[last:start])
+        last = end
+        if kind == "%":
+            pieces.append("%")
+            continue
+        value = values[position]
+        if value.kind == "text" and value.text is not None:
+            if kind in _INTEGER_CONVERSIONS and (
+                value.interpolated or not _INTEGER.fullmatch(value.text)
+            ):
+                return None  # printed as a number: text would fail at runtime
+            pieces.append(value.text)
+            interpolated = interpolated or value.interpolated
+        elif value.kind == "dynamic":
+            pieces.append(f"${{{value.hint}}}")
+            interpolated = True
+        else:
+            return None  # several values, a dictionary, or nothing
+    pieces.append(source[last:])
+    return text("".join(pieces), interpolated=interpolated)
+
+
+def _length_fits(length: str | None, kind: str, language: str) -> bool:
+    """No length modifier, or C's on an integer (``%ld``, ``%lu``) where printf is C's."""
+    return not length or (language in _LENGTH_LANGUAGES and kind in _INTEGER_CONVERSIONS)
+
+
 def _hint_of(span: list[Token]) -> str:
     names = [token.text for token in span if token.kind == IDENT]
     return variable_name(".".join(names)) if names else "value"
@@ -626,6 +875,19 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
     Empty when ``span`` is a format whose format string cannot be singled out
     (``String.format`` given only locales).
     """
+    found = _format_parts(span, language)
+    return None if found is None else found[1]
+
+
+def _format_parts(
+    span: list[Token], language: str
+) -> tuple[str, list[Token], list[list[Token]]] | None:
+    """A printf-style format ``span``'s form, format string and arguments; None for no format.
+
+    The form is ``method`` (``x.format(…)``, ``String.format(…)``), ``swift``
+    (``String(format: …)``) or ``objc`` (``stringWithFormat:``). The arguments
+    are the parts after the format string, as written.
+    """
     if len(span) >= 4 and span[-1].is_punct(")"):
         # `x.format(…)` / `x.formatted(…)`, whatever `x` is (a literal included),
         # unless an operator joins `x` to more: `"a" + y.format(z)` formats `y`.
@@ -638,13 +900,16 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
             receiver = span[: opening - 2]
             if _has_operator(receiver):
                 return None
+            parts = split_top_level(span[opening + 1 : -1])
             if not receiver or not receiver[-1].is_ident("String"):
-                return receiver
+                if parts and parts[0] and parts[0][0].is_ident("Locale"):
+                    parts = parts[1:]  # Kotlin `"%s".format(Locale.US, x)`
+                return "method", receiver, parts
             # `String.format(Locale.US, "%s", x)`: the first argument that is not a locale.
-            for part in split_top_level(span[opening + 1 : -1]):
+            for position, part in enumerate(parts):
                 if part and not part[0].is_ident("Locale"):
-                    return part
-            return []
+                    return "method", part, parts[position + 1 :]
+            return "method", [], []
     if (
         len(span) >= 5
         and span[0].is_ident("String")
@@ -655,7 +920,7 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
     ):
         # Swift `String(format: "%@_x", id)`.
         parts = split_top_level(span[2:-1])
-        return parts[0][2:] if parts else []
+        return ("swift", parts[0][2:], parts[1:]) if parts else ("swift", [], [])
     if language == "objc" and span[0].is_punct("[") and matching(span, 0) == len(span) - 1:
         # Objective-C `[NSString stringWithFormat:@"%@_x", y]`. Only there is
         # `[…]` a message: in Swift and TypeScript it is an array or a dictionary.
@@ -667,8 +932,36 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
                 and inner[index + 1].is_punct(":")
             ):
                 parts = split_top_level(inner[index + 2 :])
-                return parts[0] if parts else []
+                return ("objc", parts[0], parts[1:]) if parts else ("objc", [], [])
     return None
+
+
+def _format_call(span: list[Token], language: str) -> tuple[list[Token], list[list[Token]]] | None:
+    """The format string and arguments of a format ``Evaluator._format`` may fill in.
+
+    Its form must be the language's printf (``method`` in Kotlin and Java,
+    ``String(format:)`` in Swift, the message in Objective-C), and its
+    arguments plain values: no spread, no label other than Swift's
+    ``locale:``, which is passed over.
+    """
+    found = _format_parts(span, language)
+    if found is None:
+        return None
+    form, template, parts = found
+    if not template or form != _FORMAT_FORMS.get(language):
+        return None
+    if parts and not parts[-1] and language == "kotlin":
+        parts = parts[:-1]  # a trailing comma
+    arguments: list[list[Token]] = []
+    for part in parts:
+        if not part or part[0].is_punct("*", "..."):
+            return None
+        if language == "swift" and len(part) > 1 and part[1].is_punct(":"):
+            if part[0].is_ident("locale") and not arguments:
+                continue
+            return None  # `arguments: list`, or a label it does not know
+        arguments.append(part)
+    return template, arguments
 
 
 def _opening(span: list[Token], close: int) -> int:

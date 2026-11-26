@@ -275,7 +275,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
     tallies: dict[str, dict[str, _Tally]] = {}
     forwarders: dict[tuple[str, str, int], _Forwarding] = {}
     for found in second_pass(config, tree, explain=True):
-        scopes = ScopeIndex(found.tokens, found.source.language, found.text)
+        scopes = found.places.scopes
         # A call `find_calls` reports with a parameter list's end is that
         # declaration, with a body or without one.
         declarations = scopes.bodiless.union(scope.signature_end for scope in scopes.functions)

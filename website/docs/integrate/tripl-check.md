@@ -59,8 +59,9 @@ It supports these languages, chosen by file extension:
 
 A value is **literal** when the scanner can read it from the source: a string
 literal, a number, an enum case or a string constant whose value it can find,
-or a call to a function declared to return a string whose every `return` is a
-string literal (see [Enum sources](#enum-sources)). Anything else is
+a call to a function declared to return a string whose every `return` is a
+string literal (see [Enum sources](#enum-sources)), or constants joined with
+`+` (see [Formats and concatenations](#formats)). Anything else is
 **dynamic**: a local variable, a parameter, any other function call, or a value
 computed at run time. A dynamic
 value is sent as `null`, which means "unknown at scan time". A dynamic value is
@@ -315,41 +316,102 @@ enum AppEvents {
 - A case the sources do not declare is also dynamic.
 
 **String constants** resolve the same way, by their qualified name:
-`const val X = "y"` (Kotlin, also inside an `object` or an unnamed
-`companion object`; a named one's constants resolve as `Outer.Name.X` or
-`Name.X`, never as `Outer.X`),
-`static final String X = "y"` (Java), `static let x = "y"` inside a type and
-`let x = "y"` at file scope (Swift), `const X = "y"` and one-level
-`const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
+`const val X = "y"` (Kotlin, also inside an `object` or a `companion object`;
+a named companion's constants resolve as `Outer.X`, `Outer.Name.X` and
+`Name.X`), `static final String X = "y"` (Java), `static let x = "y"` inside a
+type, a computed property that returns one string literal inside a type
+(`static var x: String { "y" }`, or `{ return "y" }`), and `let x = "y"` at
+file scope (Swift), `const X = "y"`, `const Events = { X: "y" }` objects and
+the objects inside them (`Events.Screen.Home` for
+`{ Screen: { Home: "home" } }`, up to four levels), and a class's
+`static readonly X = "y"` (TypeScript), `NSString *const X = @"y"` and
 `#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
-as the constant's value. A bare name (`PlayStart`, from inside the class that
-declares it) resolves only for a constant declared at file scope. Only
-declarations that cannot be reassigned are read: a `var` (Swift or Kotlin), a
-TypeScript `let` or `var`, and a Java `String` field that is not `final` are
-not, because the code can change them before the call, so a reference to one is
-dynamic rather than checked against its initial value.
+as the constant's value.
+
+A **bare name** resolves to a constant declared at file scope. In Kotlin and
+Java it also resolves inside the type that declares it: `logEvent(PLAY_START)`
+in a method of `Analytics` (or of a class nested in it) reads `Analytics`'s own
+`PLAY_START`, from a `companion object`, an `object` or a `static final` field,
+when no file-scope constant has the name. Only a name written like a constant
+is looked up that way (`PLAY_START`, `PlayStart`, `kPlayStart`), and not when
+a parameter of the function around the call, or a local declared before it in
+that function, has the same name. In Swift, write `Self.playStart` for a member
+of the type around the call; a bare `playStart` is not read.
+
+Only declarations that cannot be reassigned are read: a stored `var` (Swift or
+Kotlin), a TypeScript `let`, `var` or `static` that is not `readonly`, and a
+Java `String` field that is not `final` are not, because the code can change
+them before the call, so a reference to one is dynamic rather than checked
+against its initial value. A Swift computed property at file scope is not read
+either: a bare name is looked up across every scanned file, so any `log(name)`
+would read it.
 
 **Functions** declared to return a string, whose every `return` is a string
 literal, resolve to that set of strings, and the call is checked once for each
 of them: Swift `func f() -> String`, Kotlin `fun f(): String` or an `= "…"`
-expression body, Java `String f()`, and TypeScript `function f(): string`. One
-`return` of anything else makes the function dynamic. These are not read, so a
-call to one is dynamic: a Swift function marked `async` or `throws`, a Kotlin
-extension function (`fun Screen.f()`) or one with type parameters
-(`fun <T> f()`), a Java method with a `throws` clause, Objective-C functions,
-plain JavaScript functions, and TypeScript functions without a `: string` (or
-`: String`) return type, class methods, arrow functions and function expressions.
-A Swift computed property (`var x: String { "y" }`) is not read either: a
-reference to one is dynamic.
+expression body, Java `String f()`, and TypeScript `function f(): string`. A
+Swift function may be `async`, `throws` (`throws(E)` too) or `rethrows` and
+have a `where` clause, and a Java method a `throws` clause. One `return` of
+anything else makes the function dynamic. These are not read, so a call to one
+is dynamic: a Kotlin extension function (`fun Screen.f()`) or one with type
+parameters (`fun <T> f()`), Objective-C functions, plain JavaScript functions,
+and TypeScript functions without a `: string` (or `: String`) return type,
+class methods, arrow functions and function expressions.
 
 Every scanned source file is read for enums, constants and functions too, so
 `enums` is needed only for files outside `sources`. A file listed under `enums`
 that also matches `exclude` is not read.
 
-Still dynamic, though written from constants: `String.format` and `.format(…)`
-templates, two constants joined with `+` (a concatenation is read only when one
-of its parts is a string literal), a name picked by `if` or `when`, and a local
-variable the name was stored in before the call.
+Still dynamic, though written from constants: a name picked by `if` or `when`,
+and a local variable the name was stored in before the call.
+
+### Formats and concatenations {#formats}
+
+A name built from a template is read too. Each part the scan cannot read
+becomes a `${…}` token named after it, as in an
+[interpolated name](#interpolation):
+
+| In code | Sent for validation as |
+|---------|------------------------|
+| `"promo_%s_shown".format(id)` (Kotlin), `"promo_%s_shown".formatted(id)`, `String.format(Locale.US, "promo_%s_shown", id)` (Java) | `promo_${id}_shown` |
+| `String(format: "promo_%@_%ld", sheet.id, count)` (Swift) | `promo_${id}_${count}` |
+| `[NSString stringWithFormat:@"promo_%@_shown", sheetId]` (Objective-C) | `promo_${sheetId}_shown` |
+| `Events.PROMO.format(Events.HOME)`, with `PROMO = "promo_%s_shown"` and `HOME = "home"` | `promo_home_shown` |
+| `Events.PREFIX + Events.SHOWN`, with `PREFIX = "screen_"` and `SHOWN = "shown"` | `screen_shown` |
+| `"screen_" + name` | `screen_${name}` |
+
+A **format** is filled in when its template reads as text (a literal or a
+constant) and every conversion in it is a plain `%s` or `%d` (Kotlin, Java),
+or `%@`, `%s`, `%d`, `%i` or `%u`, with `l`, `ll` and the other C length
+modifiers on the integer ones (Swift, Objective-C). `%1$s` takes its argument
+by position, and `%%` is a `%`. An argument that reads as text is written in;
+for `%d` that must be a whole number. It stays dynamic (reason `format` in
+[`--list`](#list-reasons)) with any other conversion, a flag, a width or a
+precision (`%f`, `%x`, `%05d`, `%-10s`), with more or fewer arguments than the
+conversions use, with `%1$s` and `%s` in one template, with an argument that is
+several values, a dictionary or `null`, and with a spread (`*args`, Swift's
+`arguments:`). A format inside another one is not filled in: as an argument it
+is one `${…}` token of the outer format, and as its template it leaves the
+outer format dynamic. TypeScript has no printf, and Swift's `.format` is not
+one: neither is filled in.
+
+A **concatenation** with a string literal among its parts is read part by
+part. One without a literal is read only when every part reads as text (a
+constant, a filled-in format, a function that returns one string):
+`Events.PREFIX + id` stays dynamic, since `+` over a value the scan cannot read
+may be a sum, and so does one with a number or a boolean among its parts.
+Objective-C strings have no `+`.
+
+A call the scan reads this way for the first time can report findings the
+same code did not report before: an `unknown_event` for a name that is now
+fully known, a warning for a template. Under the
+[new-findings gate](#new-findings) both sides of the change are scanned by the
+same version, so only what the change brings in fails it. A
+[baseline](#baseline) written by an earlier version does not hold them, since
+an entry is keyed by what the call sends, and its entries for those calls
+(sent with the value unknown) are reported as not seen. After upgrading, write
+the baseline again with `--write-baseline`, or fix the findings and drop the
+stale entries with `--prune-baseline`.
 
 ## Interpolated names become properties {#interpolation}
 
@@ -361,6 +423,7 @@ checked:
 | Swift | `"promo_sheet_\(sheetId)_shown"` | `promo_sheet_${sheetId}_shown` |
 | Kotlin | `"promo_sheet_${sheetId}_shown"`, `"promo_sheet_$sheetId" + "_shown"` | `promo_sheet_${sheetId}_shown` |
 | TypeScript / JavaScript | `` `promo_sheet_${sheetId}_shown` `` | `promo_sheet_${sheetId}_shown` |
+| Kotlin / Java, through a [format](#formats) | `"promo_sheet_%s_shown".format(sheetId)` | `promo_sheet_${sheetId}_shown` |
 
 Each interpolation becomes a `${…}` token, the same placeholder syntax the plan
 uses for [properties](../use/variables-and-templates.md#use-placeholders-in-event-values).
@@ -995,8 +1058,8 @@ that kind of value yet.
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
 | `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
-| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
-| `concatenation` | Values joined with `+`, with no string literal among them, or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | Nothing to configure: the scan does not join these yet. |
+| `format` | A printf-style format the scan does not fill in, such as `"promo_%.1f".format(ratio)` (see [Formats and concatenations](#formats) for the ones it does). The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure. |
+| `concatenation` | Values joined with `+`, with no string literal among them and a part that is not a constant (`Events.PREFIX + id`, or a number), or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | When a part is a constant in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
 | `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda. | Nothing to configure. |

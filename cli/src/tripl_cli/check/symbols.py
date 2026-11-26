@@ -15,9 +15,12 @@ per language:
 * Kotlin / Java — ``enum class Category(val value: String) { HOME("home") }``
   (the first string argument), ``const val X = "y"``, ``val X = "y"``,
   ``static final String X = "y"``; never a Kotlin ``var`` or a Java field
-  that is not ``final``.
+  that is not ``final``. A named ``companion object Keys`` keeps its members
+  under ``Outer.Keys.X`` and, as Kotlin lets callers write them, ``Outer.X``.
 * TypeScript — ``enum Category { Home = "home" }``, ``const Category = { Home: "home" }``
-  and ``const X = "y"``; never ``let`` or ``var``.
+  (with objects in it too: ``{ Screen: { Home: "home" } }``), ``const X = "y"``
+  and a class's ``static readonly X = "y"``; never ``let``, ``var`` or a
+  ``static`` that is not ``readonly``.
 * Objective-C — ``NSString *const X = @"y";`` and ``#define X @"y"``.
 
 Every entry is keyed by its qualified path (``Events.Category.home``). A dotted
@@ -34,12 +37,21 @@ instead — Kotlin/Java ``.name`` / ``name()`` and Swift ``.description`` — re
 to the case identifier (``Category.HOME.name`` -> ``HOME``), and only for a path
 that names a known enum case; anything else stays dynamic.
 
+Swift's computed property ``var name: String { "y" }`` (or ``{ return "y" }``,
+or a ``get`` holding either) inside a type is a constant of that type, read
+like a ``static let``. One at file scope is not read: a bare name is looked up
+across every scanned file, so ``logEvent(name)`` anywhere would read it.
+
 Functions: ``func name(…) -> String { … }`` (and the Kotlin, Java and TS
 equivalents) whose every ``return`` is a string literal resolve, at a call
 (``name()``), to that set of strings. One non-literal return makes the whole
-function dynamic. Swift's computed ``var name: String { … }`` is indexed the
-same way, but a property is read without a call, so a reference to one stays
-dynamic.
+function dynamic. Swift's ``async``, ``throws`` (typed too), ``rethrows`` and a
+``where`` clause, and a Java ``throws`` list, may sit between the parameters
+and the body.
+
+``type_bodies`` gives a file's type bodies, each with the path its members are
+keyed under, for a reference to a member of the type it sits in that does not
+name the type (Kotlin and Java ``X``, Swift ``Self.x``).
 """
 
 from __future__ import annotations
@@ -91,6 +103,8 @@ _HEADER_STOPS = frozenset(
     }
 )
 _HEADER_LIMIT = 200
+# How deep a TypeScript `const` object's objects are read: `Events.Screen.Home` is two.
+_TS_OBJECT_DEPTH = 4
 _STRING_TYPES = frozenset({"String", "string", "NSString"})
 
 
@@ -236,6 +250,24 @@ class SymbolIndex:
                 return _pick(candidates, hint)
         return None
 
+    def member(self, path: Sequence[str], *, hint: str | None = None) -> str | None:
+        """The value of the member whose qualified path is exactly ``path``, or None.
+
+        No suffix of it: ``(Screen, HOME)`` is ``Screen``'s ``HOME``, never
+        ``Other.Screen.HOME``. None when unknown or ambiguous, as ``resolve``.
+        """
+        wanted = tuple(path)
+        return _pick([e for e in self._suffixes.get(wanted, []) if e.path == wanted], hint)
+
+    def names_member(self, name: str) -> bool:
+        """Whether some type has a member called ``name`` (a cheap test before ``member``)."""
+        return any(entry.member for entry in self._suffixes.get((name,), []))
+
+    def declares(self, path: Sequence[str]) -> bool:
+        """Whether a constant has exactly ``path`` as its qualified path, whatever its value."""
+        wanted = tuple(path)
+        return any(entry.path == wanted for entry in self._suffixes.get(wanted, []))
+
     def case_name(self, segments: Sequence[str], *, shorthand: bool = False) -> str | None:
         """``segments[-1]`` when the path names a known enum case, else ``None``."""
         if not segments:
@@ -288,6 +320,19 @@ class _Scope:
     depth: int
     is_enum: bool
     string_raw: bool
+    # A named Kotlin `companion object Keys`: its members are the outer type's too.
+    companion: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _Header:
+    """A type declaration's ``{`` and what its body's scope is."""
+
+    brace: int
+    names: tuple[str, ...]
+    is_enum: bool
+    string_raw: bool
+    companion: bool
 
 
 def _body_start(tokens: list[Token], position: int) -> int | None:
@@ -310,7 +355,7 @@ def _index_scoped(
     index: SymbolIndex, tokens: list[Token], language: str, type_keywords: frozenset[str]
 ) -> None:
     scopes: list[_Scope] = []
-    opening: dict[int, tuple[tuple[str, ...], bool, bool]] = {}
+    opening: dict[int, _Header] = {}
     depth = 0
     position = 0
     while position < len(tokens):
@@ -318,16 +363,17 @@ def _index_scoped(
         if token.kind == IDENT and token.text in type_keywords:
             header = _type_header(tokens, position, language)
             if header is not None:
-                brace, names, is_enum, string_raw = header
-                opening[brace] = (names, is_enum, string_raw)
-                position = brace
+                opening[header.brace] = header
+                position = header.brace
                 continue
         if token.is_punct("{"):
             depth += 1
             if position in opening:
-                names, is_enum, string_raw = opening.pop(position)
-                scopes.append(_Scope(names, depth, is_enum, string_raw))
-                if is_enum and language in ("kotlin", "java"):
+                found = opening.pop(position)
+                scopes.append(
+                    _Scope(found.names, depth, found.is_enum, found.string_raw, found.companion)
+                )
+                if found.is_enum and language in ("kotlin", "java"):
                     position = _jvm_entries(index, tokens, position + 1, scopes)
                     continue
         elif token.is_punct("}"):
@@ -347,6 +393,9 @@ def _index_scoped(
                 language == "java" and token.is_ident("String") and _java_final(tokens, position)
             ):
                 _constant(index, tokens, position + 1, scopes, member=member)
+            elif language == "swift" and scopes and token.is_ident("var"):
+                # A computed property cannot be assigned either: `var x: String { "y" }`.
+                _computed(index, tokens, position + 1, scopes)
         position += 1
 
 
@@ -365,9 +414,7 @@ def _java_final(tokens: list[Token], position: int) -> bool:
     return False
 
 
-def _type_header(
-    tokens: list[Token], position: int, language: str
-) -> tuple[int, tuple[str, ...], bool, bool] | None:
+def _type_header(tokens: list[Token], position: int, language: str) -> _Header | None:
     keyword = tokens[position].text
     probe = position + 1
     is_enum = keyword == "enum"
@@ -375,11 +422,17 @@ def _type_header(
         probe += 1  # Kotlin `enum class`
     elif keyword == "class" and position > 0 and tokens[position - 1].is_ident("enum"):
         return None  # already handled at `enum`
+    companion = keyword == "object" and position > 0 and tokens[position - 1].is_ident("companion")
     names: list[str] = []
     if keyword == "object" and probe < len(tokens) and tokens[probe].is_punct("{"):
         pass  # anonymous `companion object {`: members belong to the outer type
     else:
-        if probe >= len(tokens) or tokens[probe].kind != IDENT:
+        if (
+            probe >= len(tokens)
+            or tokens[probe].kind != IDENT
+            or tokens[probe].text in _HEADER_STOPS
+        ):
+            # No name, or a modifier: Swift's `class var x`, `class func f`.
             return None
         names.append(tokens[probe].text)
         probe += 1
@@ -403,11 +456,57 @@ def _type_header(
     brace = _body_start(tokens, probe)
     if brace is None:
         return None
-    return brace, tuple(names), is_enum, string_raw
+    return _Header(brace, tuple(names), is_enum, string_raw, companion and bool(names))
 
 
 def _prefix(scopes: list[_Scope]) -> tuple[str, ...]:
     return tuple(name for scope in scopes for name in scope.names)
+
+
+def _add_member(
+    index: SymbolIndex, scopes: list[_Scope], name: str, raw: str, *, member: bool
+) -> None:
+    """``raw`` under ``name``'s path, and under the outer type's when a named companion holds it.
+
+    Kotlin lets a caller write ``Outer.X`` for a member of ``companion object
+    Keys`` inside ``Outer``, as well as ``Outer.Keys.X``.
+    """
+    index.add((*_prefix(scopes), name), raw, member=member)
+    if any(scope.companion for scope in scopes):
+        outer = tuple(part for scope in scopes if not scope.companion for part in scope.names)
+        index.add((*outer, name), raw, member=member)
+
+
+def type_bodies(tokens: list[Token], language: str) -> list[tuple[int, int, tuple[str, ...]]]:
+    """Each type body in ``tokens``: its ``{`` and ``}`` token indexes, and its members' path.
+
+    The path is the one ``index_tokens`` keys the members under: the names of
+    the types around the body and its own, outermost first (``Outer``,
+    ``Keys`` for a named companion inside ``Outer``). Swift, Kotlin and Java
+    only, in the order the bodies open.
+    """
+    if language == "swift":
+        keywords = _SWIFT_TYPES
+    elif language in ("kotlin", "java"):
+        keywords = _JVM_TYPES
+    else:
+        return []
+    bodies: list[tuple[int, int, tuple[str, ...]]] = []
+    # The bodies open at the current position, outermost first: (closing index, path).
+    around: list[tuple[int, tuple[str, ...]]] = []
+    for position, token in enumerate(tokens):
+        if token.kind != IDENT or token.text not in keywords:
+            continue
+        header = _type_header(tokens, position, language)
+        if header is None:
+            continue
+        while around and around[-1][0] < header.brace:
+            around.pop()
+        close = matching(tokens, header.brace)
+        path = (*(around[-1][1] if around else ()), *header.names)
+        bodies.append((header.brace, close, path))
+        around.append((close, path))
+    return bodies
 
 
 def _swift_cases(
@@ -459,7 +558,34 @@ def _constant(
         raw = literal_text(tokens[probe + 1])
         follows = tokens[probe + 2] if probe + 2 < len(tokens) else None
         if raw is not None and (follows is None or not follows.is_punct("+", ".", "(", "?")):
-            index.add((*_prefix(scopes), name), raw, member=member)
+            _add_member(index, scopes, name, raw, member=member)
+
+
+def _computed(index: SymbolIndex, tokens: list[Token], position: int, scopes: list[_Scope]) -> None:
+    """Swift ``NAME: String { "y" }``, starting at ``position`` inside a type.
+
+    The body is one string literal with no interpolation, alone or after
+    ``return``, or such a body inside ``get { … }``. Anything else (a stored
+    ``var``, a ``didSet``, a protocol's ``{ get }``) is not read.
+    """
+    if (
+        position + 3 >= len(tokens)
+        or tokens[position].kind != IDENT
+        or not tokens[position + 1].is_punct(":")
+        or not tokens[position + 2].is_ident("String")
+        or not tokens[position + 3].is_punct("{")
+    ):
+        return
+    body = tokens[position + 4 : matching(tokens, position + 3)]
+    if len(body) >= 3 and body[0].is_ident("get") and body[1].is_punct("{"):
+        if matching(body, 1) != len(body) - 1:
+            return
+        body = body[2:-1]
+    if body and body[0].is_ident("return"):
+        body = body[1:]
+    raw = literal_text(body[0]) if len(body) == 1 else None
+    if raw is not None:
+        _add_member(index, scopes, tokens[position].text, raw, member=True)
 
 
 def _jvm_entries(
@@ -502,6 +628,92 @@ def _keyed_literals(part: list[Token], separator: str) -> tuple[str, str] | None
     return None
 
 
+def _ts_object(
+    index: SymbolIndex, tokens: list[Token], open_index: int, path: tuple[str, ...]
+) -> int:
+    """The keys of the object literal opened at ``open_index``, under ``path``; returns its ``}``.
+
+    An object in it is read in turn (``{ Screen: { Home: "home" } }`` gives
+    ``Events.Screen.Home``), at most ``_TS_OBJECT_DEPTH`` objects deep.
+    """
+    close = matching(tokens, open_index)
+    for part in split_top_level(tokens[open_index + 1 : close]):
+        pair = _keyed_literals(part, ":")
+        if pair is not None:
+            index.add((*path, pair[0]), pair[1], member=True)
+        elif (
+            len(path) < _TS_OBJECT_DEPTH
+            and len(part) >= 4
+            and part[0].kind in (IDENT, STRING)
+            and part[1].is_punct(":")
+            and part[2].is_punct("{")
+            and matching(part, 2) == len(part) - 1
+        ):
+            key = part[0].text if part[0].kind == IDENT else literal_text(part[0])
+            if key is not None:
+                _ts_object(index, part, 2, (*path, key))
+    return close
+
+
+def _ts_class(index: SymbolIndex, tokens: list[Token], keyword: int) -> int | None:
+    """A class's ``static readonly X = "y"`` members; returns its body's ``}``, or None.
+
+    The header runs from ``class Name`` to the first ``{`` outside ``<…>``.
+    """
+    if (
+        keyword + 1 >= len(tokens)
+        or tokens[keyword + 1].kind != IDENT
+        or tokens[keyword + 1].text in ("extends", "implements")
+    ):
+        return None  # no name: nothing could name its members
+    if keyword and tokens[keyword - 1].is_punct(".", "?."):
+        return None  # `x.class`: a property
+    name = tokens[keyword + 1].text
+    position = keyword + 2
+    angles = 0
+    limit = min(len(tokens), position + _HEADER_LIMIT)
+    while position < limit:
+        token = tokens[position]
+        if token.is_punct("<"):
+            angles += 1
+        elif token.is_punct(">"):
+            angles = max(angles - 1, 0)
+        elif token.is_punct("{") and not angles:
+            break
+        elif token.is_punct("(", "[", "{"):
+            position = matching(tokens, position)
+        elif token.is_punct(";", "}", "=") and not angles:
+            return None
+        position += 1
+    else:
+        return None
+    close = matching(tokens, position)
+    depth = 0
+    for member in range(position + 1, close):
+        token = tokens[member]
+        if token.is_punct("{", "(", "["):
+            depth += 1
+        elif token.is_punct("}", ")", "]"):
+            depth -= 1
+        elif (
+            depth == 0
+            and token.is_ident("readonly")
+            and tokens[member - 1].is_ident("static")
+            and member + 1 < close
+            and tokens[member + 1].kind == IDENT
+        ):
+            probe = member + 2
+            if probe < close and tokens[probe].is_punct(":"):
+                while probe < close and not tokens[probe].is_punct("=", ";"):
+                    probe += 1
+            if probe + 1 < close and tokens[probe].is_punct("="):
+                raw = literal_text(tokens[probe + 1])
+                after = tokens[probe + 2] if probe + 2 < close else None
+                if raw is not None and (after is None or not after.is_punct("+", ".", "(", "?")):
+                    index.add((name, tokens[member + 1].text), raw, member=True)
+    return close
+
+
 def _index_ts(index: SymbolIndex, tokens: list[Token]) -> None:
     depth = 0
     position = 0
@@ -511,6 +723,11 @@ def _index_ts(index: SymbolIndex, tokens: list[Token]) -> None:
             depth += 1
         elif token.is_punct("}"):
             depth -= 1
+        elif depth == 0 and token.is_ident("class"):
+            close = _ts_class(index, tokens, position)
+            if close is not None:
+                position = close + 1
+                continue
         elif depth == 0 and token.is_ident("enum") and position + 2 < len(tokens):
             name = tokens[position + 1].text
             if tokens[position + 2].is_punct("{"):
@@ -531,12 +748,7 @@ def _index_ts(index: SymbolIndex, tokens: list[Token]) -> None:
             if name_token.kind == IDENT and probe + 1 < len(tokens) and tokens[probe].is_punct("="):
                 value = tokens[probe + 1]
                 if value.is_punct("{"):
-                    close = matching(tokens, probe + 1)
-                    for part in split_top_level(tokens[probe + 2 : close]):
-                        pair = _keyed_literals(part, ":")
-                        if pair is not None:
-                            index.add((name_token.text, pair[0]), pair[1], member=True)
-                    position = close + 1
+                    position = _ts_object(index, tokens, probe + 1, (name_token.text,)) + 1
                     continue
                 raw = literal_text(value)
                 if raw is not None:
@@ -572,18 +784,6 @@ def _index_functions(index: SymbolIndex, tokens: list[Token], language: str) -> 
     for position, token in enumerate(tokens):
         if token.kind != IDENT:
             continue
-        if language == "swift" and token.text == "var" and position + 4 < len(tokens):
-            # Computed property: `var name: String {`
-            if (
-                tokens[position + 1].kind == IDENT
-                and tokens[position + 2].is_punct(":")
-                and tokens[position + 3].is_ident("String")
-                and tokens[position + 4].is_punct("{")
-            ):
-                index.add_function(
-                    tokens[position + 1].text, _body_values(tokens, position + 4), language=language
-                )
-            continue
         name_index: int | None = None
         if (
             token.text in _FUNCTION_KEYWORDS
@@ -610,15 +810,16 @@ def _function(index: SymbolIndex, tokens: list[Token], name_index: int, language
         probe += 1
     if probe >= len(tokens) or not tokens[probe].is_punct("("):
         return
-    after = matching(tokens, probe) + 1
+    after = _effects(tokens, matching(tokens, probe) + 1, language)
     declared: str | None = "String" if language == "java" else None
     if after + 1 < len(tokens) and tokens[after].is_punct("->", ":"):
         declared = tokens[after + 1].text
         after += 2
         while after < len(tokens) and tokens[after].is_punct("?", "!"):
             after += 1
-    while after < len(tokens) and tokens[after].is_ident("throws", "async", "rethrows"):
-        after += 1
+    after = _effects(tokens, after, language)
+    if language == "swift" and after < len(tokens) and tokens[after].is_ident("where"):
+        after = _body_start(tokens, after + 1) or len(tokens)
     if after >= len(tokens):
         return
     if language == "kotlin" and tokens[after].is_punct("="):
@@ -628,6 +829,26 @@ def _function(index: SymbolIndex, tokens: list[Token], name_index: int, language
         return
     if declared in _STRING_TYPES and tokens[after].is_punct("{"):
         index.add_function(name, _body_values(tokens, after), language=language)
+
+
+def _effects(tokens: list[Token], position: int, language: str) -> int:
+    """The index past what may follow a parameter list before or after the return type.
+
+    Swift's ``async``, ``throws`` (``throws(E)`` too) and ``rethrows``, and a
+    Java ``throws A, b.B`` list.
+    """
+    while position < len(tokens) and tokens[position].is_ident("throws", "async", "rethrows"):
+        throws = tokens[position].text == "throws"
+        position += 1
+        if language == "swift" and throws and position < len(tokens):
+            if tokens[position].is_punct("("):
+                position = matching(tokens, position) + 1  # typed throws: `throws(E)`
+        elif language == "java" and throws:
+            while position < len(tokens) and (
+                tokens[position].kind == IDENT or tokens[position].is_punct(".", ",")
+            ):
+                position += 1
+    return position
 
 
 def _single_string(span: Sequence[Token]) -> str | None:

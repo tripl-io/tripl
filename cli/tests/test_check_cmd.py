@@ -998,8 +998,8 @@ LIST_SOURCES = {
             fun logEvent(event: String, params: Bundle) {
                 analytics.logEvent(event, params)
             }
-            fun promo(id: String) {
-                analytics.logEvent(Events.PROMO.format(id), mapOf("id" to id, "kind" to "x"))
+            fun promo(id: String, ids: Array<String>) {
+                analytics.logEvent(Events.PROMO.format(*ids), mapOf("id" to id, "kind" to "x"))
                 analytics.logEvent("fixed", "not a dictionary", extra)
                 tracker.send(key = "opened")
             }
@@ -1062,8 +1062,10 @@ def test_list_shows_what_each_call_read_and_why_with_no_instance_configured(
         "map it in args: (null drops it).\n"
         "\n"
         "Why (call sites, per target):\n"
-        "  name        format       1  a printf-style format, which the scan does not fill "
-        "in yet\n"
+        "  name        format       1  a printf-style format the scan does not fill in: a "
+        "template it cannot read, a conversion other than a plain %s, %d or %@, arguments "
+        "the conversions do not use up exactly, a spread, or an argument that is several "
+        "values\n"
         "  name        parameter    1  a parameter of the function the call sits in: the "
         "value comes from its callers; add a call spec for that function\n"
         "  properties  parameter    1  a parameter of the function the call sits in: the "

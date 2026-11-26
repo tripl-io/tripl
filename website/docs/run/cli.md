@@ -2417,17 +2417,15 @@ app/Tracking.kt:10:9  event  analytics.logEvent  name=? properties=?
     name: parameter event of track (line 9)
     properties: parameter params of track (line 9)
 app/checkout/CheckoutScreen.kt:5:9  event  analytics.logEvent  name=checkout_started properties={step=?, cart=main}
-app/checkout/CheckoutScreen.kt:10:9  event  analytics.logEvent  name=?
-    name: format of promo_%s_shown
+app/checkout/CheckoutScreen.kt:10:9  event  analytics.logEvent  name=promo_${promo}_shown
 app/checkout/CheckoutScreen.kt:14:9  event  analytics.logEvent  name=?
     name: action.event: property of parameter action of onAction (line 13)
 
-4 call sites in 2 files: 1 fully read; 3 not sent (no name or field read); 0 sent with a value not read.
-Values not read: name 3, properties 1.
+4 call sites in 2 files: 2 fully read; 2 not sent (no name or field read); 0 sent with a value not read.
+Values not read: name 2, properties 1.
 Read per event type: event: name 4, properties 2.
 
 Why (call sites, per target):
-  name        format              1  a printf-style format, which the scan does not fill in yet
   name        parameter           1  a parameter of the function the call sits in: the value comes from its callers; add a call spec for that function
   name        parameter_property  1  a property of such a parameter: the value is set where that object is built; configure that, not the function's callers
   properties  parameter           1  a parameter of the function the call sits in: the value comes from its callers; add a call spec for that function
@@ -4655,10 +4653,10 @@ with the type shown. Trimmed to one call of each list:
   "files_scanned": 2,
   "skipped": [],
   "summary": {
-    "calls": 4, "items": 4, "fully_read": 1, "not_sent": 3,
-    "dynamic": { "name": 3, "properties": 1 },
+    "calls": 4, "items": 4, "fully_read": 2, "not_sent": 2,
+    "dynamic": { "name": 2, "properties": 1 },
     "reasons": {
-      "name": { "parameter": 1, "format": 1, "parameter_property": 1 },
+      "name": { "parameter": 1, "parameter_property": 1 },
       "properties": { "parameter": 1 }
     },
     "targets": { "event": { "name": 4, "properties": 2 } },
@@ -4749,10 +4747,10 @@ refined into `parameter` only. The last two are about the target, not a value:
 |------|---------|
 | `variable` | A variable the scan does not follow (a property, a lambda parameter, a captured variable), not a constant. |
 | `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
-| `format` | A printf-style format, which the scan does not fill in yet. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
+| `format` | A printf-style format the scan does not fill in: a template it cannot read, a conversion other than a plain `%s`, `%d` or `%@` (a flag, a width or a precision included), arguments the conversions do not use up exactly, an argument that is several values, a dictionary or `null`, a spread, or a format inside another format. The guide's [Formats and concatenations](../integrate/tripl-check.md#formats) lists the formats it fills in. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript), in a file under `sources` or `enums`. The guide's [Enum sources](../integrate/tripl-check.md#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. |
 | `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. |
-| `concatenation` | A concatenation the scan does not join yet. |
+| `concatenation` | A concatenation the scan does not join: one with no string literal among its parts and a part that is not a constant (`Events.PREFIX + id`, or a number), or one with a part that is several values or a dictionary. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda, or a map literal the scan could not read. |
 | `parameter` | A parameter of the function the call sits in: the value comes from its callers. |
 | `parameter_property` | A property of such a parameter: the value is set where that object is built. |
