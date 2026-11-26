@@ -929,8 +929,12 @@ input:
 | `name` | Optional. The event name or identity, looked up across all types when `event_type` is absent. |
 | `fields` | Plan field name to value: a string, number, boolean or `null`. Numbers and booleans are checked as their JSON text (`3`, `true`). |
 | `properties` | Any other keys the event carried. They are checked as field names. |
+| `ref` | Optional. Where the event came from, for whoever reads the file: the test, the screen or the step that sent it. It is never checked or sent, and two events that differ only in it are one. |
 
 An event needs `event_type` or `name`. Any other key is a usage error (exit 2).
+To write this file from your UI tests, through your own tracking facade or a
+Snowplow tracker's plugin, and to check it in CI, see
+[Check the events your UI tests send](../how-to/record-events-in-ui-tests.md).
 
 A payload is a complete event, so a required field that is missing **is** an
 error here (`missing_required_field`), and its values are never treated as
@@ -1334,17 +1338,25 @@ the check block merges. In short:
   convention.
 
 To check captured events instead, for example from a UI test run that writes
-what the app sent to `build/events.ndjson`:
+what the app sent to `build/events.ndjson`, give the run a baseline of its own
+and no gate flag (both `--new-from-rev` and a static baseline are refused with
+`--payloads`):
 
 ```bash
-tripl check --payloads build/events.ndjson --report junit=tripl-events.xml
+tripl check --payloads build/events.ndjson --baseline .tripl/check-payloads-baseline.json --report junit=tripl-events.xml
 ```
+
+The GitLab template and the GitHub action do that when their `payloads` input
+is set; [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md#ci)
+has the recorders and the jobs.
 
 ## Related pages {#related}
 
 - [`tripl check`](../run/cli.md#tripl-check) on the CLI page: every flag.
 - [Check tracking code in CI](../how-to/check-tracking-in-ci.md): the jobs for
   GitLab, GitHub and other CI systems.
+- [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md):
+  recorders for payload mode, and its CI jobs.
 - [Agent API guide: plan validation](./agent-api-guide.md#plan-validation): the
   endpoint behind the check, for your own tools.
 - [Properties & templates](../use/variables-and-templates.md): documented values

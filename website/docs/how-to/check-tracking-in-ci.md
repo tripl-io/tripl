@@ -127,11 +127,15 @@ input is optional:
 | `version` | the release in the URL | The CLI release to run (`X.Y.Z`). |
 | `image` | `ghcr.io/tripl-io/tripl-cli` | The CLI image without its tag, for a registry mirror. |
 | `stage` | `test` | The stage the job runs in. |
+| `job` | `tripl-check` | The job's name. Include the file a second time, under another name, to check the events your UI tests sent as well. |
 | `project` | `""` | The tripl project. Empty reads it from the check config. |
 | `check_config` | `""` | The check config, relative to the repository root. Empty finds the nearest `.tripl/check.yml`. |
 | `directory` | `.` | Where to run, relative to the repository root, for a repository with several apps. |
 | `baseline` | `.tripl/check-baseline.json` | The committed [baseline](../integrate/tripl-check.md#baseline), used when the file exists (the log says when it does not). Empty never uses one. |
-| `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. |
+| `payloads` | `""` | Check the events a test run captured instead of the code (`--payloads`), from this file, relative to the repository root. See [Check the events your UI tests send](./record-events-in-ui-tests.md#gitlab). |
+| `payloads_baseline` | `.tripl/check-payloads-baseline.json` | With `payloads`, the baseline used in place of `baseline`, when the file exists. Empty never uses one. |
+| `needs` | `[]` | The jobs to wait for and download artifacts from, by name: with `payloads`, the job that wrote the file. The default starts at once and downloads nothing. |
+| `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. Not applied with `payloads`. |
 | `pipelines` | `branches` | Where the job runs: `branches`, in branch pipelines on every branch; `merge_requests`, in merge request pipelines and on the default branch. See below. |
 | `strict` | `false` | Fail on warnings too. |
 | `args` | `""` | More `tripl check` arguments, separated by spaces. |
@@ -290,11 +294,15 @@ fetches the commits the gate needs into the shallow checkout; with
 `persist-credentials: false` on a private repository it cannot, so check
 out with `fetch-depth: 0` there. Its inputs
 match the GitLab template's: `version`, `base-url`, `api-key`, `project`,
-`check-config`, `directory`, `baseline`, `gate`, `strict` and `args`, plus
+`check-config`, `directory`, `baseline`, `payloads`, `payloads-baseline`,
+`gate`, `strict` and `args` (see
+[Check the events your UI tests send](./record-events-in-ui-tests.md#github-actions)
+for `payloads`), plus
 `pass-on-outage` (default `true`), `sarif` (default `true`; `false` skips
 the upload, for a repository without code scanning) and `category` (the code
 scanning category: `tripl-check`, or `tripl-check/<directory>` so that one
-step per app keeps each app's alerts). Its `exit-code` output
+step per app keeps each app's alerts; with `payloads`, `tripl-check-payloads`
+in its place). Its `exit-code` output
 is what `tripl check` exited with. For a tag that can never move, pin the
 commit instead: `tripl-io/tripl-check-action@<commit SHA> # vX.Y.Z`.
 [tripl-io/tripl-check-action](https://github.com/tripl-io/tripl-check-action)
@@ -465,6 +473,7 @@ full grammar and the comment forms for each language.
 
 **More detail:** the [`tripl check` guide](../integrate/tripl-check.md) covers
 the configuration, presets, enums, every finding and the
-[report formats](../integrate/tripl-check.md#output). For checking captured
-events from UI tests instead of source code, see
-[payload mode](../integrate/tripl-check.md#modes).
+[report formats](../integrate/tripl-check.md#output). To check the events
+your UI tests send as well as the code, see
+[Check the events your UI tests send](./record-events-in-ui-tests.md): how to
+record them, and the same templates with `payloads` set.
