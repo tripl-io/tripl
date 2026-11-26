@@ -8,8 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from tripl_cli import __version__
-from tripl_cli.commands import Abandon, Handler, register_all
-from tripl_cli.config import ENV_API_KEY, ENV_BASE_URL, resolve
+from tripl_cli.commands import Abandon, Handler, Offline, register_all
+from tripl_cli.config import ENV_API_KEY, ENV_BASE_URL, Config, resolve, unresolved
 from tripl_cli.errors import EXIT_USAGE, TriplError
 
 # 128 + SIGINT, the shell convention for "killed by Ctrl-C".
@@ -95,6 +95,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _settings(args: argparse.Namespace) -> Config:
+    """The connection settings for this run, resolved unless it talks to no instance.
+
+    Resolved for every other run, and safe to be: resolution touches the
+    filesystem but never the network, and never fails on merely ABSENT values —
+    only on a malformed file, a bad URL or a --config that does not exist. Each
+    command asks for what it needs with require_base_url / require_api_key.
+
+    A run that says it is offline (``tripl check --list``, ``tripl reproduce``,
+    ``tripl journey-capture``) is the exception. It would never use the
+    settings, so they are not read: a malformed ``TRIPL_BASE_URL`` exported for
+    another job, or a ``--config`` path that is not there, must not fail a run
+    that sends nothing.
+    """
+    offline: Offline | None = getattr(args, "offline", None)
+    if offline is not None and offline(args):
+        return unresolved()
+    try:
+        return resolve(
+            base_url=getattr(args, "url", None),
+            api_key=getattr(args, "api_key", None),
+            config_path=getattr(args, "config", None),
+        )
+    except BaseException:
+        # The handler never starts, so a command that must not leave an
+        # earlier run's files standing is told here instead.
+        abandon: Abandon | None = getattr(args, "abandon", None)
+        if abandon is not None:
+            abandon(args)
+        raise
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse, resolve configuration, dispatch. Returns the process exit code."""
     parser = build_parser()
@@ -110,24 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help(sys.stderr)
         return EXIT_USAGE
     try:
-        # Unconditional, and safe to be: resolution touches the filesystem but
-        # never the network, and never fails on merely ABSENT values — only on a
-        # malformed file or a --config that does not exist. Each command asks
-        # for what it needs with require_base_url / require_api_key.
-        try:
-            config = resolve(
-                base_url=getattr(args, "url", None),
-                api_key=getattr(args, "api_key", None),
-                config_path=getattr(args, "config", None),
-            )
-        except BaseException:
-            # The handler never starts, so a command that must not leave an
-            # earlier run's files standing is told here instead.
-            abandon: Abandon | None = getattr(args, "abandon", None)
-            if abandon is not None:
-                abandon(args)
-            raise
-        return handler(args, config)
+        return handler(args, _settings(args))
     except TriplError as exc:
         # Every expected failure is a message, never a traceback. A future
         # --debug that re-raises for the traceback goes here.
