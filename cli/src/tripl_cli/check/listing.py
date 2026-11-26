@@ -4,11 +4,12 @@ One line per call site the check config matches, in scan order, with what the
 scan read for each target; under a call with a value it did not read, one
 indented line per reason, the way ``tripl check`` prints findings under a
 result. Then the summary: the tally and the reasons per target, the functions
-that forward their own parameter into a tracking call (each wants a call spec of
-its own), and the calls that look like tracking but match no call spec. When
-the scan read a ``tripl-check-ignore`` marker: under each call the markers
-covering it, and after the summary how many there are and the ones that
-suppress nothing (malformed, or on no matched call). The
+that forward their own parameter into a tracking call, as a value or as its
+object argument (each wants a call spec of its own), and the calls that look
+like tracking but match no call spec. When the scan read a
+``tripl-check-ignore`` marker: under each call the markers covering it, and
+after the summary how many there are and the ones that suppress nothing
+(malformed, or on no matched call). The
 JSON document is ``tripl_cli.report.check_list_document``; both read their
 counts from ``inventory.summarize``, so the two cannot disagree.
 
@@ -23,6 +24,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 from tripl_cli.check import inventory
 from tripl_cli.check.inventory import (
+    ForwardedParameter,
     Forwarder,
     Inventory,
     ListedCall,
@@ -194,18 +196,21 @@ def _suppression_lines(call: ListedCall) -> list[str]:
     ]
 
 
-def _reason_text(code: str, read: ReadValue | None, unread_object: Value | None = None) -> str:
+def _reason_text(code: str, read: ReadValue | None, unread_object: ReadValue | None = None) -> str:
     """One target's reason as printed under its call.
 
     The code's short form, then what was written and, for a value refined from
     the function the call sits in, that function and the line to look at.
     ``not passed`` names an object argument the scan could not read: that is
-    why none of its keys reached a target.
+    why none of its keys reached a target. When the argument is a parameter
+    or a local of the function around the call, the line says so too.
     """
     if code == REASON_NOT_PASSED:
         if unread_object is None:
             return "not passed"
-        return f"not passed, object argument {unread_object.expression} is not a literal"
+        text = f"not passed, object argument {unread_object.value.expression} is not a literal"
+        where = _declared_text(unread_object, "")
+        return f"{text}: {where}" if where else text
     if read is None:
         return code.replace("_", " ")
     if code == REASON_WRONG_SHAPE:
@@ -213,22 +218,34 @@ def _reason_text(code: str, read: ReadValue | None, unread_object: Value | None 
         shown = f'"{_flat(value.text or "")}"' if value.kind == "text" else _shown(value)
         return f"wrong shape {shown}"
     expression = read.value.expression
-    declared = read.declared
-    if (
-        code in (REASON_PARAMETER, REASON_PARAMETER_PROPERTY)
-        and declared is not None
-        and declared.parameter is not None
-    ):
-        name = declared.parameter.name
-        where = f"parameter {name} of {declared.function} (line {declared.line})"
-        if code == REASON_PARAMETER:
-            return where
-        return f"{expression}: property of {where}" if expression else f"property of {where}"
-    if code == REASON_LOCAL and declared is not None:
-        return f"local {expression} (line {declared.line})"
+    where = _declared_text(read, expression) if code == read.reason else None
+    if where is not None:
+        return where
     if code == REASON_FORMAT and expression.startswith("format of "):
         return expression
     return f"{code.replace('_', ' ')} {expression}".rstrip()
+
+
+def _declared_text(read: ReadValue, expression: str) -> str | None:
+    """Where a value refined from its function comes from, None for any other value.
+
+    ``expression`` is what was written, shown before a parameter's property;
+    empty when the line has already said it.
+    """
+    declared = read.declared
+    if declared is None:
+        return None
+    if read.reason in (REASON_PARAMETER, REASON_PARAMETER_PROPERTY):
+        if declared.parameter is None:
+            return None
+        name = declared.parameter.name
+        where = f"parameter {name} of {declared.function} (line {declared.line})"
+        if read.reason == REASON_PARAMETER:
+            return where
+        return f"{expression}: property of {where}" if expression else f"property of {where}"
+    if read.reason == REASON_LOCAL:
+        return f"local {read.value.expression} (line {declared.line})"
+    return None
 
 
 # --- the summary ---------------------------------------------------------------------
@@ -320,11 +337,7 @@ def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:
         [
             forwarder.function,
             f"{forwarder.location.path}:{forwarder.location.line}",
-            "forwards "
-            + ", ".join(
-                f"{parameter.name} (#{parameter.index}) to {_and(parameter.targets)}"
-                for parameter in forwarder.parameters
-            ),
+            "forwards " + ", ".join(_forwarded(parameter) for parameter in forwarder.parameters),
             _callers(forwarder),
         ]
         for forwarder in forwarders
@@ -334,6 +347,25 @@ def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:
         "(add a call spec for each, so their calls are read):",
         *(f"  {line}" for line in columns(rows)),
     ]
+
+
+def _forwarded(parameter: ForwardedParameter) -> str:
+    """One forwarded parameter: its targets, and whether a call takes it as its object.
+
+    ``object_arg:`` reads an argument by position, and only one written
+    without a label. So for a parameter passed on as the object whose callers
+    may label it (always in Swift, by choice in Kotlin), the row says which
+    calls a call spec for the function will not read.
+    """
+    where: list[str] = []
+    if parameter.targets:
+        where.append(f"to {_and(parameter.targets)}")
+    if parameter.object_argument:
+        where.append("as the object argument")
+    text = f"{parameter.name} (#{parameter.index}) {' and '.join(where)}"
+    if parameter.object_argument and parameter.label is not None:
+        text += f" (object_arg does not read an argument labelled {parameter.label})"
+    return text
 
 
 def _callers(forwarder: Forwarder) -> str:
