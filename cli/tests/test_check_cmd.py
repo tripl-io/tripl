@@ -1817,6 +1817,10 @@ def test_list_json_items_are_within_the_validator_s_limits(
         ([], "--report writes a check's verdicts, and --list checks nothing"),
         (["--branch", "redesign"], "--branch names the plan branch to check against"),
         (["--strict"], "--strict changes what fails a check, and --list checks nothing"),
+        (
+            ["--strict-suppressions"],
+            "--strict-suppressions fails a check on its markers, and --list checks nothing",
+        ),
         (["--allow-empty"], "--list never fails because nothing matched; drop --allow-empty."),
         (["--format", "sarif"], "--list prints text or JSON, not sarif; drop --format sarif."),
         (["--format", "codequality"], "--list prints text or JSON, not codequality"),
@@ -2126,6 +2130,110 @@ def test_an_unused_marker_is_listed_and_never_fails(
             "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
             "matched no finding."
         ) in out
+
+
+# A call the plan has, under a marker that therefore waives nothing.
+STALE = (
+    "func o() {\n"
+    "    // tripl-check-ignore[unknown_event] -- the call below was fixed\n"
+    '    Analytics.shared.logEvent("trial_started")\n'
+    "}\n"
+)
+
+
+def test_strict_suppressions_fails_a_clean_run_on_an_unused_marker(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check"]) == 0
+    assert "fail the run" not in capsys.readouterr().out
+    assert main(["check", "--strict-suppressions"]) == 1
+    out = capsys.readouterr().out
+    assert out.rstrip().endswith(
+        "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
+        "matched no finding.\n"
+        "1 suppression marker fails the run (--strict-suppressions)."
+    )
+
+
+def test_strict_suppressions_fails_on_a_malformed_marker_whatever_it_covers(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Above no call at all, and with no reason: nothing fails but the marker.
+    _write(repo, {"Sources/Note.swift": "// tripl-check-ignore[unknown_event]\nfunc n() {}\n"})
+    assert main(["check"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run (--strict-suppressions)." in capsys.readouterr().out
+
+
+def test_strict_suppressions_passes_a_marker_that_did_its_job(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, _debug("// tripl-check-ignore[unknown_event] -- debug menu only"))
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["summary"]["failing_suppressions"] == 0
+    assert [entry["fails"] for entry in document["suppressions"]] == [False]
+
+
+def test_the_json_names_the_failing_markers_only_with_the_flag(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--json"]) == 0
+    plain = json.loads(capsys.readouterr().out)
+    assert "failing_suppressions" not in plain["summary"]
+    assert all("fails" not in entry for entry in plain["suppressions"])
+    assert main(["check", "--json", "--strict-suppressions"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["exit_code"] == 1
+    # `failing` counts calls, and no call fails: the marker is counted apart.
+    assert document["summary"]["failing"] == 0
+    assert document["summary"]["failing_suppressions"] == 1
+    [entry] = document["suppressions"]
+    assert (entry["used"], entry["fails"]) == (False, True)
+
+
+def test_a_dynamic_value_marker_is_not_unused_in_a_run_that_cannot_raise_it(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    marked = (
+        "func d(l: String) {\n"
+        "    // tripl-check-ignore[dynamic_value] -- the label is the screen name\n"
+        "    Analytics.shared.log(category: .home, action: .open, label: l)\n"
+        "}\n"
+    )
+    _write(repo, {"Sources/Dyn.swift": marked})
+    # --strict raises the finding and the marker waives it; without --strict
+    # the finding is not raised, so the marker is listed and does not fail.
+    assert main(["check", "--strict-suppressions"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Dyn.swift:2" in out
+    assert "fail the run" not in out
+    assert main(["check", "--strict", "--strict-suppressions", "--json"]) == 0
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (True, False)
+
+
+def test_strict_suppressions_does_not_fail_a_run_that_writes_a_baseline(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--strict-suppressions", "--write-baseline", "known.json"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Old.swift:2" in out
+    assert "fail the run (--strict-suppressions)" not in out
+
+
+def test_strict_suppressions_is_refused_with_payloads_before_any_request(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capture = repo / "capture.ndjson"
+    capture.write_text('{"event_type": "legacy", "name": "trial_started"}\n', encoding="utf-8")
+    assert main(["check", "--payloads", str(capture), "--strict-suppressions"]) == 2
+    assert "a captured event has no source to hold one" in capsys.readouterr().err
+    assert not validator.called
 
 
 def test_every_format_shows_the_suppression_from_one_run(

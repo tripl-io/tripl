@@ -63,7 +63,9 @@ never changes the exit code.
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime) that no
 ``tripl-check-ignore`` marker suppresses (``check/suppress.py``) and that, under
-a gate, is new in the change; 2 for a bad config, a bad payload file, a bad
+a gate, is new in the change, and, with ``--strict-suppressions``, when a
+``tripl-check-ignore`` marker is malformed or waived nothing
+(``CheckReport.failing_markers``); 2 for a bad config, a bad payload file, a bad
 invocation, a change that cannot be read (no git, an unknown REF, an
 unreadable patch), or a config that matches no call
 at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
@@ -71,7 +73,7 @@ unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
 refuses the key is exit 1, with the reason on stderr. ``--list`` exits 0
 whenever the scan ran, a reader that closed the pipe early included, and 2 for
 a bad config or a flag it refuses (``--report``, ``--branch``, ``--strict``,
-``--allow-empty``, and a ``--format`` other than text or JSON).
+``--strict-suppressions``, ``--allow-empty``, and a ``--format`` other than text or JSON).
 
 ``--check-config`` rather than ``--config``: ``--config`` is already the global
 flag naming the CLI's own connection settings file, on every command.
@@ -215,8 +217,9 @@ def register(
             "fail the run; with --baseline, only findings the baseline file does not hold "
             "(write it with --write-baseline). "
             "Exits 1 on any error (or warning, with --strict) that is not suppressed (and, "
-            "with a gate, is new in the change, and with a baseline, is not in it), 4 when "
-            "the instance was unavailable."
+            "with a gate, is new in the change, and with a baseline, is not in it), and, "
+            "with --strict-suppressions, on a tripl-check-ignore marker that is malformed "
+            "or suppresses nothing; 4 when the instance was unavailable."
         ),
     )
     add_check_config(parser)
@@ -320,6 +323,16 @@ def register(
         "--strict",
         action="store_true",
         help="exit 1 on warnings too, and report values that are only known at runtime",
+    )
+    parser.add_argument(
+        "--strict-suppressions",
+        dest="strict_suppressions",
+        action="store_true",
+        help=(
+            "exit 1 on a tripl-check-ignore marker that is malformed or that suppressed "
+            "nothing in this run; with --new-from-rev or --new-from-patch, only in the "
+            "files the change touches"
+        ),
     )
     parser.add_argument(
         "--format",
@@ -525,6 +538,11 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         return (
             "--strict changes what fails a check, and --list checks nothing (it already "
             "lists every value the scan could not read); drop --strict."
+        )
+    if args.strict_suppressions:
+        return (
+            "--strict-suppressions fails a check on its markers, and --list checks nothing; "
+            "drop --strict-suppressions."
         )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
@@ -759,7 +777,12 @@ def default_runner() -> Runner:
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
-    refusal = _gate_refusal(args) or _baseline_refusal(args, targets) or _coverage_refusal(args)
+    refusal = (
+        _gate_refusal(args)
+        or _baseline_refusal(args, targets)
+        or _coverage_refusal(args)
+        or _suppressions_refusal(args)
+    )
     if refusal is not None:
         raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
@@ -906,6 +929,9 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         coverage=covered,
         changes=compared,
         plan=_plan_pin(pin, answered),
+        # --write-baseline records the findings and exits 0 unless a call got no
+        # verdict; a baseline cannot hold a marker, so a marker must not fail it.
+        strict_suppressions=args.strict_suppressions and args.write_baseline is None,
     )
     report, written = _with_baseline(args, report, baseline)
     # Every file before anything is printed: a report that cannot be written
@@ -1050,6 +1076,16 @@ async def _coverage(
     events = await _planned_events(reader, project, branch)
     scanned = (spec.name for spec in check_config.event_types if spec.calls)
     return coverage_mod.build(events, type_names, scanned, results)
+
+
+def _suppressions_refusal(args: argparse.Namespace) -> str | None:
+    if args.strict_suppressions and args.payloads is not None:
+        return (
+            "--strict-suppressions fails a check on the tripl-check-ignore markers in the "
+            "source, and a captured event has no source to hold one; drop "
+            "--strict-suppressions."
+        )
+    return None
 
 
 def _with_baseline(

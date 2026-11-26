@@ -167,6 +167,24 @@ def test_a_name_cannot_break_out_of_its_table_cell() -> None:
     assert summary._code("a|b`c\nd") == "`a\\|b'c d`"
 
 
+def test_the_summary_names_the_markers_that_fail_the_run(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stale = "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+    (repo / "Sources/Old.swift").write_text(stale, encoding="utf-8")
+    (repo / "Sources/Legacy.swift").unlink()  # the one call of the fixture that fails
+    assert main(["check", "--format", "markdown"]) == 0
+    assert "suppression marker" not in capsys.readouterr().out
+    assert main(["check", "--format", "markdown", "--strict-suppressions"]) == 1
+    out = capsys.readouterr().out
+    assert "**Check failed:**" in out
+    assert out.endswith(
+        "\n"
+        "**1 suppression marker fails the run** (`--strict-suppressions`):\n"
+        "- `Sources/Old.swift:1` tripl-check-ignore[unknown_field] matched no finding\n"
+    )
+
+
 def test_the_summary_sample_in_the_guide_is_real_output(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:

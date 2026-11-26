@@ -30,6 +30,7 @@ from tripl_cli.check.model import (
     CheckReport,
     CheckResult,
 )
+from tripl_cli.check.render import marker_message
 from tripl_cli.check.validate import summary as tally
 from tripl_cli.render import plural
 
@@ -231,6 +232,24 @@ def _finding_lines(report: CheckReport) -> list[str]:
     )
     if total > shown:
         lines.append(f"- and {total - shown} more.")
+    return lines + _marker_lines(report)
+
+
+def _marker_lines(report: CheckReport) -> list[str]:
+    """The markers that fail the run (``--strict-suppressions``), so a failed check says why."""
+    failing = report.failing_markers
+    if not failing:
+        return []
+    lines = [
+        "",
+        f"**{plural(len(failing), 'suppression marker')} "
+        f"{'fails' if len(failing) == 1 else 'fail'} the run** (`--strict-suppressions`):",
+    ]
+    for state in failing[:MAX_FINDINGS]:
+        marker = state.marker
+        lines.append(f"- {_code(f'{marker.path}:{marker.line}')} {marker_message(state)}")
+    if len(failing) > MAX_FINDINGS:
+        lines.append(f"- and {len(failing) - MAX_FINDINGS} more.")
     return lines
 
 

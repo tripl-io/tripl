@@ -196,6 +196,13 @@ def render_text(report: CheckReport) -> str:
     if report.baseline is not None:
         lines.extend(baseline_lines(report, known))
     lines.extend(_marker_lines(report))
+    failing = len(report.failing_markers)
+    if failing:
+        # An exit 1 the tally above does not explain: no call fails, a marker does.
+        lines.append(
+            f"{plural(failing, 'suppression marker')} {'fails' if failing == 1 else 'fail'} "
+            "the run (--strict-suppressions)."
+        )
     if report.skipped:
         lines.append(render_skipped(report.skipped))
     if report.coverage is not None:

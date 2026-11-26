@@ -526,6 +526,28 @@ def test_sarif_marker_results_say_whether_they_are_in_the_change(
     assert markers == {"Sources/New.swift": True, "Sources/Old.swift": False}
 
 
+def test_strict_suppressions_fails_a_gated_run_only_on_a_marker_in_the_change(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stale = "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+    _write(repo, {"Sources/Old.swift": stale})
+    # The change touches another file: the stale marker is not its doing.
+    patch = save(repo, change(repo, {"Sources/New.swift": "func n() {}\n"}))
+    assert main(["check", "--new-from-patch", patch, "--strict-suppressions", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["summary"]["failing_suppressions"] == 0
+    assert [entry["fails"] for entry in document["suppressions"]] == [False]
+    # A change that brings a marker like it in fails on that one alone.
+    patch = save(repo, change(repo, {"Sources/New.swift": stale}))
+    assert main(["check", "--new-from-patch", patch, "--strict-suppressions", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert {entry["location"]["path"]: entry["fails"] for entry in document["suppressions"]} == {
+        "Sources/New.swift": True,
+        "Sources/Old.swift": False,
+    }
+    assert main(["check", "--new-from-patch", patch]) == 0
+
+
 # --- the plan branch --------------------------------------------------------------------------
 def _branchy(archived: set[str], *, main_status: int = 200) -> Any:
     """The synthetic validator, where the plan branch archives ``archived`` events."""
