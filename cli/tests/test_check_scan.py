@@ -1387,6 +1387,38 @@ def test_a_function_declaration_is_not_sent_as_a_call(
     assert [call.items[0].name for call in inventory(config).calls] == ["screen_view"]
 
 
+def test_jsx_text_that_says_interface_does_not_hide_a_call(tmp_path: Path) -> None:
+    """UI copy with the word ``interface`` before a ``{…}`` child is no interface.
+
+    Read as one, the call that starts the child would be a method declaration,
+    and plain check would drop it without a word.
+    """
+    root = _repo(
+        tmp_path,
+        {
+            "web/Banner.tsx": """
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            """
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name, "field:screen"]}]}
+        """,
+    )
+
+    items = scan(config).items
+
+    assert [(item.name, dict(item.fields)) for item in items] == [
+        ("banner_seen", {"screen": "home"})
+    ]
+
+
 # --- function scopes -----------------------------------------------------------------
 def _scope_at(language: str, source: str, marker: str = "log") -> FunctionScope | None:
     """The innermost function scope around the first ``marker(`` call in ``source``."""
@@ -1874,6 +1906,27 @@ def _bodiless(language: str, source: str) -> list[str]:
                 "delete(key)",
                 "trackPage(page)",
             ],
+        ),
+        # A header of any length still opens an interface body, and an untyped
+        # construct signature declares there too. The word `interface` in JSX
+        # text starts no declaration, so the call in the `{…}` after it stays a
+        # call, whatever follows the word.
+        (
+            "ts",
+            "export interface Wide extends "
+            + ", ".join(f"Base{number}<T>" for number in range(40))
+            + """ {
+              track(name, props);
+              new(config);
+            }
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            export function Reset() {
+              return <p>Reset interface layout {logEvent("reset_shown")}</p>;
+            }
+            """,
+            ["track(name, props)", "new(config)"],
         ),
     ],
 )
