@@ -44,7 +44,12 @@ where it gives up:
     message only there: in Swift and TypeScript ``[…]`` is a literal). Told
     from the shape before anything else, since a format is a call too. A member
     call binds tighter than an operator, so ``"a" + y.format(z)`` is a
-    concatenation and ``("a" + y).format(z)`` a format. When the format string
+    concatenation and ``("a" + y).format(z)`` a format. A comparison, a range
+    or a word operator does the same: ``a < y.format(z)``, ``a..y.format(z)``
+    and ``a to y.format(z)`` are an ``expression``, while type arguments
+    (``pick<String>(a).format(z)``) are no comparison. A word operator is any
+    name between two operands in Kotlin (an infix call), and ``instanceof``,
+    TypeScript's ``in`` and Swift's ``is`` elsewhere. When the format string
     reads as text, ``expression`` is ``format of <template>``.
 ``function``
     A call of a function the index cannot read: it reads one whose every
@@ -105,11 +110,38 @@ _FORMAT_METHODS = frozenset({"format", "formatted"})
 _OBJC_FORMATS = frozenset({"stringWithFormat", "localizedStringWithFormat"})
 _CHOICE_KEYWORDS = frozenset({"if", "when", "switch"})
 # Binary operators, assignment and a lambda's arrow: each binds looser than a
-# member call.
+# member call. A comparison `<` / `>` does too, but the same tokens also open
+# and close a type-argument list (`listOf<String>()`), so `_has_operator`
+# tells the two apart before counting one.
 _OPERATORS = frozenset(
     {"+", "-", "*", "/", "%", "&", "|", "^", "==", "!=", "===", "!==", "<=", ">="}
     | {"&&", "||", "??", "=", "->", "=>"}
+    # Ranges: Kotlin's `..<`, Swift's `...` and `..<`. Kotlin's `..` is two
+    # `.` tokens, which `_has_operator` checks for apart.
+    | {"...", "..<"}
 )
+# Operators written as words, per language. In Kotlin any name that stands
+# right after an operand is an infix call (`a to b`, `a zip b`, `a !in b`),
+# so there the words are the keywords that also follow an operand but join
+# no operands: the rest of an `if`, a `try`. Elsewhere only these words are
+# operators: `instanceof` and TypeScript's `in`, Swift's `is`. Like the
+# operators above, each binds looser than a member call.
+_INFIX_WORDS: dict[str, frozenset[str]] = {
+    "ts": frozenset({"instanceof", "in"}),
+    "java": frozenset({"instanceof"}),
+    "swift": frozenset({"is"}),
+}
+_KOTLIN_NOT_INFIX = frozenset({"else", "catch", "finally"})
+# What a type-argument list may hold between its angle brackets besides
+# names, literals (TypeScript's `pick<"a">`) and bracketed groups (a function
+# type's parameters, a TypeScript object type or tuple): qualified names,
+# nested lists, `,`, Kotlin's `?` and `*`, Java's `?` wildcard, TypeScript's
+# `&` / `|`, and a function type's arrow.
+_TYPE_ARGUMENT_PUNCT = (",", ".", "?", "*", "&", "|", "->", "=>")
+# What may follow a type-argument list: a call, a member, a reference,
+# Kotlin's trailing lambda (`run<String> { … }`), TypeScript's indexed
+# access (`Foo<T>["k"]`).
+_AFTER_TYPE_ARGUMENTS = ("(", ".", "?.", "::", "{", "[")
 _OPENING = ("(", "[", "{")
 _CLOSING = (")", "]", "}")
 
@@ -324,12 +356,25 @@ class Evaluator:
         path: list[str] = []
         called: str | None = None
         position = 0
+        # Two names with no `.` / `?.` / `::` between them (`a to b`, Kotlin's
+        # `a !in b`), or two touching dots (Kotlin's range `a..b`), are an
+        # operator, and an operator binds looser than a path or a call: what
+        # it makes is no reference, so `a to f()` calls no `f`.
+        joined = True
         while position < len(body):
             token = body[position]
             if token.kind == IDENT:
+                if not joined:
+                    return None
                 path.append(token.text)
+                joined = False
                 position += 1
-            elif token.is_punct(".", "?.", "::", "?", "!"):
+            elif token.is_punct(".", "?.", "::"):
+                if position > 0 and _range_dots(body, position - 1):
+                    return None
+                joined = True
+                position += 1
+            elif token.is_punct("?", "!"):
                 position += 1
             elif token.is_punct("(") and path:
                 close = matching(list(body), position)
@@ -636,7 +681,7 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
             and span[opening - 2].is_punct(".", "?.")
         ):
             receiver = span[: opening - 2]
-            if _has_operator(receiver):
+            if _has_operator(receiver, language):
                 return None
             if not receiver or not receiver[-1].is_ident("String"):
                 return receiver
@@ -687,18 +732,138 @@ def _opening(span: list[Token], close: int) -> int:
     return -1
 
 
-def _has_operator(span: list[Token]) -> bool:
-    """A choice, or an operator at ``span``'s top level: a binary one, ``=``, a lambda's arrow.
+def _has_operator(span: list[Token], language: str) -> bool:
+    """A choice, or an operator at ``span``'s top level.
 
-    The first token is none: a leading ``-`` or ``*`` is unary.
+    An operator is a binary one, ``=``, a lambda's arrow, a range, a
+    comparison ``<`` / ``>`` that does not bracket type arguments, or a word
+    operator (``_has_infix_word``). The first token is none: a leading ``-``
+    or ``*`` is unary. What stands inside type arguments is no operator
+    either: ``Class<*>``, ``Foo<A | B>``.
     """
     if not span:
         return False
-    return _is_choice(span) or any(
-        token.kind == PUNCT and token.text in _OPERATORS
+    if _is_choice(span):
+        return True
+    types = _type_arguments(span)
+    return any(
+        token.kind == PUNCT
+        and (token.text in _OPERATORS or token.text in ("<", ">") or _range_dots(span, index))
+        for index, token in _top_level(span)
+        if index > 0 and index not in types
+    ) or _has_infix_word(span, language, skip=types)
+
+
+def _range_dots(span: list[Token], index: int) -> bool:
+    """``span[index]`` is the first of the two touching dots of Kotlin's range ``a..b``."""
+    following = index + 1
+    return (
+        span[index].is_punct(".")
+        and following < len(span)
+        and span[following].is_punct(".")
+        and span[index].end == span[following].offset
+    )
+
+
+def _has_infix_word(span: list[Token], language: str, skip: frozenset[int]) -> bool:
+    """A word operator at ``span``'s top level, outside the indexes in ``skip``.
+
+    A word counts only right after an operand, so a variable that shares the
+    name stays a variable: ``to.format(z)`` and ``x.step.format(z)`` hold none,
+    ``a to b``, ``a zip b`` and Kotlin's ``a !in b`` and ``a!! to b`` hold one.
+    """
+    words = _INFIX_WORDS.get(language)
+    if words is None and language != "kotlin":
+        return False
+    return any(
+        token.kind == IDENT
+        and (token.text in words if words is not None else token.text not in _KOTLIN_NOT_INFIX)
+        and index not in skip
+        and _follows_operand(span, index)
         for index, token in _top_level(span)
         if index > 0
     )
+
+
+def _follows_operand(span: list[Token], index: int) -> bool:
+    """``span[index]`` comes right after an operand.
+
+    An operand ends in a name, a literal or a closing bracket, then any
+    number of ``!``: Kotlin's not-null ``a!!``, and the ``!`` that Kotlin
+    writes before ``in`` / ``is`` to negate them. A Kotlin annotation
+    (``@Keep``, ``@Suppress("x")``) ends the same way but is no operand.
+    """
+    before = index - 1
+    while before >= 0 and span[before].is_punct("!"):
+        before -= 1
+    if before < 0:
+        return False
+    token = span[before]
+    if not (token.kind in (IDENT, STRING, NUMBER) or token.is_punct(*_CLOSING)):
+        return False
+    return not _is_annotation(span, before)
+
+
+def _is_annotation(span: list[Token], end: int) -> bool:
+    """``span[end]`` ends an annotation: ``@Name``, ``@a.b.Name`` or ``@Name(…)``.
+
+    A label (``this@Outer``) has a name before its ``@``; an annotation has
+    none.
+    """
+    name = _opening(span, end) - 1 if span[end].is_punct(")") else end
+    while name >= 0 and span[name].kind == IDENT:
+        if name >= 2 and span[name - 1].is_punct("."):
+            name -= 2
+            continue
+        at = name - 1
+        return at >= 0 and span[at].is_punct("@") and (at == 0 or span[at - 1].kind != IDENT)
+    return False
+
+
+def _type_arguments(span: list[Token]) -> frozenset[int]:
+    """The indexes of ``span`` inside a top-level type-argument list, brackets included.
+
+    A ``<`` opens one when its ``>`` closes it over nothing but a type (names,
+    literals, bracketed groups and ``_TYPE_ARGUMENT_PUNCT``) and the list is
+    placed where type arguments go: before a call, a member, a reference, a
+    trailing lambda or an index (``listOf<String>(a)``, ``Foo<Bar>.NAME``,
+    ``run<String> { s }``, ``Foo<T>["k"]``), at the end, after a ``.``
+    (Java's ``Util.<String>pick(a)``), or opening the span (TypeScript's
+    ``<string>x``). Any other ``<`` or ``>`` is a comparison or a shift.
+
+    One pass pairs the brackets: a token no type holds closes every ``<``
+    still open, as none of them can be type arguments any more.
+    """
+    pairs: list[tuple[int, int]] = []
+    open_angles: list[int] = []
+    depth = 0
+    for index, token in enumerate(span):
+        if token.kind == PUNCT and token.text in _OPENING:
+            depth += 1
+        elif token.kind == PUNCT and token.text in _CLOSING:
+            depth -= 1
+        elif depth != 0:
+            continue
+        elif token.is_punct("<"):
+            open_angles.append(index)
+        elif token.is_punct(">"):
+            if open_angles:
+                pairs.append((open_angles.pop(), index))
+        elif token.kind == PUNCT and not token.is_punct(*_TYPE_ARGUMENT_PUNCT):
+            open_angles.clear()
+    inside: set[int] = set()
+    for opening, close in sorted(pairs):
+        if opening in inside:
+            continue
+        placed = (
+            opening == 0
+            or span[opening - 1].is_punct(".")
+            or close == len(span) - 1
+            or span[close + 1].is_punct(*_AFTER_TYPE_ARGUMENTS)
+        )
+        if placed:
+            inside.update(range(opening, close + 1))
+    return frozenset(inside)
 
 
 def _is_choice(span: list[Token]) -> bool:

@@ -1180,8 +1180,20 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "function": "logEvent",
         "location": {"path": "app/Screen.kt", "line": 2},
         "parameters": [
-            {"name": "event", "index": 0, "label": "event", "targets": ["name"]},
-            {"name": "params", "index": 1, "label": "params", "targets": ["properties"]},
+            {
+                "name": "event",
+                "index": 0,
+                "label": "event",
+                "targets": ["name"],
+                "object_argument": False,
+            },
+            {
+                "name": "params",
+                "index": 1,
+                "label": "params",
+                "targets": ["properties"],
+                "object_argument": False,
+            },
         ],
         "calls": 1,
         # By name, its own body left out: the call it forwards to is no caller.
@@ -1560,7 +1572,8 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "app/A.kt:3:5  st  tracker.trackStructured\n"
         "    name: not passed\n"
         "web/t.ts:2:3  se  trackStructEvent\n"
-        "    name: not passed, object argument evt is not a literal\n"
+        "    name: not passed, object argument evt is not a literal: "
+        "parameter evt of send (line 1)\n"
         "web/t.ts:5:3  se  trackStructEvent  category=checkout action=tap\n"
         "web/t.ts:6:3  se  trackStructEvent\n"
         "    name: not passed\n"
@@ -1576,10 +1589,18 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "(no argument or object key the spec maps to one, only null ones, or an object "
         "argument that is not a literal)\n"
         "\n"
+        # Both functions pass their own parameter on as the object argument,
+        # the second into a call whose name is read.
+        "Functions that forward their own parameter into a tracking call "
+        "(add a call spec for each, so their calls are read):\n"
+        "  opened  web/t.ts:8  forwards props (#0) as the object argument  no calls found\n"
+        "  send    web/t.ts:1  forwards evt (#0) as the object argument    no calls found\n"
+        "\n"
         "Calls that look like tracking but match no call spec: none.\n"
     )
     assert main(["check", "--list", "--json"]) == 0
-    calls = json.loads(capsys.readouterr().out)["calls"]
+    document = json.loads(capsys.readouterr().out)
+    calls = document["calls"]
     assert [call["dynamic"] for call in calls] == [
         {"name": "not_passed"},
         {"name": "not_passed"},
@@ -1590,22 +1611,42 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     ]
     # The document names the object argument the text does: one the scan could
     # not read. A literal one, or null, is no such argument. It names one on a
-    # call whose name is read too, where the text says nothing of it.
+    # call whose name is read too, where the text has no reason line for it.
+    # Its reason is refined from the function around the call.
     unread = {
         "kind": "dynamic",
         "text": None,
         "choices": [],
         "entries": None,
-        "reason": "variable",
-        "declared": None,
+        "reason": "parameter",
     }
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt"},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
         None,
         None,
-        {**unread, "expression": "props"},
+        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+    ]
+    assert [
+        (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
+    ] == [
+        (
+            "opened",
+            [
+                {
+                    "name": "props",
+                    "index": 0,
+                    "label": None,
+                    "targets": [],
+                    "object_argument": True,
+                }
+            ],
+        ),
+        (
+            "send",
+            [{"name": "evt", "index": 0, "label": None, "targets": [], "object_argument": True}],
+        ),
     ]
 
 
@@ -2032,15 +2073,81 @@ def test_plain_check_json_survives_a_stderr_that_cannot_be_written(
 
 
 def test_a_closed_stdout_is_no_failure_but_one_that_cannot_be_written_is(
-    listed: Path, offline: None, monkeypatch: pytest.MonkeyPatch
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     # `tripl check --list >&-`: there is nowhere to write, so nothing failed.
     monkeypatch.setattr(sys, "stdout", None)
     assert main(["check", "--list"]) == 0
-    # On the output itself only a reader that went away ends it quietly.
+    # On the output itself only a reader that went away ends it quietly. A full
+    # disk is one line and exit 1, not a traceback: the listing did not get out.
     monkeypatch.setattr(sys, "stdout", _FullDisk())
-    with pytest.raises(OSError, match="No space left on device"):
-        main(["check", "--list"])
+    assert main(["check", "--list"]) == 1
+    assert capsys.readouterr().err == "tripl: cannot write to stdout: No space left on device\n"
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs a device that is always full")
+@pytest.mark.parametrize("flags", [[], ["--json"]])
+def test_a_listing_to_a_full_disk_is_one_line_and_exit_1(
+    listed: Path,
+    offline: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flags: list[str],
+) -> None:
+    stream = open("/dev/full", "w", encoding="utf-8")  # noqa: SIM115 - closed below
+    monkeypatch.setattr(sys, "stdout", stream)
+    assert main(["check", "--list", *flags]) == 1
+    err = capsys.readouterr().err
+    assert err.endswith("tripl: cannot write to stdout: No space left on device\n")
+    assert "Traceback" not in err
+    # What the interpreter does at exit: with the full device still there it
+    # would fail again, and the process would exit 120.
+    stream.flush()
+    stream.close()
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs a device that is always full")
+def test_a_listing_with_stderr_on_the_full_disk_too_still_exits_1(
+    listed: Path, offline: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `tripl check --list > /dev/full 2>&1`: the one line cannot be said either,
+    # so the exit code is what reports it. stderr is line-buffered, as for real.
+    out = open("/dev/full", "w", encoding="utf-8")  # noqa: SIM115 - closed below
+    err = open("/dev/full", "w", buffering=1, encoding="utf-8")  # noqa: SIM115
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", err)
+    assert main(["check", "--list"]) == 1
+    # The interpreter's flushes at exit: they would fail, and exit 120, on a
+    # stream still pointing at the full device.
+    for stream in (out, err):
+        stream.flush()
+        stream.close()
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs a device that is always full")
+@pytest.mark.parametrize("flags", [[], ["--json"], ["--format", "sarif"]])
+def test_a_check_that_passed_but_could_not_print_fails_and_leaves_no_report(
+    repo: Path,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flags: list[str],
+) -> None:
+    report = repo / "tripl-check.xml"
+    stream = open("/dev/full", "w", encoding="utf-8")  # noqa: SIM115 - closed below
+    monkeypatch.setattr(sys, "stdout", stream)
+    assert main(["check", *flags, "--report", f"junit={report}"]) == 1
+    err = capsys.readouterr().err
+    assert err.endswith("tripl: cannot write to stdout: No space left on device\n")
+    assert "Traceback" not in err
+    # A run that failed has no report, as when a report cannot be written.
+    assert not report.exists()
+    stream.flush()
+    stream.close()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="a closed POSIX pipe raises EPIPE")
@@ -2157,6 +2264,14 @@ def test_print_preset_to_a_reader_that_left_still_exits_0(
     stream.flush()
     stream.close()
     assert capsys.readouterr().err == ""
+
+
+def test_print_preset_to_a_full_disk_is_one_line_and_exit_1(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys, "stdout", _FullDisk())
+    assert main(["check", "--print-preset"]) == 1
+    assert capsys.readouterr().err == "tripl: cannot write to stdout: No space left on device\n"
 
 
 def test_an_unknown_preset_is_the_parser_s_refusal_naming_the_presets(
