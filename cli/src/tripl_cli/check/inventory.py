@@ -4,9 +4,10 @@
 check config needs that rest. For every call the config matches: what was read
 for each target and, for a value that was not, why (``model.REASON_CODES``:
 the evaluator's reason, refined here from the function the call sits in). Then
-the functions that forward their own parameter into a tracking call, whose
-callers hold the value and want a call spec of their own; and the calls that
-look like tracking but match no call spec.
+the functions that forward their own parameter into a tracking call, as a
+target's value or as the object argument, whose callers hold the value and
+want a call spec of their own; and the calls that look like tracking but match
+no call spec.
 
 ``inventory()`` runs ``scan``'s own passes, so what it lists is what ``tripl
 check`` reads; and nothing here flows back into ``scan()``, so what ``tripl
@@ -126,8 +127,9 @@ class Read:
     # The labels, or `#index`, of the arguments the spec maps to no target.
     unmapped: tuple[str, ...] = ()
     # The object argument, when it is no literal the scan reads (a variable, a
-    # call): then none of its keys reached a target.
-    unread_object: Value | None = None
+    # call): then none of its keys reached a target. Its reason is refined
+    # like a target's, so a parameter passed on as the object names its function.
+    unread_object: ReadValue | None = None
 
     def targets(self) -> Iterator[tuple[str, ReadValue]]:
         """``(target, value)`` for the name, each field, then properties.
@@ -193,12 +195,21 @@ class UnmatchedGroup:
 
 @dataclass(frozen=True)
 class ForwardedParameter:
-    """A parameter a forwarder passes on, and the targets it reaches there."""
+    """A parameter a forwarder passes on, and where it goes there.
+
+    ``targets`` are the targets it reaches as a value; ``object_argument``
+    says a tracking call takes it whole as its object argument, whose keys
+    are the targets. A parameter forwarded only that way has no ``targets``.
+    ``label`` is what a caller may write before the argument (Swift's
+    external label, the name itself in Kotlin): a call spec's ``object_arg``
+    reads an argument only when it is written without one.
+    """
 
     name: str
     index: int
     label: str | None
     targets: tuple[str, ...]
+    object_argument: bool = False
 
 
 @dataclass(frozen=True)
@@ -224,7 +235,8 @@ class Callers:
 class Forwarder:
     """A function whose own parameter is a value a matched call could not read.
 
-    The value is in its callers, so a call spec for this function reads them.
+    That value is a target's, or the call's whole object argument. It is in
+    the function's callers, so a call spec for this function reads them.
     ``function`` is the name they call it by: a Swift ``init``'s or a
     TypeScript ``constructor``'s is its type's (``ScreenView(screen:)``, ``new
     PageView(…)``). ``location`` is its file and declaration line; ``calls``
@@ -339,6 +351,7 @@ def _listed(
     collected = collect_call(call, spec, event_type, found.evaluator)
     items = tuple(call_items(collected, event_type.name, origin))
     fields = collected.fields or {}
+    unread = _unread_object(call, spec, found.evaluator)
     read = Read(
         name=None if collected.name is None else _refine(collected.name, scope, scopes, found, at),
         fields={key: _refine(value, scope, scopes, found, at) for key, value in fields.items()},
@@ -348,7 +361,7 @@ def _listed(
             else _refine(collected.properties, scope, scopes, found, at)
         ),
         unmapped=_unmapped(call, spec),
-        unread_object=_unread_object(call, spec, found.evaluator),
+        unread_object=None if unread is None else _refine(unread, scope, scopes, found, at),
     )
     return ListedCall(
         origin=origin,
@@ -786,6 +799,8 @@ class _Forwarding:
     scopes: list[FunctionScope] = field(default_factory=list)
     calls: int = 0
     parameters: dict[str, tuple[Parameter, list[str]]] = field(default_factory=dict)
+    # The names of the parameters a call takes as its object argument.
+    objects: set[str] = field(default_factory=set)
     # Its calls in its own file, the ones in its own body left out.
     own: _Tally = field(default_factory=_Tally)
 
@@ -870,19 +885,21 @@ def _forwarding(
 ) -> None:
     """Count ``call`` for ``scope``, the function it sits in, when it forwards a parameter.
 
-    It does when a target's value is a bare parameter (reason ``parameter``),
-    never ``parameter_property``: a property of a parameter is set where its
-    object is built, and a call spec for the function would only add calls
-    whose value is not read either. An initializer of a type the scan cannot
-    name is no forwarder: what its callers write is unknown.
+    It does when a target's value, or the call's object argument, is a bare
+    parameter (reason ``parameter``), never ``parameter_property``: a property
+    of a parameter is set where its object is built, and a call spec for the
+    function would only add calls whose value is not read either. An
+    initializer of a type the scan cannot name is no forwarder: what its
+    callers write is unknown.
     """
     forwarded: list[tuple[str, Parameter]] = []
     for target, read in call.read.targets():
-        declared = read.declared
-        if read.reason != REASON_PARAMETER or declared is None or declared.parameter is None:
-            continue
-        forwarded.append((target, declared.parameter))
-    if not forwarded:
+        parameter = _forwarded_parameter(read)
+        if parameter is not None:
+            forwarded.append((target, parameter))
+    unread = call.read.unread_object
+    as_object = None if unread is None else _forwarded_parameter(unread)
+    if not forwarded and as_object is None:
         return
     initializer = (found.source.language, scope.name) in _INITIALIZERS
     function = scope.owner if initializer else scope.name
@@ -902,6 +919,16 @@ def _forwarding(
         _, targets = forwarding.parameters.setdefault(parameter.name, (parameter, []))
         if target not in targets:
             targets.append(target)
+    if as_object is not None:
+        forwarding.parameters.setdefault(as_object.name, (as_object, []))
+        forwarding.objects.add(as_object.name)
+
+
+def _forwarded_parameter(read: ReadValue) -> Parameter | None:
+    """The parameter ``read`` is, when it is one passed on bare."""
+    if read.reason != REASON_PARAMETER or read.declared is None:
+        return None
+    return read.declared.parameter
 
 
 def _forwarders(
@@ -913,7 +940,13 @@ def _forwarders(
             function=forwarding.function,
             location=forwarding.location,
             parameters=tuple(
-                ForwardedParameter(item.name, item.index, item.label, tuple(targets))
+                ForwardedParameter(
+                    item.name,
+                    item.index,
+                    item.label,
+                    tuple(targets),
+                    item.name in forwarding.objects,
+                )
                 for item, targets in sorted(
                     forwarding.parameters.values(), key=lambda entry: entry[0].index
                 )

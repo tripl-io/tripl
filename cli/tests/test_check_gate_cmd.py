@@ -450,6 +450,13 @@ def test_a_deleted_file_whose_base_cannot_be_rebuilt_makes_every_call_changed(
     gate = json.loads(capsys.readouterr().out)["gate"]
     assert gate["unreconstructable"] == ["Tracking/Events.swift"]
     assert gate["changed_items"] == gate["failing"] + 3  # every row: three of them pass
+    # Every call is in the change, and so is every marker, in a file the diff never named.
+    _write(
+        repo, {"Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"}
+    )
+    assert main(["check", "--new-from-patch", save(repo, patch), "--strict-suppressions", "--json"])
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert entry["fails"] is True
 
 
 # --- symlinks -----------------------------------------------------------------------------
@@ -526,6 +533,63 @@ def test_sarif_marker_results_say_whether_they_are_in_the_change(
     assert markers == {"Sources/New.swift": True, "Sources/Old.swift": False}
 
 
+def test_strict_suppressions_fails_a_gated_run_only_on_a_marker_in_the_change(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stale = "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+    _write(repo, {"Sources/Old.swift": stale})
+    # The change touches another file: the stale marker is not its doing.
+    patch = save(repo, change(repo, {"Sources/New.swift": "func n() {}\n"}))
+    assert main(["check", "--new-from-patch", patch, "--strict-suppressions", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["summary"]["failing_suppressions"] == 0
+    assert [entry["fails"] for entry in document["suppressions"]] == [False]
+    # A change that brings a marker like it in fails on that one alone.
+    patch = save(repo, change(repo, {"Sources/New.swift": stale}))
+    assert main(["check", "--new-from-patch", patch, "--strict-suppressions", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert {entry["location"]["path"]: entry["fails"] for entry in document["suppressions"]} == {
+        "Sources/New.swift": True,
+        "Sources/Old.swift": False,
+    }
+    assert main(["check", "--new-from-patch", patch]) == 0
+
+
+def test_strict_suppressions_counts_every_marker_in_the_change_when_every_call_is(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources/Legacy.swift").unlink()  # the fixture's one call that always fails
+    _write(
+        repo, {"Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"}
+    )
+    malformed = "// tripl-check-ignore[unknown_field]\nfunc n() {}\n"
+    patch = change(repo, {"Sources/New.swift": malformed, "Sources/Ghost.swift": "func g() {}\n"})
+    # The diff names a file this checkout does not have: every call counts as
+    # changed, and so does every marker, the ones the change did not write too.
+    (repo / "Sources/Ghost.swift").unlink()
+    argv = ["check", "--new-from-patch", save(repo, patch), "--strict-suppressions"]
+    assert main([*argv, "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["gate"]["unmapped"] == ["Sources/Ghost.swift"]
+    assert document["summary"]["failing_suppressions"] == 2
+    assert {entry["location"]["path"]: entry["fails"] for entry in document["suppressions"]} == {
+        "Sources/New.swift": True,
+        "Sources/Old.swift": True,
+    }
+    # The listing names both, as it names every finding in that mode.
+    assert main(argv) == 1
+    out = capsys.readouterr().out
+    assert "Sources/New.swift:1" in out and "Sources/Old.swift:1" in out
+    assert "Suppressions outside this change" not in out
+    assert main([*argv[:-1], "--format", "sarif"]) == 0
+    run = json.loads(capsys.readouterr().out)["runs"][0]
+    assert {
+        result["properties"]["inChange"]
+        for result in run["results"]
+        if result["ruleId"] in {"unused_suppression", "invalid_suppression"}
+    } == {True}
+
+
 # --- the plan branch --------------------------------------------------------------------------
 def _branchy(archived: set[str], *, main_status: int = 200) -> Any:
     """The synthetic validator, where the plan branch archives ``archived`` events."""
@@ -588,6 +652,30 @@ def test_an_outage_during_the_main_comparison_is_exit_4(
     tripl_api.handler(VALIDATE_URL, _branchy(set(), main_status=503), method="POST")
     argv = ["check", "--branch", "checkout-redesign", "--new-from-patch", save(repo, "")]
     assert main(argv) == 4
+
+
+def test_strict_suppressions_weighs_a_marker_against_the_plan_the_run_checks(
+    repo: Path, tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    tripl_api.handler(VALIDATE_URL, _branchy({"trial_started"}), method="POST")
+    (repo / "Sources/Legacy.swift").unlink()  # the fixture's one call that always fails
+    marked = (
+        "func t() {\n"
+        "    // tripl-check-ignore[deprecated_event] -- retired with the old paywall\n"
+        '    Analytics.shared.logEvent("trial_started")\n'
+        "}\n"
+    )
+    _write(repo, {"Sources/Trial.swift": marked})
+    # The plan branch archives the event: the marker waives that, and passes.
+    argv = ["check", "--strict-suppressions", "--json"]
+    assert main([*argv, "--branch", "checkout-redesign"]) == 0
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (True, False)
+    # Main still has the event, so against main the same marker waives nothing.
+    assert main(argv) == 1
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (False, True)
 
 
 # --- no gate, refusals ---------------------------------------------------------------------
@@ -919,6 +1007,41 @@ def test_new_from_rev_with_a_check_root_below_the_repository_root(
     out = capsys.readouterr().out
     assert "Sources/New.swift:1:14  error" in out
     assert "Legacy.swift" not in out
+
+
+@needs_git
+@pytest.mark.parametrize(("check_root", "untracked"), [("ios", "ios/"), ("apps/ios", "apps/")])
+def test_a_check_root_git_does_not_track_puts_every_call_and_marker_in_the_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_git: None,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    check_root: str,
+    untracked: str,
+) -> None:
+    root = tmp_path / "mono"
+    _real_repo(root, {"README.md": "mono\n"})
+    # The whole check root is new, itself or a directory above it: every call
+    # in it counts as new, and every marker is in the change.
+    _write(
+        root,
+        {
+            f"{check_root}/.tripl/check.yml": CONFIG,
+            f"{check_root}/Sources/Legacy.swift": f"func legacy() {{ {LEGACY_CALL} }}\n",
+            f"{check_root}/Sources/Old.swift": (
+                "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+            ),
+        },
+    )
+    monkeypatch.chdir(root / check_root)
+    assert main(["check", "--new-from-rev", "HEAD", "--strict-suppressions", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["gate"]["untracked"] == [untracked]
+    assert document["gate"]["changed_items"] == len(document["results"]) == 1
+    assert document["summary"]["failing"] == 1
+    assert [entry["fails"] for entry in document["suppressions"]] == [True]
 
 
 @needs_git

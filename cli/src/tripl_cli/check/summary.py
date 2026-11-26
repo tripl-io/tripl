@@ -26,10 +26,14 @@ from dataclasses import dataclass, field
 
 from tripl_cli.check.model import (
     GATE_REV,
+    MARKER_NO_CODES,
+    MARKER_NO_REASON,
+    MARKER_NOT_SUPPRESSIBLE,
     MODE_STATIC,
     CheckReport,
     CheckResult,
 )
+from tripl_cli.check.suppress import label
 from tripl_cli.check.validate import summary as tally
 from tripl_cli.render import plan_branch_note, plural
 
@@ -43,6 +47,15 @@ MAX_FINDINGS = 20
 MAX_PLACES = 3
 
 TITLE = "### tripl check: analytics changes"
+
+# Why a malformed marker suppresses nothing, as the summary says it after the
+# marker itself (shown as code). The listing's own wording writes placeholders
+# in angle brackets, which Markdown would read as HTML.
+_PROBLEMS: Mapping[str, str] = {
+    MARKER_NO_CODES: "names no code to waive",
+    MARKER_NOT_SUPPRESSIBLE: "names `no_verdict`, which no marker can waive",
+    MARKER_NO_REASON: "gives no reason after `--`",
+}
 
 
 @dataclass(frozen=True)
@@ -128,6 +141,15 @@ def compare(base: Sequence[CheckResult], head: Sequence[CheckResult]) -> ChangeS
 def _code(text: str) -> str:
     """``text`` as inline code in a table cell: no backtick ends it, no pipe ends the cell."""
     return "`" + text.replace("`", "'").replace("|", "\\|").replace("\n", " ") + "`"
+
+
+def _inline(text: str) -> str:
+    """``text`` as inline code in running text or a list item: no backtick ends it.
+
+    Not ``_code``: outside a table a pipe is plain text, and a backslash before
+    it inside a code span is shown as written.
+    """
+    return "`" + text.replace("`", "'").replace("\n", " ") + "`"
 
 
 def _places(places: Sequence[str]) -> str:
@@ -231,6 +253,29 @@ def _finding_lines(report: CheckReport) -> list[str]:
     )
     if total > shown:
         lines.append(f"- and {total - shown} more.")
+    return lines + _marker_lines(report)
+
+
+def _marker_lines(report: CheckReport) -> list[str]:
+    """The markers that fail the run (``--strict-suppressions``), so a failed check says why."""
+    failing = report.failing_markers
+    if not failing:
+        return []
+    lines = [
+        "",
+        f"**{plural(len(failing), 'suppression marker')} "
+        f"{'fails' if len(failing) == 1 else 'fail'} the run** (`--strict-suppressions`):",
+    ]
+    for state in failing[:MAX_FINDINGS]:
+        marker = state.marker
+        where = _inline(f"{marker.path}:{marker.line}")
+        if marker.problem is None:
+            lines.append(f"- {where} {_inline(label(marker))} matched no finding")
+        else:
+            why = _PROBLEMS.get(marker.problem, _inline(marker.problem))
+            lines.append(f"- {where} {_inline(marker.text)} {why}, so it suppresses nothing")
+    if len(failing) > MAX_FINDINGS:
+        lines.append(f"- and {len(failing) - MAX_FINDINGS} more.")
     return lines
 
 

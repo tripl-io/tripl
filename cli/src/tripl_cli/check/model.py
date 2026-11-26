@@ -285,7 +285,9 @@ class GateInfo:
     submodule it moved (ending in ``/``), each counted as changed throughout;
     ``unmapped`` the paths the diff names that the checkout does not have,
     which make every item count as changed; ``untracked`` the scanned files
-    git does not track, each new as a whole.
+    git does not track, each new as a whole. ``whole`` says every item counts
+    as changed because the diff cannot be read against this tree file by file
+    (``gate.Marking.whole``): every scanned file is then in the change.
     """
 
     source: str
@@ -298,6 +300,11 @@ class GateInfo:
     base: str | None = None
     patch: str | None = None
     plan_branch: PlanBranchComparison | None = None
+    whole: bool = False
+
+    def touches(self, path: str) -> bool:
+        """Whether the change touches ``path``, a scanned file relative to the check root."""
+        return self.whole or path in self.paths
 
 
 # What a run does with its baseline file: compare with it (``--baseline``),
@@ -389,6 +396,9 @@ class CheckReport:
     # Set when the run was pinned to a plan revision (``--revision``, or
     # ``revision:`` in the check config); None for the live plan.
     plan: PlanPin | None = None
+    # ``--strict-suppressions``: a marker that is malformed, or that waived
+    # nothing, fails the run (``failing_markers``).
+    strict_suppressions: bool = False
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)
@@ -447,6 +457,50 @@ class CheckReport:
         return any(finding_fails(finding, self.strict, gated=gated) for finding in weighed)
 
     @property
+    def failing_markers(self) -> tuple[MarkerState, ...]:
+        """The markers that fail the run on their own; empty without ``--strict-suppressions``.
+
+        A malformed marker fails, and so does a valid one that waived nothing.
+        Under a gate, only in a file the change touches, the scope the listing
+        names marker problems in: a change is not failed for a comment it did
+        not write.
+
+        A valid marker is unused only for THIS run, so one the run had no way
+        to use is left alone: a marker on a call that was not judged (it got
+        no verdict, or nothing about it could be sent), and, when the run is
+        not ``--strict``, one that names ``dynamic_value``: neither the CLI nor
+        the validator raises that finding outside a ``--strict`` run.
+        """
+        if not self.strict_suppressions:
+            return ()
+        unjudged = {
+            (suppression.path, suppression.line, suppression.column)
+            for result in self.results
+            if not result.item.sendable
+            or any(finding.code == CODE_NO_VERDICT for finding in result.findings)
+            for suppression in result.item.suppressions
+        }
+        failing: list[MarkerState] = []
+        for state in self.markers:
+            marker = state.marker
+            if state.code is None:
+                continue
+            if self.gate is not None and not self.gate.touches(marker.path):
+                continue
+            if state.code == CODE_UNUSED_SUPPRESSION and (
+                (marker.path, marker.line, marker.column) in unjudged
+                or (
+                    not self.strict
+                    and any(code == CODE_DYNAMIC_VALUE for code, _ in marker.targets)
+                )
+            ):
+                continue
+            failing.append(state)
+        return tuple(failing)
+
+    @property
     def exit_code(self) -> int:
-        """1 when any result fails (``fails``); else 0."""
-        return 1 if any(self.fails(result) for result in self.results) else 0
+        """1 when any result fails (``fails``) or any marker does (``failing_markers``); else 0."""
+        if any(self.fails(result) for result in self.results):
+            return 1
+        return 1 if self.failing_markers else 0
