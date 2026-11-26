@@ -305,7 +305,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
                 if name in named:
                     named[name].add(bisect_left(offsets, call.offset), call, hit is not None)
             if hit is None and _candidate(call, spans, declarations):
-                signal = _signal(call, found.evaluator)
+                signal = _signal(call, found.evaluator, found.source.language)
                 if signal is not None:
                     _group(groups, call, signal, found)
         for name, forwardings in here.items():
@@ -552,6 +552,20 @@ _CONSTANT_SINKS = frozenset(
 # `equalTo`) and React's hooks (`useState`). Spelled one way, so matched as written.
 _CONSTANT_CHECKS = re.compile(r"(?:expect|assert|XCTAssert|should|to|is|use|eq|equal)(?:[A-Z]|$)")
 _NAME_METHODS = frozenset({"capture", "screen", "screenview", "logscreenview", "logpurchase"})
+# TypeScript and JavaScript apps name their own code after events and trackers
+# (`eventTypesKey`, `useEventRoster`, `setEvent`, `getTrackers`, Angular's
+# `trackBy`), so there a method's name is narrower evidence of tracking: it has
+# to start with `track` or `tracking`, or put an `event` word behind one of
+# these verbs (`logEvent`, `sendEvent`, `logCustomEvent`).
+_TS_EVENT_VERBS = frozenset({"log", "track", "send", "record", "report", "capture"})
+_TS_EVENT_WORDS = frozenset({"event", "events"})
+# A React hook is named after what it does: `useTrackEvent` is read as `trackEvent`.
+_TS_HOOK = re.compile(r"use[A-Z]")
+# Angular's `trackBy` functions (`trackBy`, `trackById`, `trackByFn`) key list rows.
+_TS_TRACK_BY = re.compile(r"trackBy(?:[A-Z_]|$)")
+# Countly's `add_event`, spelled that way only: a camel-case `addEvent` is a
+# calendar's (FullCalendar's `calendar.addEvent`).
+_TS_ADD_EVENT = "add_event"
 _VENDORS = (
     "analytic",
     "tracker",
@@ -646,12 +660,14 @@ def _candidate(call: Call, spans: _Spans, declarations: frozenset[int]) -> bool:
     return not (call.selector is None and call.end in declarations)  # a declaration
 
 
-def _signal(call: Call, evaluator: Evaluator) -> str | None:
+def _signal(call: Call, evaluator: Evaluator, language: str) -> str | None:
     """Why an unmatched call looks like tracking (one of ``model.SIGNALS``), or None.
 
     Case-insensitive, except a handler (``on`` and an upper-case letter), an
     input event, a DOM event type, an event holder, and an assertion or a
-    hook a constant is passed to, which are spelled one way.
+    hook a constant is passed to, which are spelled one way. ``language`` is
+    the file's (``lexer.LANGUAGES``): in TypeScript and JavaScript the
+    method's name has to say more (``_ts_name_says_tracking``).
     """
     receivers, method = _callee_parts(call)
     lowered = method.lower()
@@ -670,16 +686,51 @@ def _signal(call: Call, evaluator: Evaluator) -> str | None:
         and _passes_event_constant(call, evaluator)
     ):
         return SIGNAL_CONSTANT
-    words = [word.lower() for word in _CAMEL_WORD.findall(method)]
-    if (
-        "event" in lowered
-        or any(word.startswith("track") for word in words)
-        or lowered in _NAME_METHODS
-    ):
+    if language == "ts":
+        says_tracking = _ts_name_says_tracking(receivers, method)
+    else:
+        words = [word.lower() for word in _CAMEL_WORD.findall(method)]
+        says_tracking = (
+            "event" in lowered
+            or any(word.startswith("track") for word in words)
+            or lowered in _NAME_METHODS
+        )
+    if says_tracking:
         return SIGNAL_NAME
     if lowered.startswith(_TRACKING_VERBS) and any(_is_vendor(part) for part in receivers):
         return SIGNAL_RECEIVER
     return None
+
+
+def _ts_name_says_tracking(receivers: list[str], method: str) -> bool:
+    """Whether a TypeScript or JavaScript method's name says it tracks.
+
+    It does when it is one of ``_NAME_METHODS``; when its first word is
+    ``track`` or ``tracking`` (``trackPageView``), but not Angular's
+    ``trackBy``; when its first word is a verb of ``_TS_EVENT_VERBS`` and a
+    later one is ``event`` or ``events`` (``logEvent``); when it is ``event``
+    called on a receiver (``gtag.event``, ``ReactGA.event``), not a bare
+    ``event(…)``; or when it is Countly's ``add_event``. A React hook is read
+    without its ``use`` (``useTrackEvent`` is ``trackEvent``). A word that only
+    starts with ``track`` (``tracker``, ``getTrackers``) or an ``event`` word
+    after any other one (``eventTypesKey``, ``setEvent``, ``makeEvent``,
+    testing-library's ``fireEvent``) says nothing.
+    """
+    lowered = method.lower()
+    if lowered in _NAME_METHODS or lowered == _TS_ADD_EVENT:
+        return True
+    if lowered == "event":
+        return bool(receivers)
+    if _TS_HOOK.match(method):
+        method = method[3:]
+    if _TS_TRACK_BY.match(method):
+        return False
+    words = [word.lower() for word in _CAMEL_WORD.findall(method)]
+    if not words:
+        return False
+    if words[0] in ("track", "tracking"):
+        return True
+    return words[0] in _TS_EVENT_VERBS and any(word in _TS_EVENT_WORDS for word in words[1:])
 
 
 def _callee_parts(call: Call) -> tuple[list[str], str]:
