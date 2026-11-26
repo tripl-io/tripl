@@ -107,7 +107,12 @@ final class RecordingTracker: Tracking {
     }
 
     func track(_ name: String, properties: [String: Any]) {
-        var line: [String: Any] = ["name": name, "properties": properties]
+        // A value JSON cannot hold (a Date, a URL) would make JSONSerialization
+        // raise an exception that try? does not catch: write its text instead.
+        let json = properties.mapValues { value in
+            JSONSerialization.isValidJSONObject([value]) ? value : String(describing: value)
+        }
+        var line: [String: Any] = ["name": name, "properties": json]
         if let ref { line["ref"] = ref }
         if let data = try? JSONSerialization.data(withJSONObject: line),
            let file = try? FileHandle(forWritingTo: url) {
@@ -187,7 +192,8 @@ import { addPlugin } from "@snowplow/browser-tracker";
 addPlugin({
   plugin: {
     afterTrack(payload: Record<string, unknown>) {
-      (window as any).__triplRecord?.(toLine(payload));
+      const line = toLine(payload);
+      if (line) (window as any).__triplRecord?.(line); // a page view or a ping is not written
     },
   },
 });
@@ -201,7 +207,7 @@ function toLine(p: Record<string, unknown>): object | undefined {
     const { schema, data } = JSON.parse(String(p.ue_pr)).data; // the event inside the envelope
     return { name: schema.split("/")[1], properties: data };
   }
-  return undefined; // page views and the rest: not in the plan here
+  return undefined; // page views, page pings and the rest: not in the plan here
 }
 ```
 
@@ -258,9 +264,10 @@ second time, under another job name, with `payloads` and `needs`:
 ui-tests:
   stage: test
   script:
+    - mkdir -p build && : > build/events.ndjson   # a run that sends nothing leaves an empty file
     - ./run-ui-tests.sh            # writes build/events.ndjson
   artifacts:
-    when: always                   # a failed test run still hands over what it sent
+    when: always                   # kept to read even when the tests fail
     paths: [build/events.ndjson]
     expire_in: 7 days
 
@@ -289,8 +296,12 @@ include:
   used when the file exists; `baseline` is not used in a payload run.
 - **`job`** keeps the two includes apart: two jobs of one name would be merged
   into one.
-- A UI-test run that wrote no file fails the check with exit 2. When a run may
-  rightly send nothing, add `args: --allow-empty`.
+- When `ui-tests` fails, GitLab skips the check job, as it skips any job whose
+  `needs` failed: the events of a failed run are kept as an artifact but not
+  checked. (The GitHub recipe below, with `if: always()`, checks them.)
+- A missing file fails the check with exit 2, which is why the job creates it
+  empty before the tests run. When a run may rightly send nothing, add
+  `args: --allow-empty`: `--allow-empty` accepts an empty file, not a missing one.
 
 ### GitHub Actions {#github-actions}
 
@@ -303,6 +314,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - run: mkdir -p build && : > build/events.ndjson   # a run that sends nothing leaves an empty file
       - run: ./run-ui-tests.sh      # writes build/events.ndjson
       - uses: actions/upload-artifact@v4
         if: always()
@@ -345,7 +357,8 @@ tripl check --payloads build/events.ndjson --baseline .tripl/check-payloads-base
 ```
 
 Leave out `--new-from-rev` and `--new-from-patch`: with `--payloads` they stop
-the run with exit 2. The exit codes are those of
+the run with exit 2, as does a missing file, so create it empty before the
+tests run. The exit codes are those of
 [the static check](./check-tracking-in-ci.md#5-make-it-block-merges).
 
 **More detail:** [Static and payload modes](../integrate/tripl-check.md#modes)

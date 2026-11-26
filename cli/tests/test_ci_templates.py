@@ -123,6 +123,19 @@ def test_the_ci_how_to_describes_every_template_input() -> None:
     assert {name for name in _action_inputs() if f"`{name}`" not in github} == set()
 
 
+def test_the_gitlab_recipe_says_a_failed_ui_test_job_skips_the_check() -> None:
+    # The template's rules set no when:, so the job keeps GitLab's on_success:
+    # a job whose needs failed is skipped and never reads their artifact. The
+    # recipe must not promise that a failed test run still reaches the check.
+    job = GITLAB.read_text(encoding="utf-8").split("\n---\n")[1]
+    rules = job.split("\n  rules:\n")[1].split("\n  script:\n")[0]
+    assert re.findall(r"when: (\w+)", rules) == ["never"]
+    gitlab = HOW_TO_EVENTS.read_text(encoding="utf-8").split("### GitLab CI/CD")[1]
+    gitlab = gitlab.split("### GitHub Actions")[0]
+    assert "still hands over" not in gitlab
+    assert "When `ui-tests` fails, GitLab skips the check" in gitlab
+
+
 def test_the_payload_recipes_set_only_inputs_the_templates_have() -> None:
     blocks = re.findall(
         r"^```yaml\n(.*?)^```$", HOW_TO_EVENTS.read_text(encoding="utf-8"), re.M | re.S

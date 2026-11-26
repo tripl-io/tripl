@@ -93,3 +93,50 @@ def test_a_line_with_another_key_names_the_keys_a_line_may_hold() -> None:
     message = str(refused.value)
     assert "line 1 has unknown key(s) screen" in message
     assert all(key in message for key in payloads._KEYS)
+
+
+# --- the recorder snippets ------------------------------------------------------------------------
+# They are examples to adapt and are not compiled here, so these tests hold the
+# few lines whose mistake would stop the check or crash the app under test.
+def _code_block(language: str, marker: str) -> str:
+    blocks = re.findall(
+        rf"^```{language}\n(.*?)^```$", HOW_TO.read_text(encoding="utf-8"), re.M | re.S
+    )
+    [block] = [block for block in blocks if marker in block]
+    return block
+
+
+def test_the_snowplow_recorder_writes_only_the_events_it_maps() -> None:
+    # toLine gives nothing for a page view or a page ping. Handing that to the
+    # Playwright writer would write a line holding only ref, which --payloads
+    # refuses (exit 2) on the first page view of the run.
+    block = _code_block("typescript", "afterTrack")
+    assert "toLine(payload));" not in block
+    assert re.search(r"const line = toLine\(payload\);\s*if \(line\) ", block)
+    with pytest.raises(TriplConfigError, match="names neither an event_type nor a name"):
+        payloads.parse('{"ref": "Checkout > pays"}\n', "events.ndjson")
+
+
+def test_the_swift_recorder_checks_a_value_is_json_before_serializing_it() -> None:
+    # JSONSerialization raises an Objective-C exception, which try? cannot
+    # catch, for a value that is not JSON (a Date, a URL): the app would crash.
+    block = _code_block("swift", "RecordingTracker")
+    check = block.index("JSONSerialization.isValidJSONObject(")
+    assert check < block.index("JSONSerialization.data(")
+
+
+def test_a_run_that_sends_nothing_must_still_leave_a_file(tmp_path: Path) -> None:
+    # --allow-empty accepts an empty file, never a missing one, so the page has
+    # the UI-test job create the file before the tests run.
+    missing = str(tmp_path / "events.ndjson")
+    with pytest.raises(TriplConfigError, match="does not exist"):
+        payloads.load(missing, allow_empty=True)
+    (tmp_path / "events.ndjson").write_text("", encoding="utf-8")
+    assert payloads.load(missing, allow_empty=True) == []
+    create = ": > build/events.ndjson"
+    for marker in ("ci/gitlab/tripl-check.yml", "tripl-check-action"):
+        recipe = _code_block("yaml", marker)
+        assert recipe.index(create) < recipe.index("./run-ui-tests.sh"), marker
+    assert "`--allow-empty` accepts an empty file, not a missing one" in HOW_TO.read_text(
+        encoding="utf-8"
+    )
