@@ -9,7 +9,7 @@
 # The job runs in branch pipelines, which every project has. If yours runs
 # merge request pipelines (workflow:rules), set pipelines: merge_requests.
 # Every input is described below, and in website/docs/how-to/check-tracking-in-ci.md.
-# To check the events a UI-test job captured, see payloads and needs, and
+# To check the events a UI-test job captured, see payloads, needs and when, and
 # website/docs/how-to/record-events-in-ui-tests.md.
 # Needs GitLab 17.0 or newer (CI/CD inputs); `integrity:` on the include, 17.9.
 spec:
@@ -61,10 +61,18 @@ spec:
       default: .tripl/check-payloads-baseline.json
     needs:
       description: >-
-        The jobs to wait for and download artifacts from, by name: with payloads,
-        the job that wrote the file. Empty starts at once and downloads nothing.
+        The jobs to wait for and download artifacts from, as GitLab's needs takes
+        them (a name, or {job, optional, artifacts}): with payloads, the job that
+        wrote the file. Empty starts at once and downloads nothing.
       type: array
       default: []
+    when:
+      description: >-
+        on_success runs the job only when every job it needs passed. always runs
+        it after a failed one too: with payloads, to check the events a failed
+        UI-test job sent.
+      options: [on_success, always]
+      default: on_success
     gate:
       description: >-
         Fail only on findings the change brings in (--new-from-rev): a branch's,
@@ -100,9 +108,9 @@ spec:
     name: $[[ inputs.image ]]:$[[ inputs.version ]]
     entrypoint: [""]
   stage: $[[ inputs.stage ]]
+  # Artifacts come from the jobs named here and from no others; needs: []
+  # downloads none.
   needs: $[[ inputs.needs ]]
-  # The same jobs as needs: artifacts come from those and from no others.
-  dependencies: $[[ inputs.needs ]]
   before_script: []
   after_script: []
   cache: []
@@ -123,8 +131,11 @@ spec:
       when: never # a merge request from a fork has no key
     # branches never matches a merge request pipeline, so it never creates one.
     - if: '"$[[ inputs.pipelines ]]" == "branches" && $CI_COMMIT_BRANCH'
+      when: $[[ inputs.when ]]
     - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: $[[ inputs.when ]]
     - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: $[[ inputs.when ]]
   script:
     - |
       set -eu

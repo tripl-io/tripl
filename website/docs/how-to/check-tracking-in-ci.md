@@ -134,7 +134,8 @@ input is optional:
 | `baseline` | `.tripl/check-baseline.json` | The committed [baseline](../integrate/tripl-check.md#baseline), used when the file exists (the log says when it does not). Empty never uses one. |
 | `payloads` | `""` | Check the events a test run captured instead of the code (`--payloads`), from this file, relative to the repository root. See [Check the events your UI tests send](./record-events-in-ui-tests.md#gitlab). |
 | `payloads_baseline` | `.tripl/check-payloads-baseline.json` | With `payloads`, the baseline used in place of `baseline`, when the file exists. Empty never uses one. |
-| `needs` | `[]` | The jobs to wait for and download artifacts from, by name: with `payloads`, the job that wrote the file. The default starts at once and downloads nothing. |
+| `needs` | `[]` | The jobs to wait for and download artifacts from, as GitLab's `needs` takes them (a job name, or `{job, optional, artifacts}`): with `payloads`, the job that wrote the file. The default starts at once and downloads nothing. |
+| `when` | `on_success` | `on_success` runs the job only when every job in `needs` passed; `always` runs it after a failed one too, to check the events of a failed UI-test job. |
 | `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. Not applied with `payloads`. |
 | `pipelines` | `branches` | Where the job runs: `branches`, in branch pipelines on every branch; `merge_requests`, in merge request pipelines and on the default branch. See below. |
 | `strict` | `false` | Fail on warnings too. |

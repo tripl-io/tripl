@@ -123,17 +123,31 @@ def test_the_ci_how_to_describes_every_template_input() -> None:
     assert {name for name in _action_inputs() if f"`{name}`" not in github} == set()
 
 
-def test_the_gitlab_recipe_says_a_failed_ui_test_job_skips_the_check() -> None:
-    # The template's rules set no when:, so the job keeps GitLab's on_success:
-    # a job whose needs failed is skipped and never reads their artifact. The
-    # recipe must not promise that a failed test run still reaches the check.
-    job = GITLAB.read_text(encoding="utf-8").split("\n---\n")[1]
+def test_gitlab_when_input_lets_the_check_run_after_a_failed_ui_test_job() -> None:
+    # Under GitLab's default on_success, a job whose needs failed is skipped and
+    # never reads their artifact. The when input sets every rule that runs the
+    # job, so always checks the events of a failed test run, as the GitHub
+    # recipe's if: always() does; its default keeps the job as it was.
+    header, job = GITLAB.read_text(encoding="utf-8").split("\n---\n")
     rules = job.split("\n  rules:\n")[1].split("\n  script:\n")[0]
-    assert re.findall(r"when: (\w+)", rules) == ["never"]
+    entries = re.split(r"^    - ", rules, flags=re.M)[1:]
+    assert [re.findall(r"when: (.+?)(?: #.*)?$", entry, re.M) for entry in entries] == [
+        ["never"],
+        *[["$[[ inputs.when ]]"]] * (len(entries) - 1),
+    ]
+    when = header.split("\n    when:\n")[1].split("\n    gate:\n")[0]
+    assert "options: [on_success, always]" in when
+    assert "default: on_success" in when
+
+
+def test_the_gitlab_payload_recipe_checks_the_events_of_a_failed_run() -> None:
     gitlab = HOW_TO_EVENTS.read_text(encoding="utf-8").split("### GitLab CI/CD")[1]
     gitlab = gitlab.split("### GitHub Actions")[0]
-    assert "still hands over" not in gitlab
-    assert "When `ui-tests` fails, GitLab skips the check" in gitlab
+    recipe = re.findall(r"^```yaml\n(.*?)^```$", gitlab, re.M | re.S)[0]
+    events = recipe.split("job: tripl-check-events")[1]
+    assert re.search(r"^      when: always\b", events, re.M)
+    assert "GitLab skips the check" not in gitlab
+    assert "`when: always`" in gitlab
 
 
 def test_the_payload_recipes_set_only_inputs_the_templates_have() -> None:
@@ -388,15 +402,17 @@ def test_gitlab_job_exits_as_the_check_did(origin: Path, tmp_path: Path, code: i
 
 
 def test_gitlab_needs_input_brings_the_artifacts_of_the_jobs_it_names() -> None:
-    # needs: [] alone starts the job at once; dependencies: [] alone downloads no
-    # artifact, so a file a UI-test job wrote never reached the check. One input
-    # sets both, and its default keeps the job as it was.
+    # A job with needs downloads the artifacts of the jobs it names and of no
+    # others, and needs: [] downloads none, so needs alone carries the file a
+    # UI-test job wrote. No dependencies: it takes job names only, and would
+    # make a needs object ({job, optional, artifacts}) an invalid config.
     header, job = GITLAB.read_text(encoding="utf-8").split("\n---\n")
     assert re.search(r"^  needs: \$\[\[ inputs\.needs \]\]$", job, re.M)
-    assert re.search(r"^  dependencies: \$\[\[ inputs\.needs \]\]$", job, re.M)
-    needs = header.split("\n    needs:\n")[1].split("\n    gate:\n")[0]
+    assert not re.search(r"^  dependencies:", job, re.M)
+    needs = header.split("\n    needs:\n")[1].split("\n    when:\n")[0]
     assert "type: array" in needs
     assert "default: []" in needs
+    assert "{job, optional, artifacts}" in needs
 
 
 def test_gitlab_job_name_is_an_input_so_the_file_can_be_included_twice() -> None:

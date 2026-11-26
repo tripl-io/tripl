@@ -283,25 +283,33 @@ include:
       base_url: https://tripl.example.com
       payloads: build/events.ndjson
       needs: [ui-tests]
+      when: always                 # check the events of a failed test run too
 ```
 
 - **`needs`** names the jobs the check waits for and takes artifacts from. The
   template's default, none, starts the job at once and downloads no artifact,
-  so without it the file never reaches the check. The job named there must run
-  in every pipeline the check runs in (by default, branch pipelines), or GitLab
-  refuses to create the pipeline.
+  so without it the file never reaches the check. It takes what GitLab's own
+  `needs` takes: a job name, or an object such as
+  `{job: ui-tests, artifacts: true}`. The job named there must run in every
+  pipeline the check runs in (by default, branch pipelines), or GitLab refuses
+  to create the pipeline. `{job: ui-tests, optional: true}` lets the pipeline
+  start without it, but the check then has no file and fails with exit 2.
+- **`when: always`** runs the check even when `ui-tests` fails, so the events
+  of a failed test run are checked too, as the GitHub recipe below does with
+  `if: always()`. The template's default, `on_success`, skips the check job
+  when `ui-tests` fails, as GitLab skips any job whose `needs` failed: the
+  events are then kept as an artifact but not checked.
 - **`payloads`** is relative to the repository root, like the other paths of
   the template, whatever `directory` says.
 - **`payloads_baseline`** (default `.tripl/check-payloads-baseline.json`) is
   used when the file exists; `baseline` is not used in a payload run.
 - **`job`** keeps the two includes apart: two jobs of one name would be merged
   into one.
-- When `ui-tests` fails, GitLab skips the check job, as it skips any job whose
-  `needs` failed: the events of a failed run are kept as an artifact but not
-  checked. (The GitHub recipe below, with `if: always()`, checks them.)
 - A missing file fails the check with exit 2, which is why the job creates it
   empty before the tests run. When a run may rightly send nothing, add
   `args: --allow-empty`: `--allow-empty` accepts an empty file, not a missing one.
+  A test job that never wrote its file did not run as it should, so the check
+  says so instead of passing.
 
 ### GitHub Actions {#github-actions}
 
