@@ -287,9 +287,68 @@ def test_two_constants_of_one_object_with_one_value_flag_every_call_using_one(
     # OPEN_TAP's twin is used by no call; its key's twin is.
     assert [code for code, _, _ in found[(6, "open_tap")]] == [CODE_DUPLICATE_CONSTANT]
     assert found[(6, "open_tap")][0][1] == "screen"
-    # The same value in another object, and two file-scope constants: nothing.
+    # The same value in another object: nothing.
     assert found[(7, "save_tap")] == []
-    assert found[(8, "top")] == []
+
+
+def test_file_scope_constants_of_one_file_are_compared_with_the_file_as_their_object(
+    shop: Path,
+) -> None:
+    # TOP_A and TOP_B are top-level `const val`s of app/Events.kt: both calls
+    # on line 8 read one of them.
+    items = [item for item in scan(load(shop / ".tripl" / "check.yml")).items]
+    top = [[n.message for n in item.notes] for item in items if item.name == "top"]
+    assert top == [
+        [
+            "the event name is read from TOP_A = 'top', the same value as TOP_B of the file "
+            "app/Events.kt; one of them probably names the wrong event"
+        ],
+        [
+            "the event name is read from TOP_B = 'top', the same value as TOP_A of the file "
+            "app/Events.kt; one of them probably names the wrong event"
+        ],
+    ]
+
+
+def test_file_scope_constants_in_objective_c_and_typescript_are_compared_per_file(
+    tmp_path: Path,
+) -> None:
+    sources = {
+        "app/Events.m": (
+            'NSString *const kSaveTap = @"save_tap";\n'
+            'NSString *const kShareTap = @"save_tap";\n'
+            '#define kOpenTap @"open_tap"\n'
+            '#define kCloseTap @"open_tap"\n'
+            'NSString *const kScreenKey = @"screen";\n'
+            'NSString *const kPlaceKey = @"screen";\n'
+        ),
+        "app/Buttons.m": (
+            "- (void)save { log(kSaveTap); }\n"
+            "- (void)share { log(kShareTap); }\n"
+            "- (void)open { log(kOpenTap); }\n"
+            "- (void)close { log(kCloseTap); }\n"
+            '- (void)a { track(@"a", @{kScreenKey: @1}); }\n'
+            '- (void)b { track(@"b", @{kPlaceKey: @2}); }\n'
+        ),
+        "app/events.ts": "export const SAVE = 'saved';\nexport const SHARE = 'saved';\n",
+        "app/screen.ts": ("import { SAVE, SHARE } from './events';\ntrack(SAVE);\ntrack(SHARE);\n"),
+        # One value in two files: the files are two objects.
+        "app/home.ts": "export const SHOWN = 'shown';\ntrack(SHOWN);\n",
+        "app/map.ts": "export const OPENED = 'shown';\ntrack(OPENED);\n",
+    }
+    found = _scan_notes(tmp_path, sources)
+    assert found == [
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, None)]),
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, None)]),
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, None)]),
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, None)]),
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, "screen")]),
+        ("app/Buttons.m", [(CODE_DUPLICATE_CONSTANT, "screen")]),
+        ("app/home.ts", []),
+        ("app/map.ts", []),
+        ("app/screen.ts", [(CODE_DUPLICATE_CONSTANT, None)]),
+        ("app/screen.ts", [(CODE_DUPLICATE_CONSTANT, None)]),
+    ]
 
 
 def test_without_a_lint_section_the_scan_adds_no_finding(shop: Path) -> None:

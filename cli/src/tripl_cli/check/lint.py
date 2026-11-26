@@ -22,8 +22,11 @@ call for a marker over a line none of them holds.
     other's event. Only constants that a tracking call of the run reads a name
     or a key from count, grouped by the type or object that declares them and
     the file it is declared in, so the ``object Events`` of two feature modules
-    are two objects. A file-scope constant has no object and is never grouped,
-    and a reference that may name several declarations (a Swift shorthand
+    are two objects. A constant declared at file scope (a Kotlin top-level
+    ``const val``, a TypeScript module-level ``export const``, an Objective-C
+    ``NSString *const`` or ``#define``) has the file as its object, so two of
+    them in one file with one value are twins, and two in different files are
+    not. A reference that may name several declarations (a Swift shorthand
     naming members of several types) reads no constant. The finding is on
     every call that reads one of the duplicated constants.
 
@@ -164,14 +167,15 @@ def _offenders(text: str) -> list[str]:
 def _duplicated(items: Sequence[CheckItem]) -> dict[_Declared, tuple[tuple[str, ...], ...]]:
     """Each constant a name or key is read from, mapped to its object's others of its value.
 
-    An object is its qualified name in one file. Only a constant with such a
-    twin is in the map.
+    An object is its qualified name in one file, and the file is the object of
+    the constants declared at file scope. Only a constant with such a twin is
+    in the map.
     """
     by_object: dict[_Declared, dict[str, set[tuple[str, ...]]]] = {}
     for item in items:
         for use in item.constants:
-            if len(use.path) < 2:
-                continue  # a file-scope constant: no object to group by
+            # A file-scope constant's path is its bare name, so its object is
+            # the empty prefix: the file itself.
             owner = (use.source, use.path[:-1])
             by_object.setdefault(owner, {}).setdefault(use.value, set()).add(use.path)
     twins: dict[_Declared, tuple[tuple[str, ...], ...]] = {}
@@ -186,7 +190,8 @@ def _duplicated(items: Sequence[CheckItem]) -> dict[_Declared, tuple[tuple[str, 
 
 def _duplicate_note(use: ConstantUse, others: tuple[tuple[str, ...], ...]) -> CheckFinding:
     constant = ".".join(use.path)
-    owner = ".".join(use.path[:-1])
+    # A file-scope constant (no object around it) is compared within its file.
+    owner = ".".join(use.path[:-1]) if len(use.path) > 1 else f"the file {use.source}"
     named = ", ".join(".".join(other) for other in others)
     if use.key is None:
         read = "the event name is read from"
