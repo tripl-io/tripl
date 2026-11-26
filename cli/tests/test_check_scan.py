@@ -2488,6 +2488,10 @@ TS_APP_CODE_NAMED_AFTER_EVENTS = """
     trackBy(index, item);
     trackById(index, item);
     trackByFn(index, item);
+    TrackBy(index, item);
+    useTrackBy(index);
+    pageEvents(slug);
+    useAnalyticsTab(tab);
     fireEvent(button, click);
     fireEvent.click(button);
     calendar.addEvent({ title });
@@ -2584,6 +2588,94 @@ def test_typescript_tracking_receivers_are_still_listed(tmp_path: Path) -> None:
     assert sorted((group.method, group.signal) for group in found.unmatched) == [
         ("logOpen", "receiver"),
         ("sendOpen", "receiver"),
+    ]
+
+
+def test_typescript_wrappers_named_after_their_sdk_are_listed(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/wrappers.ts": """
+                amplitudeLogEvent("signup", {});
+                firebaseLogEvent("x", {});
+                gaEvent("cat", "act");
+                gtagEvent("login", {});
+                mixpanelTrack("x", {});
+                segmentTrack("x", {});
+                analyticsTrack("x", {});
+                fbqTrack("Purchase", {});
+                useMixpanelTrack("x");
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # No receiver to name the SDK: the name's first word does, and a later
+    # `track` or `event` word says what it does with it.
+    assert sorted((group.method, group.signal) for group in found.unmatched) == sorted(
+        (method, "name")
+        for method in (
+            "amplitudeLogEvent",
+            "firebaseLogEvent",
+            "gaEvent",
+            "gtagEvent",
+            "mixpanelTrack",
+            "segmentTrack",
+            "analyticsTrack",
+            "fbqTrack",
+            "useMixpanelTrack",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "vue-gtag";',
+        'import { config, event } from "@/lib/gtag";',
+        'import ReactGA, { event } from "react-ga";',
+        'const { event } = require("./analytics");',
+    ],
+)
+def test_a_bare_event_a_tracking_module_exports_is_listed(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert [(group.method, group.signal, group.calls) for group in found.unmatched] == [
+        ("event", "name", 1)
+    ]
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "./factories";',
+        'import { track as event } from "vue-gtag";',
+        "",
+    ],
+)
+def test_a_bare_event_from_elsewhere_is_left_out(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert found.unmatched == ()
+
+
+def test_a_typescript_hook_is_read_without_its_use(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/hooks.ts": """
+                useScreenView("home");
+                useLogScreenView("home");
+                useTrackEvent("x");
+                useTrackBy(index);
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # The five fixed names hold for a hook too, and so does the `trackBy` exclusion.
+    assert sorted(group.method for group in found.unmatched) == [
+        "useLogScreenView",
+        "useScreenView",
+        "useTrackEvent",
     ]
 
 

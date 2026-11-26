@@ -1067,18 +1067,28 @@ message's selector. Each group has a signal, strongest first:
   it contains `event`, has a word that starts with `track`, or is `capture`,
   `screen`, `screenView`, `logScreenView` or `logPurchase`. TypeScript and
   JavaScript apps name much of their own code after events and trackers, so
-  there the name has to say more. It is one of those five names, or:
+  there the name has to say more. A React hook is read without its `use`
+  first, for every rule below: `useTrackEvent` is listed as `trackEvent`
+  would be, `useScreenView` as `screenView`, while `useEventRoster` and
+  `useTrackBy` are not. The name is one of those five names, or:
   - its first word is `track` or `tracking` (`track`, `trackEvent`,
-    `trackPageView`), but it is not Angular's `trackBy` (`trackById`);
+    `trackPageView`), but it is not Angular's `trackBy` (`trackById`,
+    `TrackBy`);
   - its first word is `log`, `track`, `send`, `record`, `report` or `capture`,
     and a later word is `event` or `events` (`logEvent`, `sendEvent`,
     `logCustomEvent`);
-  - it is `event` called on a receiver (`gtag.event`, `ReactGA.event`); a bare
-    `event(…)` is not listed;
+  - its first word names a tracking SDK, as the `receiver` signal's vendors
+    do, or is `ga`, `gtag` or `fbq`, and a later word is `track`, `tracking`,
+    `event` or `events` (`amplitudeLogEvent`, `mixpanelTrack`, `gaEvent`,
+    `fbqTrack`);
+  - it is `event` called on a receiver (`gtag.event`, `ReactGA.event`), or a
+    bare `event(…)` the file imports by that name from a module whose path
+    has a tracking SDK's name for a word (`import { event } from "vue-gtag"`,
+    `from "@/lib/gtag"`, `require("./analytics")`); any other bare `event(…)`
+    is not listed;
   - it is Countly's `add_event`, spelled that way.
 
-  A React hook is read without its `use`: `useTrackEvent` is listed as
-  `trackEvent` would be, `useEventRoster` is not. So these are left out:
+  So these are left out:
   query keys and links (`eventTypesKey`, `eventHref`), setters, getters and
   predicates (`setEvent`, `getTrackers`, `isEventType`), factories and
   renderers (`makeEvent`, `renderEventsPage`), words that only start with
