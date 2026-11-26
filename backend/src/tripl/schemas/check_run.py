@@ -74,10 +74,16 @@ class CheckRunCreate(BaseModel):
     repository_url: str | None = Field(default=None, max_length=URL_MAX_LENGTH)
     commit_sha: str = Field(min_length=4, max_length=64, pattern=r"^[0-9a-fA-F]+$")
     ref: str = Field(min_length=1, max_length=255)
-    # The repository's default branch. A run whose ``ref`` is it feeds "used in
-    # code"; any other run, or one with no default branch, goes to the history only.
+    # The repository's default branch. A branch run whose ``ref`` is it feeds
+    # "used in code"; any other run, or one with no default branch, goes to the
+    # history only.
     default_branch: str | None = Field(default=None, min_length=1, max_length=255)
     pipeline_url: str | None = Field(default=None, max_length=URL_MAX_LENGTH)
+    # A merge request or pull request pipeline. It checks a merged tree, not the
+    # default branch, so it goes to the history only even when its source
+    # branch has the default branch's name (``main`` into ``release``, a fork's
+    # ``main``).
+    merge_request: bool = False
     strict: bool = False
     calls: list[CheckRunCallIn] = Field(default_factory=list, max_length=MAX_CHECK_RUN_CALLS)
 
@@ -104,6 +110,7 @@ class CheckRunResponse(BaseModel):
     commit_sha: str
     ref: str
     default_branch: str | None
+    merge_request: bool
     is_default_branch: bool
     # The latest default-branch run of its repository: its calls are what
     # "used in code" shows. Every other run is a summary.

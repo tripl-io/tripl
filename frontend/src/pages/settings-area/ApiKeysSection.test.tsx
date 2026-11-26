@@ -308,7 +308,7 @@ describe('ApiKeysSection', () => {
   it('asks for a project before minting a check upload key', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([
-      { id: 'p1', slug: 'shop', name: 'Shop' } as Awaited<ReturnType<typeof projectsApi.list>>[number],
+      { id: 'p1', slug: 'shop', name: 'Shop', can_mutate: true } as Awaited<ReturnType<typeof projectsApi.list>>[number],
     ])
     const create = vi.spyOn(apiKeysApi, 'create').mockResolvedValue({
       ...key({ id: 'k7', name: 'ci', scope: 'check_upload', project_id: 'p1' }),
@@ -322,11 +322,13 @@ describe('ApiKeysSection', () => {
       target: { value: 'check_upload' },
     })
 
-    expect(screen.getByText('A check upload key needs its project.')).toBeInTheDocument()
+    expect(screen.getByText('A check upload key needs a project you can edit.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
 
     await screen.findByRole('option', { name: 'Shop' })
-    fireEvent.change(screen.getByRole('combobox', { name: 'Project (optional)' }), {
+    // Required for this scope, so not labelled optional.
+    expect(screen.queryByRole('combobox', { name: 'Project (optional)' })).toBeNull()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), {
       target: { value: 'shop' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
@@ -340,6 +342,33 @@ describe('ApiKeysSection', () => {
     expect(
       within(dialog).getByText('ci · read & upload check runs · Shop · no expiry'),
     ).toBeInTheDocument()
+  })
+
+  // Uploading needs an editing role in the key's project: a project the user
+  // only views is not offered, since every upload with that key is refused.
+  it('offers a check upload key only for projects the user can edit', async () => {
+    vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
+    vi.spyOn(projectsApi, 'list').mockResolvedValue([
+      { id: 'p1', slug: 'shop', name: 'Shop', can_mutate: true },
+      { id: 'p2', slug: 'blog', name: 'Blog', can_mutate: false, my_role: 'viewer' },
+    ] as Awaited<ReturnType<typeof projectsApi.list>>)
+
+    renderSection()
+    fireEvent.click(screen.getByRole('button', { name: /Create key/i }))
+    await screen.findByLabelText('Name')
+    await screen.findByRole('option', { name: 'Blog' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project (optional)' }), {
+      target: { value: 'blog' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), {
+      target: { value: 'check_upload' },
+    })
+
+    const project = screen.getByRole('combobox', { name: 'Project' })
+    expect(within(project).queryByRole('option', { name: 'Blog' })).toBeNull()
+    expect(within(project).getByRole('option', { name: 'Shop' })).toBeInTheDocument()
+    expect(screen.getByText('A check upload key needs a project you can edit.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
   })
 
   describe('one-time token reveal', () => {

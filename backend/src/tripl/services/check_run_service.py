@@ -7,9 +7,11 @@ current one and deletes the calls of the run it replaces, in the same
 transaction, so "used in code" is always one snapshot per repository and a
 call removed from the code disappears from the event. A run on any other ref
 is stored as a summary (counts, commit, ref, pipeline) and never touches the
-current run. Summaries older than ``CHECK_RUN_RETENTION_DAYS`` are deleted by
-the daily ``maintenance.cleanup_check_runs``; a current run is never deleted
-for its age, since it is what the event pages show.
+current run, and so is a merge request run whatever its ref: it checks a
+merged tree, not the default branch. Summaries older than
+``CHECK_RUN_RETENTION_DAYS`` are deleted by the daily
+``maintenance.cleanup_check_runs``; a current run is never deleted for its
+age, since it is what the event pages show.
 """
 
 from __future__ import annotations
@@ -40,8 +42,16 @@ from tripl.schemas.check_run import (
 
 
 def is_default_branch_run(data: CheckRunCreate) -> bool:
-    """Whether the run checked the repository's default branch; unknown counts as not."""
-    return data.default_branch is not None and data.ref == data.default_branch
+    """Whether the run checked the repository's default branch; unknown counts as not.
+
+    A merge request pipeline never did, even from a source branch with the
+    default branch's name.
+    """
+    return (
+        not data.merge_request
+        and data.default_branch is not None
+        and data.ref == data.default_branch
+    )
 
 
 async def _lock_repository(session: AsyncSession, project_id: uuid.UUID, repository: str) -> None:
@@ -104,6 +114,7 @@ async def record_run(
         commit_sha=data.commit_sha.lower(),
         ref=data.ref,
         default_branch=data.default_branch,
+        merge_request=data.merge_request,
         is_default_branch=current,
         is_current=current,
         pipeline_url=data.pipeline_url,
@@ -172,6 +183,7 @@ def run_response(run: CheckRun) -> CheckRunResponse:
         commit_sha=run.commit_sha,
         ref=run.ref,
         default_branch=run.default_branch,
+        merge_request=run.merge_request,
         is_default_branch=run.is_default_branch,
         is_current=run.is_current,
         pipeline_url=run.pipeline_url,

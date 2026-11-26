@@ -150,7 +150,7 @@ from tripl_cli.install.shell import Runner, subprocess_runner
 from tripl_cli.model import JsonDict, JsonList, Run, as_list, page_items, page_total, to_rfc3339
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
-from tripl_cli.runner import run_gate
+from tripl_cli.runner import run_async, run_gate
 
 FORMAT_TEXT = "text"
 FORMAT_JSON = "json"
@@ -1049,8 +1049,10 @@ def _upload(
     async def send(client: httpx.AsyncClient) -> object:
         return await reader_of(client).send(check_runs_api.upload(project, body))
 
+    # Not ``run_gate``: its outage message says nothing was checked (exit 4),
+    # and here the check has run and its exit code stands.
     try:
-        run_gate(config, send, timeout=timeout)
+        run_async(config, send, timeout=timeout)
     except TriplError as exc:
         reason = str(exc).rstrip(".")
         _emit(f"Not uploaded: {reason}. The check result stands.", sys.stderr, primary=False)

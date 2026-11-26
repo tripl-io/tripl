@@ -6,7 +6,8 @@
   VALUE`` inside a transaction on every supported version.
 * ``check_runs``: one uploaded ``tripl check`` run, a summary (repository,
   commit, ref, pipeline, counts per status). ``is_current`` marks the latest
-  default-branch run of each repository, the only one that keeps its calls.
+  default-branch run of each repository, the only one that keeps its calls;
+  ``merge_request`` marks a merge request pipeline, which never is one.
 * ``check_run_calls``: the calls of a current run, each with its location, the
   event it resolved to and its findings.
 
@@ -46,6 +47,7 @@ def upgrade() -> None:
         sa.Column("commit_sha", sa.String(64), nullable=False),
         sa.Column("ref", sa.String(255), nullable=False),
         sa.Column("default_branch", sa.String(255), nullable=True),
+        sa.Column("merge_request", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("is_default_branch", sa.Boolean(), nullable=False),
         sa.Column("is_current", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("pipeline_url", sa.String(2000), nullable=True),

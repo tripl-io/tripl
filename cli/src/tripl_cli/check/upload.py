@@ -5,13 +5,18 @@ system's own variables, never guessed from the checkout: a run tripl records
 must name the pipeline that made it. GitLab CI and GitHub Actions are read;
 anywhere else ``--upload`` is refused before anything is scanned or sent.
 
-The default branch decides what the run is for. A run whose ref is the
-repository's default branch becomes what "used in code" shows on each event; a
-run on any other ref (a merge request, a feature branch, a tag) goes to the
-history only. GitLab names it (``CI_DEFAULT_BRANCH``); GitHub Actions has no
-variable for it, so it is read from the event payload the runner writes
-(``GITHUB_EVENT_PATH``, ``repository.default_branch``). ``--default-branch``
-overrides either. With none known, the run goes to the history only.
+The default branch decides what the run is for. A branch pipeline whose ref is
+the repository's default branch becomes what "used in code" shows on each
+event; a run on any other ref (a feature branch, a tag) goes to the history
+only, and so does every merge request or pull request pipeline, even one whose
+source branch has the default branch's name (``main`` into ``release``, a
+fork's ``main``): it checks a merged tree, not the default branch. GitLab names
+the default branch (``CI_DEFAULT_BRANCH``); GitHub Actions has no variable for
+it, so it is read from the event payload the runner writes
+(``GITHUB_EVENT_PATH``, ``repository.default_branch``), and a scheduled run,
+whose payload names no repository, runs on the default branch by GitHub's own
+rule. ``--default-branch`` overrides either. With none known, the run goes to
+the history only.
 """
 
 from __future__ import annotations
@@ -29,6 +34,12 @@ from tripl_cli.model import JsonDict
 CI_GITLAB = "gitlab"
 CI_GITHUB = "github"
 
+# GitHub Actions events whose run checks a pull request's tree, not a branch.
+GITHUB_PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target", "merge_group"})
+# GitLab pipeline sources that run for a merge request, or for a GitHub pull
+# request mirrored into GitLab.
+GITLAB_MERGE_REQUEST_SOURCES = frozenset({"merge_request_event", "external_pull_request_event"})
+
 
 @dataclass(frozen=True)
 class CiContext:
@@ -41,15 +52,37 @@ class CiContext:
     default_branch: str | None
     repository_url: str | None
     pipeline_url: str | None
+    # A merge request or pull request pipeline: history only, whatever its ref.
+    merge_request: bool = False
 
     @property
     def on_default_branch(self) -> bool:
-        return self.default_branch is not None and self.ref == self.default_branch
+        return (
+            not self.merge_request
+            and self.default_branch is not None
+            and self.ref == self.default_branch
+        )
 
 
 def _text(env: Mapping[str, str], name: str) -> str | None:
     value = env.get(name, "").strip()
     return value or None
+
+
+def _gitlab_merge_request(env: Mapping[str, str]) -> bool:
+    return (
+        _text(env, "CI_PIPELINE_SOURCE") in GITLAB_MERGE_REQUEST_SOURCES
+        or _text(env, "CI_MERGE_REQUEST_IID") is not None
+        or _text(env, "CI_EXTERNAL_PULL_REQUEST_IID") is not None
+    )
+
+
+def _github_merge_request(env: Mapping[str, str]) -> bool:
+    # GITHUB_HEAD_REF is set for the pull request events only.
+    return (
+        _text(env, "GITHUB_EVENT_NAME") in GITHUB_PULL_REQUEST_EVENTS
+        or _text(env, "GITHUB_HEAD_REF") is not None
+    )
 
 
 def _gitlab(env: Mapping[str, str]) -> dict[str, str | None]:
@@ -85,12 +118,17 @@ def _github(env: Mapping[str, str]) -> dict[str, str | None]:
     repository = _text(env, "GITHUB_REPOSITORY")
     run_id = _text(env, "GITHUB_RUN_ID")
     web = f"{server.rstrip('/')}/{repository}" if repository else None
+    default_branch = _github_default_branch(env)
+    if default_branch is None and _text(env, "GITHUB_EVENT_NAME") == "schedule":
+        # A schedule always runs on the default branch, and its payload has no
+        # ``repository`` to name it.
+        default_branch = _text(env, "GITHUB_REF_NAME")
     return {
         "repository": repository,
         "commit_sha": _text(env, "GITHUB_SHA"),
         # A pull request's source branch; else the branch or tag pushed.
         "ref": _text(env, "GITHUB_HEAD_REF") or _text(env, "GITHUB_REF_NAME"),
-        "default_branch": _github_default_branch(env),
+        "default_branch": default_branch,
         "repository_url": web,
         "pipeline_url": f"{web}/actions/runs/{run_id}" if web and run_id else None,
     }
@@ -104,9 +142,11 @@ def ci_context(env: Mapping[str, str], *, default_branch: str | None = None) -> 
     """
     if _text(env, "GITLAB_CI") == "true":
         system, found = CI_GITLAB, _gitlab(env)
+        merge_request = _gitlab_merge_request(env)
         names = "CI_PROJECT_PATH, CI_COMMIT_SHA and CI_COMMIT_REF_NAME"
     elif _text(env, "GITHUB_ACTIONS") == "true":
         system, found = CI_GITHUB, _github(env)
+        merge_request = _github_merge_request(env)
         names = "GITHUB_REPOSITORY, GITHUB_SHA and GITHUB_REF_NAME"
     else:
         raise TriplConfigError(
@@ -126,6 +166,7 @@ def ci_context(env: Mapping[str, str], *, default_branch: str | None = None) -> 
         default_branch=(override or found["default_branch"] or None),
         repository_url=_url(found["repository_url"]),
         pipeline_url=_url(found["pipeline_url"]),
+        merge_request=merge_request,
     )
 
 
@@ -173,6 +214,7 @@ def run_body(report: CheckReport, context: CiContext) -> dict[str, Any]:
         "ref": context.ref,
         "default_branch": context.default_branch,
         "pipeline_url": context.pipeline_url,
+        "merge_request": context.merge_request,
         "strict": report.strict,
         "calls": [_call(report, result) for result in report.results],
     }
@@ -180,9 +222,14 @@ def run_body(report: CheckReport, context: CiContext) -> dict[str, Any]:
 
 def uploaded_line(context: CiContext, calls: int) -> str:
     """The stderr line after a recorded upload: what it recorded, and what it is for."""
-    where = (
-        f"the current {context.default_branch} run of {context.repository}: used in code shows it"
-        if context.on_default_branch
-        else f"{context.repository} at {context.ref}, history only (not the default branch)"
-    )
+    if context.on_default_branch:
+        where = (
+            f"the current {context.default_branch} run of {context.repository}: "
+            "used in code shows it"
+        )
+    elif context.merge_request:
+        request = "pull request" if context.system == CI_GITHUB else "merge request"
+        where = f"{context.repository} at {context.ref}, history only (a {request} run)"
+    else:
+        where = f"{context.repository} at {context.ref}, history only (not the default branch)"
     return f"Uploaded the check run ({calls} calls) as {where}."

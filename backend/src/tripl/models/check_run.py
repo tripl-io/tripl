@@ -21,9 +21,9 @@ class CheckRun(UUIDMixin, TimestampMixin, Base):
     :class:`CheckRunCall`): that run is what "used in code" on an event shows.
     Recording a newer default-branch run of the same repository deletes the
     calls of the one before and clears its ``is_current``, so a call removed
-    from the code disappears from the event. A run on any other ref (a merge
-    request, a feature branch, a tag) is a summary from the start, and goes to
-    the history only. Every run but the current ones is deleted after
+    from the code disappears from the event. A run on any other ref (a feature
+    branch, a tag), and every merge request run, is a summary from the start,
+    and goes to the history only. Every run but the current ones is deleted after
     ``CHECK_RUN_RETENTION_DAYS`` (``maintenance.cleanup_check_runs``).
     """
 
@@ -42,7 +42,9 @@ class CheckRun(UUIDMixin, TimestampMixin, Base):
     commit_sha: Mapped[str] = mapped_column(String(64))
     ref: Mapped[str] = mapped_column(String(255))
     default_branch: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # ``ref`` is the repository's default branch.
+    # A merge request or pull request pipeline: never the default branch's run.
+    merge_request: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa.false())
+    # A branch run whose ``ref`` is the repository's default branch.
     is_default_branch: Mapped[bool] = mapped_column(Boolean)
     # The latest default-branch run of its repository, which keeps its calls.
     is_current: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa.false())

@@ -153,6 +153,19 @@ async def test_check_upload_key_uploads_and_reads_and_writes_nothing_else(
 
 
 @pytest.mark.asyncio
+async def test_auth_me_never_answers_for_a_check_upload_key(
+    client: AsyncClient, anon_client: AsyncClient
+) -> None:
+    # The key is always bound to one project, and /auth/me refuses a
+    # project-bound key: ``tripl whoami`` tells it by its prefix instead.
+    await client.post("/api/v1/projects", json={"name": "Me", "slug": "cr-me"})
+    token = await _issue_key(client, "check_upload", "cr-me")
+    me = await anon_client.get("/api/v1/auth/me", headers=_bearer(token))
+    assert me.status_code == 403
+    assert me.json()["detail"] == "API key is scoped to a single project"
+
+
+@pytest.mark.asyncio
 async def test_a_read_key_cannot_upload_and_a_write_key_can(
     client: AsyncClient, anon_client: AsyncClient
 ) -> None:
@@ -313,6 +326,39 @@ async def test_a_run_without_a_default_branch_is_history_only(client: AsyncClien
     assert resp.json()["is_current"] is False
     usage = await client.get(f"/api/v1/projects/cr-nodefault/events/{opened}/code-usage")
     assert usage.json()["repositories"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_merge_request_run_never_replaces_the_default_branch_run(
+    client: AsyncClient,
+) -> None:
+    # A merge request from a branch called like the default branch (main into
+    # release, or a fork's main) checks a merged tree: history only.
+    opened, _closed = await _project_with_event(client, "cr-mr")
+    base = "/api/v1/projects/cr-mr"
+    main_run = await client.post(
+        f"{base}/check-runs", json=_run("main", [_call(opened, "src/cart.ts", 1)])
+    )
+    assert main_run.status_code == 201, main_run.text
+    assert main_run.json()["merge_request"] is False
+
+    request_run = await client.post(
+        f"{base}/check-runs",
+        json=_run("main", [_call(opened, "src/other.ts", 9)], merge_request=True, commit_sha=SHA_2),
+    )
+    assert request_run.status_code == 201, request_run.text
+    body = request_run.json()
+    assert (body["merge_request"], body["is_default_branch"], body["is_current"]) == (
+        True,
+        False,
+        False,
+    )
+
+    usage = (await client.get(f"{base}/events/{opened}/code-usage")).json()
+    assert [
+        (repo["run"]["id"], [(call["path"], call["line"]) for call in repo["calls"]])
+        for repo in usage["repositories"]
+    ] == [(main_run.json()["id"], [("src/cart.ts", 1)])]
 
 
 @pytest.mark.asyncio

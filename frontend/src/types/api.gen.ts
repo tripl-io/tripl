@@ -8482,6 +8482,11 @@ export interface components {
             commit_sha: string;
             /** Default Branch */
             default_branch?: string | null;
+            /**
+             * Merge Request
+             * @default false
+             */
+            merge_request: boolean;
             /** Pipeline Url */
             pipeline_url?: string | null;
             /** Ref */
@@ -8546,6 +8551,8 @@ export interface components {
             is_current: boolean;
             /** Is Default Branch */
             is_default_branch: boolean;
+            /** Merge Request */
+            merge_request: boolean;
             /** Pipeline Url */
             pipeline_url: string | null;
             /** Ref */

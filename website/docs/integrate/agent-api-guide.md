@@ -2328,6 +2328,7 @@ curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
     "ref": "main",
     "default_branch": "main",
     "pipeline_url": "https://gitlab.example.com/shop/ios/-/pipelines/42",
+    "merge_request": false,
     "strict": false,
     "calls": [
       {"path": "App/Cart.swift", "line": 42, "column": 9, "status": "ok",
@@ -2345,11 +2346,16 @@ curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
   can be checked from several. `repository_url` and `pipeline_url` must be
   `http(s)` URLs. `commit_sha` is hex.
 - **The default branch decides what the run is for.** A run whose `ref` equals
-  its `default_branch` becomes the repository's *current* run: its calls, with
-  their locations and findings, are what "used in code" shows, and the calls of
-  the run it replaces are deleted, so a call removed from the code disappears.
-  Any other run (a merge request, a feature branch, a tag, or no
-  `default_branch`) is kept as a summary only: counts, commit, ref, pipeline.
+  its `default_branch`, and that is not a merge request, becomes the
+  repository's *current* run: its calls, with their locations and findings, are
+  what "used in code" shows, and the calls of the run it replaces are deleted,
+  so a call removed from the code disappears. Any other run (a feature branch,
+  a tag, or no `default_branch`) is kept as a summary only: counts, commit, ref,
+  pipeline.
+- **`merge_request`** (default `false`) marks a merge request or pull request
+  pipeline. It checks a merged tree, not the default branch, so it is a summary
+  only even when its `ref`, the source branch, has the default branch's name
+  (`main` into `release`, a fork's `main`).
 - **`event_id`** is the main-plan event the call resolved to, as
   `POST /plan/validate` answered it. An id that is not an event of this
   project's main plan is stored as `null`; the call keeps its `identity`.

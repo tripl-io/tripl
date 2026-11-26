@@ -42806,6 +42806,11 @@
             ],
             "title": "Pipeline Url"
           },
+          "merge_request": {
+            "type": "boolean",
+            "title": "Merge Request",
+            "default": false
+          },
           "strict": {
             "type": "boolean",
             "title": "Strict",
@@ -42939,6 +42944,10 @@
             ],
             "title": "Default Branch"
           },
+          "merge_request": {
+            "type": "boolean",
+            "title": "Merge Request"
+          },
           "is_default_branch": {
             "type": "boolean",
             "title": "Is Default Branch"
@@ -42979,6 +42988,7 @@
           "commit_sha",
           "ref",
           "default_branch",
+          "merge_request",
           "is_default_branch",
           "is_current",
           "pipeline_url",

@@ -6281,6 +6281,11 @@
             ],
             "title": "Default Branch"
           },
+          "merge_request": {
+            "default": false,
+            "title": "Merge Request",
+            "type": "boolean"
+          },
           "pipeline_url": {
             "anyOf": [
               {
@@ -6439,6 +6444,10 @@
             "title": "Is Default Branch",
             "type": "boolean"
           },
+          "merge_request": {
+            "title": "Merge Request",
+            "type": "boolean"
+          },
           "pipeline_url": {
             "anyOf": [
               {
@@ -6481,6 +6490,7 @@
           "commit_sha",
           "ref",
           "default_branch",
+          "merge_request",
           "is_default_branch",
           "is_current",
           "pipeline_url",

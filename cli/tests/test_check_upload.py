@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 import pytest
 
-from tripl_cli.check.upload import CI_GITHUB, CI_GITLAB, ci_context
+from tripl_cli.check.upload import CI_GITHUB, CI_GITLAB, ci_context, uploaded_line
 from tripl_cli.cli import main
 from tripl_cli.errors import TriplConfigError
 from tripl_cli.model import ACCESS_CHECK_UPLOAD, access_of_key
@@ -48,6 +48,10 @@ CI_VARIABLES = (
     "GITHUB_HEAD_REF",
     "GITHUB_RUN_ID",
     "GITHUB_EVENT_PATH",
+    "GITHUB_EVENT_NAME",
+    "CI_PIPELINE_SOURCE",
+    "CI_MERGE_REQUEST_IID",
+    "CI_EXTERNAL_PULL_REQUEST_IID",
 )
 
 
@@ -97,6 +101,27 @@ def test_a_merge_request_pipeline_is_not_the_default_branch() -> None:
     assert not context.on_default_branch
 
 
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"CI_PIPELINE_SOURCE": "merge_request_event", "CI_MERGE_REQUEST_IID": "5"},
+        {"CI_MERGE_REQUEST_IID": "5"},
+        {"CI_PIPELINE_SOURCE": "external_pull_request_event"},
+    ],
+)
+def test_a_merge_request_from_the_default_branch_is_history_only(
+    variables: dict[str, str],
+) -> None:
+    # A merge request whose source branch is called like the default branch
+    # (main into release, or a fork's main) checks a merged tree, not main.
+    context = ci_context({**GITLAB, **variables})
+    assert context.ref == "main"
+    assert context.merge_request
+    assert not context.on_default_branch
+    assert "history only" in uploaded_line(context, 3)
+    assert "merge request" in uploaded_line(context, 3)
+
+
 def test_the_flag_overrides_the_ci_default_branch() -> None:
     context = ci_context({**GITLAB, "CI_COMMIT_REF_NAME": "trunk"}, default_branch="trunk")
     assert context.default_branch == "trunk"
@@ -132,6 +157,52 @@ def test_github_reads_the_default_branch_from_the_event_payload(tmp_path: Path) 
     assert not unreadable.on_default_branch
 
 
+def _github_env(tmp_path: Path, payload: object, **variables: str) -> dict[str, str]:
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps(payload), encoding="utf-8")
+    return {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "shop/web",
+        "GITHUB_SHA": SHA,
+        "GITHUB_RUN_ID": "99",
+        "GITHUB_EVENT_PATH": str(event),
+        **variables,
+    }
+
+
+@pytest.mark.parametrize("event_name", ["pull_request", "pull_request_target", "merge_group"])
+def test_a_github_pull_request_from_the_default_branch_is_history_only(
+    tmp_path: Path, event_name: str
+) -> None:
+    env = _github_env(
+        tmp_path,
+        {"repository": {"default_branch": "main"}},
+        GITHUB_EVENT_NAME=event_name,
+        GITHUB_HEAD_REF="main",
+        GITHUB_BASE_REF="release",
+        GITHUB_REF_NAME="7/merge",
+    )
+    context = ci_context(env)
+    assert (context.ref, context.default_branch) == ("main", "main")
+    assert context.merge_request
+    assert not context.on_default_branch
+    assert "pull request" in uploaded_line(context, 3)
+
+
+def test_a_scheduled_github_run_is_on_the_default_branch(tmp_path: Path) -> None:
+    # GitHub runs a schedule on the default branch, and its payload names no repository.
+    env = _github_env(
+        tmp_path,
+        {"schedule": "30 4 * * *", "workflow": ".github/workflows/tripl.yml"},
+        GITHUB_EVENT_NAME="schedule",
+        GITHUB_REF_NAME="main",
+    )
+    context = ci_context(env)
+    assert context.default_branch == "main"
+    assert context.on_default_branch
+    assert not context.merge_request
+
+
 def test_outside_ci_or_with_an_empty_variable_there_is_no_upload() -> None:
     with pytest.raises(TriplConfigError, match="GitLab CI or GitHub Actions"):
         ci_context({})
@@ -165,6 +236,7 @@ def test_the_run_is_uploaded_with_repository_paths_and_verdicts(
         "ref": "main",
         "default_branch": "main",
     }
+    assert body["merge_request"] is False
     assert body["pipeline_url"] == GITLAB["CI_PIPELINE_URL"]
     assert body["strict"] is False
     calls = body["calls"]
@@ -195,6 +267,23 @@ def test_a_branch_run_is_said_to_be_history_only(
     assert json.loads(captured.out)["project"] == "demo"
     assert "history only" in captured.err
     assert json.loads(uploads.calls.last.request.content)["ref"] == "feature/cart"
+
+
+def test_a_merge_request_run_is_sent_as_one(
+    repo: Path,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CI_PIPELINE_SOURCE", "merge_request_event")
+    monkeypatch.setenv("CI_MERGE_REQUEST_IID", "5")
+    assert main(["check", "--upload"]) == 0
+    body = json.loads(uploads.calls.last.request.content)
+    assert (body["ref"], body["merge_request"]) == ("main", True)
+    assert "history only" in capsys.readouterr().err
 
 
 def test_the_default_branch_flag_is_sent(
@@ -243,6 +332,35 @@ def test_a_failed_upload_is_a_warning_and_never_the_exit_code(
     err = capsys.readouterr().err
     assert "Not uploaded:" in err
     assert "The check result stands." in err
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [httpx.ConnectError("refused"), httpx.ReadTimeout("slow"), 500],
+)
+def test_an_unreachable_instance_is_not_said_to_have_checked_nothing(
+    repo: Path,
+    validator: Any,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+    failure: Exception | int,
+) -> None:
+    def respond(_request: httpx.Request) -> httpx.Response:
+        if isinstance(failure, Exception):
+            raise failure
+        return httpx.Response(failure, json={"detail": "down"})
+
+    tripl_api.handler(UPLOAD_URL, respond, method="POST")
+    assert main(["check", "--upload"]) == 0
+    err = capsys.readouterr().err
+    last = err.strip().splitlines()[-1]
+    assert last.startswith("Not uploaded:")
+    assert last.endswith("The check result stands.")
+    # The check did run: the gate's "nothing was checked (exit 4)" is not this.
+    assert "nothing was checked" not in last
+    assert "exit 4" not in last
 
 
 @pytest.mark.parametrize(

@@ -466,7 +466,7 @@ and every other run goes to the check history. See
 3. **Run it on the default branch.** Only a default-branch run says where the
    code sends each event, so keep the job on the default branch (both setups
    above do) and on its schedule. A merge request's run is history only, and
-   never replaces it.
+   never replaces it, even from a branch named like the default branch.
 
 The upload is sent after the reports are written and never changes the exit
 code. It is refused (exit 2) with `--branch` and with a pinned plan revision:

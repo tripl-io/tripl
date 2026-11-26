@@ -1359,19 +1359,29 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   and `CI_PIPELINE_URL`; in GitHub Actions `GITHUB_REPOSITORY`,
   `GITHUB_SERVER_URL`, `GITHUB_SHA`, `GITHUB_HEAD_REF` (a pull request's source
   branch) or else `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, and the default branch
-  from the event payload (`GITHUB_EVENT_PATH`, `repository.default_branch`).
+  from the event payload (`GITHUB_EVENT_PATH`, `repository.default_branch`; a
+  `schedule` run, whose payload names no repository, runs on the default branch
+  by GitHub's own rule). Whether it is a merge request pipeline comes from
+  `CI_PIPELINE_SOURCE`, `CI_MERGE_REQUEST_IID` and
+  `CI_EXTERNAL_PULL_REQUEST_IID` in GitLab, and from `GITHUB_EVENT_NAME`
+  (`pull_request`, `pull_request_target`, `merge_group`) in GitHub Actions.
   Anywhere else it is refused (exit 2) before anything is scanned or sent.
 - **The default branch decides what the run is for.** A run on the
   repository's default branch becomes its *current* run: each call it found,
   with its file, line and findings, is what "used in code" shows on the event,
   until the next default-branch run replaces it, so a call removed from the
-  code disappears. A run on any other ref (a merge request, a feature branch, a
-  tag) goes to the check history only, as a summary: counts per status, commit,
-  ref and pipeline. `--default-branch NAME` names the default branch when the
+  code disappears. A run on any other ref (a feature branch, a tag) goes to the
+  check history only, as a summary: counts per status, commit, ref and
+  pipeline. So does every merge request or pull request run, even one whose
+  source branch has the default branch's name (`main` into `release`, a
+  fork's `main`): it checks a merged tree, not the default branch. `--default-branch NAME` names the default branch when the
   CI's is not the one you mean; with none known, the run goes to the history
   only.
 - **One snapshot per repository.** A project checked from several repositories
-  (iOS, Android, web) keeps one current run for each.
+  (iOS, Android, web) keeps one current run for each. Two check jobs of one
+  repository (a repository holding several apps, each checked from its own
+  `directory`) share that one snapshot, and each default-branch upload replaces
+  the other's: upload from one of them only.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
   flag or from the check config (`--revision live` is fine), and with

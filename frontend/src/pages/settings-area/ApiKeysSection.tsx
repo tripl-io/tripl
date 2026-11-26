@@ -19,7 +19,7 @@ import { Field, SCard, SHeader, NativeSelect, TextInput } from '@/components/set
 import { OneTimeSecretDialog } from '@/components/settings/one-time-secret'
 import { describeKeyCounts, describeRevealedKey, isKeyInactive } from './apiKeyStatus'
 import type { ApiKey, ApiKeyScope, ApiKeyWithToken } from '@/types'
-import { canWrite } from '@/lib/permissions'
+import { canWrite, canWriteProject } from '@/lib/permissions'
 
 const MAX_EXPIRY_DAYS = 3650
 const NEW_KEY_FORM_ID = 'new-api-key-form'
@@ -165,28 +165,43 @@ export default function ApiKeysSection() {
   const activeCount = keys.length - inactiveCount
 
   // What each scope lets a client do, in the reader's words rather than HTTP
-  // verbs.
+  // verbs. Uploading a check run is a write, so it goes with the write scope.
   const scopeOptions = [
     { value: 'read', label: 'Read-only: can view the plan and data' },
-    ...(canCreateWriteKeys ? [{ value: 'write', label: 'Read & write: same access as an editor' }] : []),
-    {
-      value: 'check_upload',
-      label: 'Read & upload check runs: for a CI job running tripl check --upload',
-    },
+    ...(canCreateWriteKeys
+      ? [
+          { value: 'write', label: 'Read & write: same access as an editor' },
+          {
+            value: 'check_upload',
+            label: 'Read & upload check runs: for a CI job running tripl check --upload',
+          },
+        ]
+      : []),
   ]
-  // A check upload key acts in one project, so it needs one picked.
+  // A check upload key acts in one project, and every upload needs an editing
+  // role there: a project the user only views would mint a key whose every
+  // upload is refused, so only the projects they can edit are offered.
+  const uploadProjects = (projectsQuery.data ?? []).filter((p) => canWriteProject(user, p))
   const projectProblem =
-    scope === 'check_upload' && !projectSlug ? 'A check upload key needs its project.' : null
+    scope === 'check_upload' && !uploadProjects.some((p) => p.slug === projectSlug)
+      ? 'A check upload key needs a project you can edit.'
+      : null
   const revokedCount = keys.filter((k) => k.revoked_at != null).length
   const shownKeys = showRevoked ? keys : keys.filter((k) => k.revoked_at == null)
   const openForm = () => {
     if (!canCreateWriteKeys) setScope('read')
     setShowForm(true)
   }
-  const projectOptions = [
-    { value: '', label: 'All projects — full account reach' },
-    ...(projectsQuery.data ?? []).map((p) => ({ value: p.slug, label: p.name })),
-  ]
+  const projectOptions =
+    scope === 'check_upload'
+      ? [
+          { value: '', label: 'Pick a project you can edit' },
+          ...uploadProjects.map((p) => ({ value: p.slug, label: p.name })),
+        ]
+      : [
+          { value: '', label: 'All projects — full account reach' },
+          ...(projectsQuery.data ?? []).map((p) => ({ value: p.slug, label: p.name })),
+        ]
 
   return (
     <div>
@@ -289,7 +304,7 @@ export default function ApiKeysSection() {
               </Field>
             )}
             <Field
-              label="Project (optional)"
+              label={scope === 'check_upload' ? 'Project' : 'Project (optional)'}
               htmlFor="key-project"
               hint={
                 projectProblem ? (
