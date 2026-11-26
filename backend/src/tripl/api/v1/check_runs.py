@@ -26,6 +26,7 @@ from tripl.schemas.check_run import (
     EventCodeUsageResponse,
 )
 from tripl.schemas.pagination import Offset
+from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import check_run_service
 from tripl.services.project_lookup import resolve_project_id
 
@@ -52,8 +53,11 @@ async def upload_check_run(
 async def list_check_runs(
     session: SessionDep,
     slug: str,
+    # FreeTextFilter: bound into an equality, and a NUL aborts inside asyncpg
+    # before SQL runs, so it is stripped first.
     repository: Annotated[
-        str | None, Query(max_length=255, description="Only the runs of this repository.")
+        FreeTextFilter | None,
+        Query(max_length=255, description="Only the runs of this repository."),
     ] = None,
     default_branch: Annotated[
         bool, Query(description="Only the runs on their repository's default branch.")

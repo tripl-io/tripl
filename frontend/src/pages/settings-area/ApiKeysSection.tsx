@@ -173,7 +173,7 @@ export default function ApiKeysSection() {
           { value: 'write', label: 'Read & write: same access as an editor' },
           {
             value: 'check_upload',
-            label: 'Read & upload check runs: for a CI job running tripl check --upload',
+            label: 'Read & upload check runs: for CI running tripl check --upload',
           },
         ]
       : []),

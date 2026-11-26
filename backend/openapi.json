@@ -70604,6 +70604,10 @@
       "name": "plan-validation"
     },
     {
+      "description": "Uploaded tripl check runs: the history, and where the code sends each event.",
+      "name": "check-runs"
+    },
+    {
       "description": "Export the plan as JSON Schema or as a model for tripl codegen.",
       "name": "plan-export"
     },
