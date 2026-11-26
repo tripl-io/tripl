@@ -18,6 +18,7 @@ from __future__ import annotations
 import inspect
 import sys
 import textwrap
+import time
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
@@ -885,6 +886,85 @@ def _evaluated(language: str, source: str) -> Value:
         ("kotlin", "name ?: y.format(z)", "conditional", "name ?: y.format(z)"),
         ("kotlin", "flag && y.format(z)", "expression", "flag && y.format(z)"),
         ("kotlin", '("a_" + id).format(z)', "format", "format of a_${id}"),
+        # A comparison, a shift and an operator written as a word bind looser too.
+        ("kotlin", "a < b.format(c)", "expression", "a < b.format(c)"),
+        ("kotlin", "a > b.format(c)", "expression", "a > b.format(c)"),
+        ("kotlin", "a >> b.format(c)", "expression", "a >> b.format(c)"),
+        ("kotlin", "a to b.format(c)", "expression", "a to b.format(c)"),
+        ("kotlin", "a and b.format(c)", "expression", "a and b.format(c)"),
+        ("kotlin", "a or b.format(c)", "expression", "a or b.format(c)"),
+        ("kotlin", "a shl b.format(c)", "expression", "a shl b.format(c)"),
+        ("kotlin", "a in b.format(c)", "expression", "a in b.format(c)"),
+        ("kotlin", "a !in b.format(c)", "expression", "a !in b.format(c)"),
+        ("kotlin", "a is b.format(c)", "expression", "a is b.format(c)"),
+        ("kotlin", "a !is b.format(c)", "expression", "a !is b.format(c)"),
+        ("kotlin", "a!! to b.format(c)", "expression", "a!! to b.format(c)"),
+        ("kotlin", '"k" to b.format(c)', "expression", '"k" to b.format(c)'),
+        ("kotlin", "f(a) to b.format(c)", "expression", "f(a) to b.format(c)"),
+        ("ts", "a instanceof b.format(c)", "expression", "a instanceof b.format(c)"),
+        ("java", "a instanceof b.format(c)", "expression", "a instanceof b.format(c)"),
+        ("swift", "a is b.format(c)", "expression", "a is b.format(c)"),
+        # In Kotlin any name between two operands is an infix call, and a
+        # label is an operand.
+        ("kotlin", "a zip b.format(c)", "expression", "a zip b.format(c)"),
+        ("kotlin", "a matches b.format(c)", "expression", "a matches b.format(c)"),
+        ("kotlin", "this@Outer to b.format(c)", "expression", "this@Outer to b.format(c)"),
+        # A range binds looser too: Kotlin's `..` and `..<`, Swift's `...` and `..<`.
+        ("kotlin", "a..b.format(c)", "expression", "a..b.format(c)"),
+        ("kotlin", "a..<b.format(c)", "expression", "a..<b.format(c)"),
+        ("swift", "a...b.format(c)", "expression", "a...b.format(c)"),
+        ("swift", "a..<b.format(c)", "expression", "a..<b.format(c)"),
+        # A word operator binds looser than a call, too: no call of `f`.
+        ("kotlin", "a to f()", "expression", "a to f()"),
+        ("kotlin", "a..f()", "expression", "a..f()"),
+        # Kotlin's words are no operators in Java or Objective-C, where a
+        # cast ends in `)`; nor after a Kotlin annotation, which is no operand.
+        ("java", "(String) to.format(c)", "format", "(String) to.format(c)"),
+        ("objc", "(NSString *)step.format(c)", "format", "(NSString *)step.format(c)"),
+        ("kotlin", '@Suppress("x") to.format(c)', "format", '@Suppress("x") to.format(c)'),
+        ("kotlin", "@Keep to.format(c)", "format", "@Keep to.format(c)"),
+        # Type arguments are no comparison, and a name spelled like a word
+        # operator is a name.
+        (
+            "kotlin",
+            "listOf<String>(a).first().format(c)",
+            "format",
+            "listOf<String>(a).first().format(c)",
+        ),
+        ("kotlin", "Foo<Bar>.TEMPLATE.format(c)", "format", "Foo<Bar>.TEMPLATE.format(c)"),
+        (
+            "kotlin",
+            "Holder<List<Int>>.NAME.format(c)",
+            "format",
+            "Holder<List<Int>>.NAME.format(c)",
+        ),
+        ("kotlin", "Holder<*>.NAME.format(c)", "format", "Holder<*>.NAME.format(c)"),
+        ("kotlin", "x.to.format(z)", "format", "x.to.format(z)"),
+        ("kotlin", "x.step.format(z)", "format", "x.step.format(z)"),
+        ("kotlin", "to.format(c)", "format", "to.format(c)"),
+        ("kotlin", "step.format(c)", "format", "step.format(c)"),
+        ("kotlin", "(a to b).format(c)", "format", "(a to b).format(c)"),
+        ("kotlin", "(a < b).format(c)", "format", "(a < b).format(c)"),
+        ("java", "Util.<String>pick(a).format(c)", "format", "Util.<String>pick(a).format(c)"),
+        ("java", "new Foo<Bar>().format(c)", "format", "Foo<Bar>().format(c)"),
+        ("ts", "pick<string>(a).format(c)", "format", "pick<string>(a).format(c)"),
+        ("ts", "pick<A | B>(a).format(c)", "format", "pick<A | B>(a).format(c)"),
+        ("ts", "<string>x.format(c)", "format", "<string>x.format(c)"),
+        ("ts", "await to.format(c)", "format", "to.format(c)"),
+        # Type arguments may hold literals, object and function types, and be
+        # followed by a trailing lambda or an index.
+        ("kotlin", "run<String> { s }.format(c)", "format", "run<String> { s }.format(c)"),
+        ("kotlin", "foo<(Int) -> Unit>().format(c)", "format", "foo<(Int) -> Unit>().format(c)"),
+        ("ts", 'pick<"a">(x).format(c)', "format", 'pick<"a">(x).format(c)'),
+        ("ts", 'pick<"a" | "b">(x).format(c)', "format", 'pick<"a" | "b">(x).format(c)'),
+        ("ts", "pick<{a: string}>(x).format(c)", "format", "pick<{a: string}>(x).format(c)"),
+        (
+            "ts",
+            "pick<(a: string) => void>(x).format(c)",
+            "format",
+            "pick<(a: string) => void>(x).format(c)",
+        ),
+        ("ts", 'Foo<T>["k"].format(c)', "format", 'Foo<T>["k"].format(c)'),
         ("kotlin", "getMapTypeLog()", "function", "getMapTypeLog()"),
         ("kotlin", 'if (flag) "a" else "b"', "conditional", 'if (flag) "a" else "b"'),
         (
@@ -911,6 +991,41 @@ def test_a_value_the_scan_cannot_read_says_why(
     value = _evaluated(language, f"track({argument})")
     assert value.kind == "dynamic"
     assert (value.reason, value.expression) == (reason, expression)
+
+
+@pytest.mark.parametrize("explain", [False, True])
+@pytest.mark.parametrize(
+    "argument", ["a to f()", "a in f()", "OPEN to f()", "x to Events.Name.Open", "a..f()"]
+)
+def test_an_operator_before_a_known_call_or_constant_is_not_read_as_it(
+    argument: str, explain: bool
+) -> None:
+    """``a to f()`` is a pair, not ``f()``: the operator binds looser than the call.
+
+    So a function or a constant the index reads is not read through one.
+    """
+    symbols = SymbolIndex()
+    symbols.index_tokens(tokenize(_INDEX + 'fun f(): String = "from_f"\n', "kotlin"), "kotlin")
+    source = f"track({argument})"
+    call = next(c for c in find_calls(tokenize(source, "kotlin"), "kotlin", source))
+    value = Evaluator(symbols, "kotlin", explain=explain).evaluate(call.args[0].tokens)
+    assert value.kind == "dynamic"
+    assert (value.reason, value.expression) == (("expression", argument) if explain else ("", ""))
+    # The call and the constant alone still read.
+    for alone, read in (("f()", "from_f"), ("Events.Name.Open", "open")):
+        tokens = tokenize(alone, "kotlin")
+        assert Evaluator(symbols, "kotlin", explain=explain).evaluate(tokens).text == read
+
+
+def test_a_long_chain_of_comparisons_is_told_from_type_arguments_in_linear_time() -> None:
+    """Every ``<`` of ``a < a < … .format(c)`` is weighed once, not once per ``<`` after it."""
+    argument = "a" + " < a" * 20_000 + ".format(c)"
+    started = time.perf_counter()
+    value = _evaluated("kotlin", f"track({argument})")
+    elapsed = time.perf_counter() - started
+    assert value.reason == "expression"
+    # About 0.3 s on a small ARM board; reading it in quadratic time took minutes.
+    assert elapsed < 10
 
 
 @pytest.mark.parametrize("builder", ["mapOf", "hashMapOf", "mutableMapOf"])
