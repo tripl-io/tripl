@@ -46,6 +46,21 @@ Handler = Callable[[argparse.Namespace, Config], int]
 # as ``abandon``: called with the parsed arguments when the run fails before
 # the handler starts, so an earlier run's files never pass for this one's.
 Abandon = Callable[[argparse.Namespace], None]
+# What a command that talks to no instance sets as ``offline``: asked with the
+# parsed arguments before the connection settings are resolved, and a True
+# answer means they are not read at all, so a URL or a config file this run
+# would never use cannot fail it. A command with one such mode (check's --list)
+# answers from its arguments; one that never connects sets ``never_connects``.
+Offline = Callable[[argparse.Namespace], bool]
+
+
+def never_connects(args: argparse.Namespace) -> bool:
+    """The ``offline`` answer of a command that talks to no instance in any mode.
+
+    ``reproduce`` and ``journey-capture`` work on local files and a local test
+    command alone, so their connection settings are never read.
+    """
+    return True
 
 
 def register_all(

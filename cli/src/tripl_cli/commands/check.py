@@ -16,8 +16,9 @@ Three modes, one scan and one validator between them:
   call it matches with what was read and why a value was not, the functions
   that forward their own parameter into a tracking call, and the calls that
   look like tracking but match no call spec. It needs no URL and no key, opens
-  no connection and sends nothing; with no check config found it scans the
-  whole repository it runs in (discovery).
+  no connection and sends nothing, and the connection settings are not read at
+  all, so a malformed one does not stop it; with no check config found it
+  scans the whole repository it runs in (discovery).
 
 The first two batch their items to ``POST /projects/{slug}/plan/validate`` — a
 READ that happens to be a POST, so any project member's key works, ``tk_r_``
@@ -87,7 +88,7 @@ import stat
 import sys
 import time
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -148,6 +149,7 @@ from tripl_cli.model import JsonDict, JsonList, Run, as_list, page_items, page_t
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
+from tripl_cli.streams import silence, write_failure
 
 FORMAT_TEXT = "text"
 FORMAT_JSON = "json"
@@ -178,7 +180,9 @@ class _PrintPreset(argparse.Action):
     it prints its YAML even with ``--json``, and leaves ``--report`` files
     alone. An unknown NAME is argparse's own invalid choice, which lists them.
     It prints the way ``--list`` does, so a reader that left early
-    (``| true``) ends the output, and the exit is still 0.
+    (``| true``) ends the output, and the exit is still 0; a stdout that cannot
+    be written at all (``> /dev/full``) is one line and exit 1, which
+    ``cli.main`` reports because it parses the arguments inside its own try.
     """
 
     def __call__(
@@ -363,7 +367,7 @@ def register(
     )
     add_json(parser)
     add_timeout(parser)
-    parser.set_defaults(handler=run, abandon=abandon)
+    parser.set_defaults(handler=run, abandon=abandon, offline=sends_nothing)
 
 
 def _format(args: argparse.Namespace) -> str:
@@ -457,6 +461,15 @@ def abandon(args: argparse.Namespace) -> None:
     )
 
 
+def sends_nothing(args: argparse.Namespace) -> bool:
+    """Whether this run talks to no instance, so ``cli.main`` reads no connection settings.
+
+    True for ``--list`` alone. Every other mode validates against the plan, so
+    it needs the URL and the key resolved, and is refused when they are malformed.
+    """
+    return bool(args.list)
+
+
 def run(args: argparse.Namespace, config: Config) -> int:
     targets = _report_targets(args)
     try:
@@ -475,7 +488,9 @@ def _list(args: argparse.Namespace) -> int:
     """``--list``: the static scan alone, each matched call shown in full. 0 once it ran.
 
     Never ``begin(config)``: no URL, no key, no client, nothing sent, so it
-    works with no connection settings at all. ``--timeout`` always has a value
+    works with no connection settings at all, and with malformed ones:
+    ``cli.main`` does not resolve them for this mode (``sends_nothing``).
+    ``--timeout`` always has a value
     and cannot be told from its default, so it is ignored rather than refused.
     """
     started = time.monotonic()
@@ -588,32 +603,35 @@ def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
 
     The human lines beside the JSON document (``primary`` false: stderr under
     ``--json``) end the same way on any failure to write them, a full disk
-    included, so the document still reaches stdout. On the primary output any
-    other failure is one.
+    included, so the document still reaches stdout. On the primary output,
+    which is always stdout, any other failure (``> /dev/full``) fails the run
+    with one line and exit 1: what was asked for did not get out.
     """
     if stream is None:
         return
-    try:
+    with _writing(stream, primary=primary):
         _say(text, stream)
+
+
+@contextlib.contextmanager
+def _writing(stream: TextIO, *, primary: bool = True) -> Iterator[None]:
+    """Write to ``stream`` in the block and flush it, on ``_emit``'s terms.
+
+    The flush is here so a failure surfaces inside the run, where it can still
+    fail the run (and remove its reports), rather than in the interpreter's
+    flush at exit.
+    """
+    try:
+        yield
         stream.flush()
     except BrokenPipeError:
-        _silence(stream)
-    except OSError:
+        silence(stream)
+    except OSError as exc:
+        # Silenced either way, so the text still in the buffer cannot fail
+        # again when the interpreter flushes at exit.
+        silence(stream)
         if primary:
-            raise
-        _silence(stream)
-
-
-def _silence(stream: TextIO) -> None:
-    try:
-        descriptor = stream.fileno()
-    except (OSError, ValueError):
-        return  # not backed by a file (a test's stream), so no flush at exit reaches one
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    try:
-        os.dup2(devnull, descriptor)
-    finally:
-        os.close(devnull)
+            raise TriplError(write_failure(exc)) from exc
 
 
 def _gate_flag(args: argparse.Namespace) -> str | None:
@@ -927,8 +945,11 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     # SECONDARY stream, and a closed or full stderr (2>&-, 2>/dev/full) must not
     # end the run before the document reaches stdout.
     _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
-    if output != FORMAT_TEXT:
-        sys.stdout.write(_render(output, report, scan_root))
+    if output != FORMAT_TEXT and sys.stdout is not None:
+        # Flushed here, not at exit: a document that cannot be written fails
+        # the run and removes its reports, as the text summary does.
+        with _writing(sys.stdout):
+            sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
 
 
