@@ -993,7 +993,7 @@ that kind of value yet.
 | `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
 | `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
-| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), look at what it says the argument is. A parameter of the function around the call (`: parameter evt of send (line 1)`): the object is built by that function's callers, so add a call spec for the function with `object_arg:` (see [Functions that forward their parameter](#list-forwarders)). Anything else: configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
 | `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
 | `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. A comparison, a range or a word operator does the same, so `a < y.format(z)`, `a..y.format(z)` and Kotlin's `a to y.format(z)` are an `expression`; type arguments, as in `pick<String>(a).format(z)`, are no comparison. A word operator is any name between two operands in Kotlin, where it is an infix call such as `to` or `zip`, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
@@ -1049,7 +1049,62 @@ The calls are counted by name, in the function's own file and elsewhere,
 leaving out those in its own body: a call of that name there is the tracking
 call it forwards to, or the function calling itself. By name alone, so a call
 of another function with the same name counts too, a tracking call named like
-it included. A Swift `init` or a TypeScript `constructor` is listed under its
+it included.
+
+A function can also pass its parameter on whole, as the object a tracking call
+reads its name and fields from:
+
+```ts
+export function send(evt: StructuredEvent) {
+  trackStructEvent(evt);
+}
+```
+
+The call in it reads nothing (`name: not passed, object argument evt is not a
+literal: parameter evt of send (line 1)`), and `--list` names `send` as
+`forwards evt (#0) as the object argument`. The object is built where `send`
+is called, so give `send` a call spec that reads its argument as the object:
+
+```yaml
+event_types:
+  se:
+    calls:
+      - function: "trackStructEvent"
+        object_arg: 0
+        args: {category: category, action: action}
+      - function: "send"           # the wrapper --list named
+        object_arg: 0
+        args: {category: category, action: action}
+```
+
+`object_arg:` reads an argument by its position, and only one written without
+a label. Swift callers write `send(evt: […])` unless the parameter is declared
+`_ evt`, and Kotlin callers may write `send(evt = …)`. Such a call is matched
+by the call spec for `send` but its object is not read: it lists as
+`name: not passed` with `not mapped: evt`. `--list` says so in the function's
+row, before you add the spec:
+`forwards evt (#0) as the object argument (object_arg does not read an argument labelled evt)`.
+In Kotlin the calls that pass the argument by position are still read. In
+Swift none is, so there is nothing to configure for that function, short of
+declaring the parameter `_ evt`.
+
+A function is listed this way also when the tracking call in it is otherwise
+read, such as `function opened(props: Props) { track("opened", props) }`: the
+name is in the function's body and only the object comes from its callers. A
+call spec for `opened` then reads what the callers put in the object, not the
+name. `tripl check` builds one item per matched call, so each caller then
+gives a second item, with the fields from its object and no name, next to the
+named one from the function's body: the event is not put together from the
+two. Add that spec only when the callers' fields are worth checking on their
+own.
+
+Only a bare parameter counts, never a property of one (`evt.inner`). The
+function is found the way a `parameter` reason is (see above), with the same
+limits: an Objective-C method is not listed, and a parameter is still taken
+for one after the function assigns it a new value, or inside a lambda whose
+own parameter has its name.
+
+A Swift `init` or a TypeScript `constructor` is listed under its
 type's name, which is what its callers write (`ScreenView(screen: name)`,
 `new PageView(path)`), though the reason line under the call, and
 `declared.function` in the JSON, still name it `init` or `constructor`. One in

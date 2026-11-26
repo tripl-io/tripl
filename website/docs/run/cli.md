@@ -2450,8 +2450,17 @@ given as nothing. Under a call with a value not read, one indented line per
 reason says why, and `not mapped:` names the arguments the call spec maps to no
 target (a label, or `#2` for the third argument). An `object_arg:` argument
 that is not a literal is named on the `not passed` line
-(`name: not passed, object argument evt is not a literal`); the JSON has it
-as `read.object_argument`, also on a call whose name is read. A `?` inside
+(`name: not passed, object argument evt is not a literal`), followed by where
+it comes from when the function around the call says so
+(`: parameter evt of send (line 1)`, a property of a parameter, or a local).
+The JSON has it as `read.object_argument`, also on a call whose name is read.
+A function that passes its own parameter on as the object argument is listed
+with the functions that forward a parameter, as
+`forwards evt (#0) as the object argument`. When its callers may write a
+label before that argument (always in Swift unless it is declared `_`, by
+choice in Kotlin), the row adds
+`(object_arg does not read an argument labelled evt)`: `object_arg:` reads an
+argument by position, and only one written without a label. A `?` inside
 `{…}` is a dictionary entry the scan did not read, and it gets no line: its
 reason is only in the JSON, under the dictionary's `entries`
 (`read.properties.entries.<key>.reason`). The tally
@@ -4691,8 +4700,10 @@ with the type shown. Trimmed to one call of each list:
       "function": "track",
       "location": { "path": "app/Tracking.kt", "line": 9 },
       "parameters": [
-        { "name": "event", "index": 0, "label": "event", "targets": ["name"] },
-        { "name": "params", "index": 1, "label": "params", "targets": ["properties"] }
+        { "name": "event", "index": 0, "label": "event", "targets": ["name"],
+          "object_argument": false },
+        { "name": "params", "index": 1, "label": "params", "targets": ["properties"],
+          "object_argument": false }
       ],
       "calls": 1,
       "callers": { "same_file": 0, "same_file_matched": 0, "other_files": 1, "other_files_matched": 0,
@@ -4718,8 +4729,8 @@ with the type shown. Trimmed to one call of each list:
 | `files_scanned` / `skipped` | As in the [`check` document](#check-document). |
 | `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. |
 | `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. |
-| `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value whose reason comes from the argument alone (never `parameter`, `parameter_property` or `local`, so `declared` is `null`). `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read, while the text names it only on a `not passed` line. |
-| `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`): add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`). `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
+| `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value. Its `reason` is refined from the function the call sits in, the way a target's is: `parameter`, `parameter_property` or `local` with `declared` set to that function and line, else the argument's own reason with `declared` `null`. `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read; the text names it on a `not passed` line and, when it is a parameter, in the function's `forwarders` row. |
+| `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`), as a target's value or as the call's `object_arg` argument: add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets, object_argument}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`), `targets` are the targets the parameter reaches as a value, and `object_argument` is `true` when a tracking call takes it whole as its `object_arg` argument (`calls[].read.object_argument`); `targets` is `[]` for a parameter forwarded only that way. When `object_argument` is `true` and `label` is not `null`, a call spec for the function reads the object only from the callers that write no label: `object_arg:` does not read a labelled argument. `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
 | `unmatched[]` | The calls that look like tracking but match no call spec, grouped by method (the callee's last segment, or an Objective-C selector). `receivers` counts what came before the method (`""` for a bare call), `signal` says why the calls look like tracking, `calls` counts them, `first` locates the first one, and `example` is its source on one line, at most 80 characters. Groups with signal `constant` come first, then the rest by `calls`. |
 
 A target is keyed the way a call spec writes it: `name`, `properties`, a
@@ -4759,7 +4770,7 @@ refined into `parameter` only. The last two are about the target, not a value:
 | `parameter` | A parameter of the function the call sits in: the value comes from its callers. |
 | `parameter_property` | A property of such a parameter: the value is set where that object is built. |
 | `local` | A local variable of that function, declared before the call. |
-| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds. Always reported on `name`. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds with its own reason (`parameter` when the function around the call passes its parameter on, and is then in `forwarders`). Always reported on `name`. |
 | `wrong_shape` | The value has the wrong shape for its target: properties that are not a dictionary, or a name or field that is one. |
 
 The signals: `constant` (an argument is an event-name constant, a path through a
