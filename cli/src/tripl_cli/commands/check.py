@@ -88,7 +88,7 @@ import stat
 import sys
 import time
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -181,7 +181,8 @@ class _PrintPreset(argparse.Action):
     alone. An unknown NAME is argparse's own invalid choice, which lists them.
     It prints the way ``--list`` does, so a reader that left early
     (``| true``) ends the output, and the exit is still 0; a stdout that cannot
-    be written at all is one line and exit 1, raised through the parser.
+    be written at all (``> /dev/full``) is one line and exit 1, which
+    ``cli.main`` reports because it parses the arguments inside its own try.
     """
 
     def __call__(
@@ -608,8 +609,20 @@ def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
     """
     if stream is None:
         return
-    try:
+    with _writing(stream, primary=primary):
         _say(text, stream)
+
+
+@contextlib.contextmanager
+def _writing(stream: TextIO, *, primary: bool = True) -> Iterator[None]:
+    """Write to ``stream`` in the block and flush it, on ``_emit``'s terms.
+
+    The flush is here so a failure surfaces inside the run, where it can still
+    fail the run (and remove its reports), rather than in the interpreter's
+    flush at exit.
+    """
+    try:
+        yield
         stream.flush()
     except BrokenPipeError:
         silence(stream)
@@ -932,8 +945,11 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     # SECONDARY stream, and a closed or full stderr (2>&-, 2>/dev/full) must not
     # end the run before the document reaches stdout.
     _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
-    if output != FORMAT_TEXT:
-        sys.stdout.write(_render(output, report, scan_root))
+    if output != FORMAT_TEXT and sys.stdout is not None:
+        # Flushed here, not at exit: a document that cannot be written fails
+        # the run and removes its reports, as the text summary does.
+        with _writing(sys.stdout):
+            sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
 
 

@@ -977,9 +977,10 @@ the [`check --list` document](../run/cli.md#check---list-document). The CLI
 page has [an example](../run/cli.md#tripl-check-list).
 
 `--list` exits 0 whenever the scan ran, even when the reader closed the pipe
-early (`| head`), and 2 for a config error. It refuses the flags it has no use
-for: `--report`, `--branch`, `--strict`, `--allow-empty`, and a `--format`
-other than `text` or `json`.
+early (`| head`), and 2 for a config error. A stdout it cannot write at all
+(a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
+the flags it has no use for: `--report`, `--branch`, `--strict`,
+`--allow-empty`, and a `--format` other than `text` or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1276,7 +1277,7 @@ Human text and progress messages go to stderr when stdout carries `json`,
 | Code | Meaning |
 |------|---------|
 | **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
 | **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
@@ -1288,7 +1289,8 @@ accepts it, for a repository with no tracking code yet, and also accepts a
 
 `tripl check --list` checks nothing, so it never fails because nothing
 matched: it exits 0 whenever the scan ran, and 2 for a config error or a flag
-it refuses (see [List what the scan reads](#list)).
+it refuses (see [List what the scan reads](#list)). Like every other mode, it
+exits 1 when its output cannot be written to stdout.
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was
