@@ -22,6 +22,21 @@ from dataclasses import dataclass, field
 
 from tripl_cli.check.lexer import IDENT, PUNCT, Token
 
+# Reserved words that read as `name(` but open a statement or an expression:
+# `if (a) track(1)` has one call, not two. Only words no language here lets
+# a function take, so `of(1, 2)` (RxJS) or `with(a)` stay calls, and only
+# when no `.` precedes them: `.for(a)` is a Swift implicit member.
+_KEYWORD_CALLEES: dict[str, frozenset[str]] = {
+    language: frozenset({"if", "while", "for", "switch", "catch", "return", "throw"} | extra)
+    for language, extra in {
+        "ts": {"typeof"},
+        "kotlin": {"when"},
+        "swift": {"guard"},
+        "java": {"synchronized"},
+        "objc": {"synchronized"},
+    }.items()
+}
+
 # An identifier directly before a callee means a declaration (`func log(`,
 # `void log(`, `fun log(`), except for these, which precede EXPRESSIONS.
 _EXPRESSION_KEYWORDS = frozenset(
@@ -299,6 +314,10 @@ def find_calls(tokens: list[Token], language: str, source: str) -> list[Call]:
         if found is None:
             continue
         callee, first = found
+        if callee in _KEYWORD_CALLEES.get(language, frozenset()) and not (
+            index > 0 and tokens[index - 1].is_punct(".")
+        ):
+            continue
         close = matching(tokens, index + 1)
         if language in ("ts", "java", "objc") and close + 1 < len(tokens):
             # `name(params) {` / `name(params): Type {` is a method DEFINITION in
