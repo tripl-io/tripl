@@ -304,6 +304,44 @@ describe('ApiKeysSection', () => {
     expect(screen.getByRole('combobox', { name: 'Project (optional)' })).toHaveValue('')
   })
 
+  // The CI key is bound to one project: the backend refuses one without.
+  it('asks for a project before minting a check upload key', async () => {
+    vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
+    vi.spyOn(projectsApi, 'list').mockResolvedValue([
+      { id: 'p1', slug: 'shop', name: 'Shop' } as Awaited<ReturnType<typeof projectsApi.list>>[number],
+    ])
+    const create = vi.spyOn(apiKeysApi, 'create').mockResolvedValue({
+      ...key({ id: 'k7', name: 'ci', scope: 'check_upload', project_id: 'p1' }),
+      token: 'tk_c_secret',
+    })
+
+    renderSection()
+    fireEvent.click(screen.getByRole('button', { name: /Create key/i }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'ci' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), {
+      target: { value: 'check_upload' },
+    })
+
+    expect(screen.getByText('A check upload key needs its project.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
+
+    await screen.findByRole('option', { name: 'Shop' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project (optional)' }), {
+      target: { value: 'shop' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: 'check_upload', project_slug: 'shop' }),
+      ),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Copy your API key now' })
+    expect(
+      within(dialog).getByText('ci · read & upload check runs · Shop · no expiry'),
+    ).toBeInTheDocument()
+  })
+
   describe('one-time token reveal', () => {
     const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
 

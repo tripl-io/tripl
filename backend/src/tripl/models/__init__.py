@@ -13,6 +13,7 @@ from tripl.models.app_setting import AppSetting
 from tripl.models.audit_log import AuditLog
 from tripl.models.base import Base
 from tripl.models.chart_annotation import ChartAnnotation
+from tripl.models.check_run import CheckRun, CheckRunCall
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
@@ -102,6 +103,8 @@ __all__ = [
     "AppSetting",
     "AuditLog",
     "ChartAnnotation",
+    "CheckRun",
+    "CheckRunCall",
     "CoverageMetric",
     "Project",
     "EventType",

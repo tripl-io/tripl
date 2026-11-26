@@ -2364,6 +2364,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/check-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Check Runs
+         * @description The project's uploaded runs, newest first, each as a summary.
+         */
+        get: operations["list_check_runs_api_v1_projects__slug__check_runs_get"];
+        put?: never;
+        /**
+         * Upload Check Run
+         * @description Record one ``tripl check`` run of a repository.
+         *
+         *     A run whose ``ref`` is its ``default_branch`` becomes the repository's
+         *     current run: its calls replace the previous default-branch run's as what
+         *     "used in code" shows. Any other run is kept as a summary only, for the
+         *     history. At most 5000 calls per run.
+         */
+        post: operations["upload_check_run_api_v1_projects__slug__check_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/danger/reset-anomalies": {
         parameters: {
             query?: never;
@@ -3337,6 +3366,29 @@ export interface paths {
         head?: never;
         /** Update Event */
         patch: operations["update_event_api_v1_projects__slug__events__event_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/events/{event_id}/code-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event Code Usage
+         * @description Where the code sends this event: per repository, its latest default-branch run's calls.
+         *
+         *     A repository whose latest run has no call of the event is listed with no
+         *     calls; one that never uploaded a default-branch run is not listed.
+         */
+        get: operations["get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/projects/{slug}/events/{event_id}/comments": {
@@ -7571,9 +7623,16 @@ export interface components {
         };
         /**
          * ApiKeyScope
+         * @description What an API key may do (``api_keys.scope``).
+         *
+         *     ``read`` reads; ``write`` does whatever its user's role allows;
+         *     ``check_upload`` reads like ``read`` and may also record ``tripl check``
+         *     runs (``POST /projects/{slug}/check-runs``), and nothing else. A
+         *     ``check_upload`` key is always bound to one project: it is the key a CI
+         *     job holds.
          * @enum {string}
          */
-        ApiKeyScope: "read" | "write";
+        ApiKeyScope: "read" | "write" | "check_upload";
         /** AppVersionAdoptionResponse */
         AppVersionAdoptionResponse: {
             /** App Version Column */
@@ -8356,6 +8415,148 @@ export interface components {
          * @enum {string}
          */
         ChartAnnotationSource: "manual" | "release" | "api";
+        /**
+         * CheckRunCallIn
+         * @description One call as the check saw it: where it is, what it resolved to, and its verdict.
+         */
+        CheckRunCallIn: {
+            /** Column */
+            column?: number | null;
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Findings */
+            findings?: components["schemas"]["CheckRunFinding"][];
+            /** Identity */
+            identity?: string | null;
+            /** Line */
+            line: number;
+            /** Name */
+            name?: string | null;
+            /** Path */
+            path: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warning" | "error" | "dynamic";
+        };
+        /** CheckRunCallLocation */
+        CheckRunCallLocation: {
+            /** Column */
+            column: number | null;
+            /** Findings */
+            findings: components["schemas"]["CheckRunFinding"][];
+            /** Line */
+            line: number;
+            /** Path */
+            path: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warning" | "error" | "dynamic";
+        };
+        /** CheckRunCounts */
+        CheckRunCounts: {
+            /** Dynamic */
+            dynamic: number;
+            /** Error */
+            error: number;
+            /** Ok */
+            ok: number;
+            /** Total */
+            total: number;
+            /** Warning */
+            warning: number;
+        };
+        /**
+         * CheckRunCreate
+         * @description One ``tripl check --upload`` run.
+         */
+        CheckRunCreate: {
+            /** Calls */
+            calls?: components["schemas"]["CheckRunCallIn"][];
+            /** Commit Sha */
+            commit_sha: string;
+            /** Default Branch */
+            default_branch?: string | null;
+            /** Pipeline Url */
+            pipeline_url?: string | null;
+            /** Ref */
+            ref: string;
+            /** Repository */
+            repository: string;
+            /** Repository Url */
+            repository_url?: string | null;
+            /**
+             * Strict
+             * @default false
+             */
+            strict: boolean;
+        };
+        /** CheckRunFinding */
+        CheckRunFinding: {
+            /** Code */
+            code: string;
+            /** Field */
+            field?: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            /**
+             * Suppressed
+             * @default false
+             */
+            suppressed: boolean;
+        };
+        /** CheckRunListResponse */
+        CheckRunListResponse: {
+            /** Items */
+            items: components["schemas"]["CheckRunResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * CheckRunResponse
+         * @description A run as the history lists it: a summary, whatever was stored with it.
+         */
+        CheckRunResponse: {
+            calls: components["schemas"]["CheckRunCounts"];
+            /** Commit Sha */
+            commit_sha: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Default Branch */
+            default_branch: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Is Default Branch */
+            is_default_branch: boolean;
+            /** Pipeline Url */
+            pipeline_url: string | null;
+            /** Ref */
+            ref: string;
+            /** Repository */
+            repository: string;
+            /** Repository Url */
+            repository_url: string | null;
+            /** Strict */
+            strict: boolean;
+        };
         /**
          * ClickHouseSettings
          * @description ClickHouse has no extra connection settings.
@@ -10477,6 +10678,35 @@ export interface components {
             user_email?: string | null;
             /** User Id */
             user_id?: string | null;
+        };
+        /**
+         * EventCodeUsageRepository
+         * @description One repository's latest default-branch run, and the calls in it that send the event.
+         *
+         *     ``calls`` is empty when that run found no call of the event: the event is
+         *     not used in that repository's code, as of ``run``.
+         */
+        EventCodeUsageRepository: {
+            /** Calls */
+            calls: components["schemas"]["CheckRunCallLocation"][];
+            /** Repository */
+            repository: string;
+            /** Repository Url */
+            repository_url: string | null;
+            run: components["schemas"]["CheckRunResponse"];
+        };
+        /**
+         * EventCodeUsageResponse
+         * @description Where the code sends an event, per repository that uploads check runs.
+         */
+        EventCodeUsageResponse: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Repositories */
+            repositories: components["schemas"]["EventCodeUsageRepository"][];
         };
         /**
          * EventCommentActionRequest
@@ -26754,6 +26984,134 @@ export interface operations {
             };
         };
     };
+    list_check_runs_api_v1_projects__slug__check_runs_get: {
+        parameters: {
+            query?: {
+                /** @description Only the runs of this repository. */
+                repository?: string | null;
+                /** @description Only the runs on their repository's default branch. */
+                default_branch?: boolean;
+                limit?: number;
+                /** @description How many items to skip, for paging. */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckRunListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_check_run_api_v1_projects__slug__check_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckRunResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_anomalies_api_v1_projects__slug__danger_reset_anomalies_post: {
         parameters: {
             query?: never;
@@ -30949,6 +31307,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventMutationResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCodeUsageResponse"];
                 };
             };
             /** @description No session or API key, or the API key is invalid, expired or revoked. */

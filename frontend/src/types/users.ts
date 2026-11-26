@@ -75,7 +75,7 @@ export interface AuthUser {
    * own. `null` for a browser session on `/auth/me`.
    */
   org?: string | null
-  /** `read` / `write` for an API key; `null` for a browser session. */
+  /** `read` / `write` / `check_upload` for an API key; `null` for a browser session. */
   api_key_scope?: ApiKeyScope | null
   created_at: string
   updated_at: string
@@ -89,7 +89,8 @@ export interface UserListItem {
   created_at: string
 }
 
-export type ApiKeyScope = 'read' | 'write'
+/** `check_upload`: reads, and uploads `tripl check` runs to its one project. */
+export type ApiKeyScope = 'read' | 'write' | 'check_upload'
 
 export interface ApiKey {
   id: string

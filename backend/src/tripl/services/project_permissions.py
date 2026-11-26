@@ -45,7 +45,7 @@ PERMISSIONS: tuple[Permission, ...] = (
         PLAN_EDIT,
         "Edit the tracking plan",
         "Events, event types, fields, properties, relations, planned events, branches "
-        "and their reviews, reconciliation.",
+        "and their reviews, reconciliation, recording tripl check runs.",
     ),
     Permission(PLAN_MERGE, "Merge branches", "Merge a branch into the plan, or revert a merge."),
     Permission(COMMENTS_WRITE, "Comment", "Comments on events, screenshots and branches."),
@@ -91,7 +91,8 @@ _RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
         (r"^/(?:scans|fact-tables)" + _SEGMENT, DATA_SOURCES_MANAGE),
         (
             r"^/(?:events|event-types|properties|variables|meta-fields|relations"
-            r"|planned-events|duplicates|reconciliation|revisions|branches|ai|plan)" + _SEGMENT,
+            r"|planned-events|duplicates|reconciliation|revisions|branches|ai|plan|check-runs)"
+            + _SEGMENT,
             PLAN_EDIT,
         ),
         (r"^/(?:members|search|reset)" + _SEGMENT, SETTINGS_MANAGE),

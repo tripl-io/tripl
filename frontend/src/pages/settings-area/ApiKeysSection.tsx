@@ -169,7 +169,14 @@ export default function ApiKeysSection() {
   const scopeOptions = [
     { value: 'read', label: 'Read-only: can view the plan and data' },
     ...(canCreateWriteKeys ? [{ value: 'write', label: 'Read & write: same access as an editor' }] : []),
+    {
+      value: 'check_upload',
+      label: 'Read & upload check runs: for a CI job running tripl check --upload',
+    },
   ]
+  // A check upload key acts in one project, so it needs one picked.
+  const projectProblem =
+    scope === 'check_upload' && !projectSlug ? 'A check upload key needs its project.' : null
   const revokedCount = keys.filter((k) => k.revoked_at != null).length
   const shownKeys = showRevoked ? keys : keys.filter((k) => k.revoked_at == null)
   const openForm = () => {
@@ -222,7 +229,7 @@ export default function ApiKeysSection() {
                 size="sm"
                 // An empty name is said inline on press, not by a
                 // silently disabled button.
-                disabled={createMut.isPending || expiryProblem != null}
+                disabled={createMut.isPending || expiryProblem != null || projectProblem != null}
               >
                 {createMut.isPending ? 'Generating…' : 'Generate'}
               </Button>
@@ -236,7 +243,7 @@ export default function ApiKeysSection() {
               e.preventDefault()
               const missing = name.trim() ? null : REQUIRED_MESSAGE
               setNameError(missing)
-              if (missing || expiryProblem) {
+              if (missing || expiryProblem || projectProblem) {
                 const form = e.currentTarget
                 requestAnimationFrame(() => focusFirstInvalid(form))
                 return
@@ -281,7 +288,17 @@ export default function ApiKeysSection() {
                 <span className="block pt-1.5 text-body-sm">{scopeOptions[0]!.label}</span>
               </Field>
             )}
-            <Field label="Project (optional)" htmlFor="key-project">
+            <Field
+              label="Project (optional)"
+              htmlFor="key-project"
+              hint={
+                projectProblem ? (
+                  <span id="key-project-error" className="text-danger">
+                    {projectProblem}
+                  </span>
+                ) : undefined
+              }
+            >
               <NativeSelect
                 id="key-project"
                 value={projectSlug}
@@ -431,11 +448,11 @@ export default function ApiKeysSection() {
                   </div>
                   <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[560px]:contents">
                     <Chip
-                      tone={k.scope === 'write' ? 'warning' : 'success'}
+                      tone={k.scope === 'write' ? 'warning' : k.scope === 'check_upload' ? 'info' : 'success'}
                       size="sm"
                       className="justify-center @min-[560px]:w-[72px] @min-[560px]:shrink-0"
                     >
-                      {k.scope}
+                      {k.scope === 'check_upload' ? 'check upload' : k.scope}
                     </Chip>
                     <div
                       className="min-w-0 truncate text-caption @min-[560px]:w-[120px] @min-[560px]:shrink-0 text-fg-tertiary"
