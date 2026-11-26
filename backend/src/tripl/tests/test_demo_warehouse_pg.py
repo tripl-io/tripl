@@ -57,9 +57,19 @@ def _drop_warehouse() -> None:
         conn.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(_PROBE_TABLE)))
 
 
+# 23:45 UTC yesterday: half an hour later is the next UTC day, so the
+# retention window moves while the test writes. It once failed only when CI
+# happened to run near midnight; this pins that case.
+_BEFORE_MIDNIGHT = (datetime.now(UTC) - timedelta(days=1)).replace(
+    hour=23, minute=45, second=0, microsecond=0
+)
+
+
 @pytest.fixture
-def now() -> datetime:
-    return datetime.now(UTC)
+def now(request: pytest.FixtureRequest) -> datetime:
+    """The wall clock, or the instant a test passes with ``indirect=True``."""
+    pinned: datetime | None = getattr(request, "param", None)
+    return pinned if pinned is not None else datetime.now(UTC)
 
 
 @pytest.fixture
@@ -126,6 +136,9 @@ def test_the_reader_password_is_never_sent_in_plain_text(warehouse: datetime) ->
         assert conn.execute("SELECT current_user").fetchone() == (connection.reader_role(),)
 
 
+@pytest.mark.parametrize(
+    "now", [None, _BEFORE_MIDNIGHT], ids=["now", "before-midnight"], indirect=True
+)
 def test_the_writer_writes_each_row_once_and_resumes(warehouse: datetime) -> None:
     through = rows.available_through(warehouse)
     keep_from = writer.retention_start(warehouse)
@@ -147,14 +160,18 @@ def test_the_writer_writes_each_row_once_and_resumes(warehouse: datetime) -> Non
         for table in schema.TABLE_COLUMNS
     )
     assert resumed.rows_written == expected
+    # The window as of the second write: past midnight UTC it starts a day later,
+    # and the writer has dropped the day before it.
+    kept_later = writer.retention_start(later)
+    assert resumed.oldest == kept_later
 
     with psycopg.connect(**connection.writer_connection().kwargs()) as conn:  # type: ignore[arg-type]
         stored = conn.execute(
             "SELECT count(*), count(DISTINCT (event_time, event_name, user_id, platform)) "
             "FROM warehouse.events WHERE event_time >= %s AND event_time < %s",
-            (keep_from, rows.available_through(later)),
+            (kept_later, rows.available_through(later)),
         ).fetchone()
-    model = list(rows.rows_between("events", keep_from, rows.available_through(later)))
+    model = list(rows.rows_between("events", kept_later, rows.available_through(later)))
     assert stored is not None and stored[0] == len(model)
 
 
