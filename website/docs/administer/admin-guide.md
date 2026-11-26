@@ -890,7 +890,7 @@ The create form (and the `POST /api/v1/me/api-keys` endpoint) takes:
 | Field | Notes |
 | --- | --- |
 | **Name** | Required, 1–100 chars. A human label (e.g. `claude-agent`). |
-| **Scope** | `read` (default) or `write`. See below. |
+| **Scope** | `read` (default), `write` or `check_upload`. See below. |
 | **Project** | Optional. Bind the key to a single project by slug, or leave as **All projects** for full account reach. |
 | **Expires in (days)** | Optional, 1–3650. Blank means **no expiration**. |
 
@@ -903,6 +903,12 @@ The create form (and the `POST /api/v1/me/api-keys` endpoint) takes:
   roles*. A write key writes only where its user holds an editing project role
   (or is an org owner or admin). Creating a write-scoped key requires
   membership of the organization (`403 Organization membership required`).
+- **`check_upload`** (**Read & upload check runs**, `tk_c_…`) — the key a CI
+  job running [`tripl check --upload`](../integrate/tripl-check.md#send-results-to-tripl)
+  holds: what a `read` key may, plus recording check runs. Every other
+  mutation returns `403 API key may only upload check runs`. It must be bound
+  to a project (`422` without one), and the upload still needs an editing
+  project role of the key's user.
 
 **Project binding** is orthogonal to scope. A project-bound key authenticates
 **only** `/projects/{slug}/...` routes for that one project; any other project
@@ -922,7 +928,7 @@ persisted, so a database dump cannot replay tokens.
 ### Governing keys
 
 - **Inventory.** The **All keys** card lists every key with its name, prefix,
-  scope chip (`read`/`write`), bound project (or "All projects"), and
+  scope chip (`read`/`write`/`check upload`), bound project (or "All projects"), and
   last-used / status (`never used`, `used <date>`, `expired`, or `revoked`).
   Its heading counts usable keys separately from dead ones — "7 active · 3
   revoked or expired" — so the summary never files a revoked token as live.

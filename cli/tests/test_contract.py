@@ -652,6 +652,65 @@ def test_the_check_item_limits_are_the_ones_the_validate_route_enforces(
     assert not wrong, "the CLI's check item limits are not the route's:\n  " + "\n  ".join(wrong)
 
 
+def test_the_check_run_upload_limits_are_the_ones_the_route_enforces(
+    openapi: dict[str, Any],
+) -> None:
+    """``tripl check --upload`` cuts every value to the route's bounds before sending.
+
+    One call over a bound would make the route refuse the whole run with a 422,
+    so the CLI's numbers must be the route's, read out of the document.
+    """
+    from tripl_cli.api import check_runs
+
+    schemas = openapi["components"]["schemas"]
+    run = schemas["CheckRunCreate"]["properties"]
+    call = schemas["CheckRunCallIn"]["properties"]
+    finding = schemas["CheckRunFinding"]["properties"]
+    expected = {
+        "calls maxItems": (check_runs.MAX_CALLS, _bound(run["calls"], "maxItems")),
+        "repository maxLength": (
+            check_runs.REPOSITORY_MAX_LENGTH,
+            _bound(run["repository"], "maxLength"),
+        ),
+        "ref maxLength": (check_runs.REF_MAX_LENGTH, _bound(run["ref"], "maxLength")),
+        "default_branch maxLength": (
+            check_runs.REF_MAX_LENGTH,
+            _bound(run["default_branch"], "maxLength"),
+        ),
+        "pipeline_url maxLength": (
+            check_runs.URL_MAX_LENGTH,
+            _bound(run["pipeline_url"], "maxLength"),
+        ),
+        "repository_url maxLength": (
+            check_runs.URL_MAX_LENGTH,
+            _bound(run["repository_url"], "maxLength"),
+        ),
+        "path maxLength": (check_runs.PATH_MAX_LENGTH, _bound(call["path"], "maxLength")),
+        "event_type maxLength": (
+            check_runs.EVENT_TYPE_MAX_LENGTH,
+            _bound(call["event_type"], "maxLength"),
+        ),
+        "name maxLength": (check_runs.NAME_MAX_LENGTH, _bound(call["name"], "maxLength")),
+        "identity maxLength": (check_runs.NAME_MAX_LENGTH, _bound(call["identity"], "maxLength")),
+        "findings maxItems": (
+            check_runs.MAX_FINDINGS_PER_CALL,
+            _bound(call["findings"], "maxItems"),
+        ),
+        "code maxLength": (check_runs.CODE_MAX_LENGTH, _bound(finding["code"], "maxLength")),
+        "message maxLength": (
+            check_runs.MESSAGE_MAX_LENGTH,
+            _bound(finding["message"], "maxLength"),
+        ),
+        "field maxLength": (check_runs.FIELD_MAX_LENGTH, _bound(finding["field"], "maxLength")),
+    }
+    wrong = [
+        f"{what}: tripl_cli says {declared}, API says {actual}"
+        for what, (declared, actual) in expected.items()
+        if declared != actual
+    ]
+    assert not wrong, "the CLI's upload limits are not the route's:\n  " + "\n  ".join(wrong)
+
+
 def test_the_events_list_builder_takes_every_filter_the_route_declares(
     openapi_paths: dict[str, Any],
 ) -> None:

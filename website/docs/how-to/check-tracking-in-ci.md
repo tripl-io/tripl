@@ -443,6 +443,35 @@ docker run --rm -u "$(id -u):$(id -g)" -e TRIPL_BASE_URL -e TRIPL_API_KEY \
   -v "$PWD:/src" ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl check --new-from-rev HEAD
 ```
 
+## 6. Keep the results in tripl {#upload}
+
+By default the verdicts stay in the CI log. Add `--upload` and each run is
+also recorded in tripl, under its commit, ref, repository and pipeline: the run
+on the default branch becomes where the code sends each event, file and line,
+and every other run goes to the check history. See
+[Send results to tripl](../integrate/tripl-check.md#send-results-to-tripl).
+
+1. **A key that may upload.** The upload is a write, so the read-only key of
+   step 1 is refused (the job says `Not uploaded:` and its result stands).
+   Create a key with the scope **Read & upload check runs** (`tk_c_`) for the
+   one project, and put it in `TRIPL_API_KEY` instead: it reads like the
+   read-only key and may record check runs, nothing else. The bot user needs
+   the **editor** role in the project for the upload, as for any write.
+2. **The flag.** With the GitLab template, `args: "--upload"`; with the GitHub
+   action, `args: --upload`; in a job of your own, add `--upload` to the
+   `tripl check` line. The commit, ref, repository, pipeline and default
+   branch come from the CI's own variables (`CI_DEFAULT_BRANCH` in GitLab, the
+   event's repository in GitHub Actions); `--default-branch NAME` names another
+   default branch.
+3. **Run it on the default branch.** Only a default-branch run says where the
+   code sends each event, so keep the job on the default branch (both setups
+   above do) and on its schedule. A merge request's run is history only, and
+   never replaces it.
+
+The upload is sent after the reports are written and never changes the exit
+code. It is refused (exit 2) with `--branch` and with a pinned plan revision:
+what it records is where the code sends the events of the live plan.
+
 ## Accept one call on purpose {#accept-one-call}
 
 Some calls are wrong on purpose: a debug-only event, or a field the plan will

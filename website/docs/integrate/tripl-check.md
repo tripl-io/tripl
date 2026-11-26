@@ -1324,6 +1324,9 @@ the check block merges. In short:
 - To gate the default branch and a scheduled run too, where there is no diff
   base, commit a [baseline](#baseline) and pass
   `--baseline .tripl/check-baseline.json`.
+- To keep the results in tripl, where the event pages can show where the code
+  sends each event, add `--upload` and use a `check_upload` key: see
+  [Send results to tripl](#send-results-to-tripl).
 - To check against a plan branch named after the merge request's branch, add
   `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
   (GitLab; it adds nothing outside a merge request pipeline), or set
@@ -1339,6 +1342,56 @@ what the app sent to `build/events.ndjson`:
 ```bash
 tripl check --payloads build/events.ndjson --report junit=tripl-events.xml
 ```
+
+## Send results to tripl {#send-results-to-tripl}
+
+By default a check's verdicts live only in the CI log. With `--upload` the run
+is also recorded in tripl, under the commit, the ref, the repository and the
+pipeline that made it:
+
+```bash
+tripl check --upload --report codequality=gl-code-quality-report.json
+```
+
+- **Where the run comes from.** `--upload` reads the CI system's own
+  variables, never the checkout: in GitLab CI `CI_PROJECT_PATH`,
+  `CI_PROJECT_URL`, `CI_COMMIT_SHA`, `CI_COMMIT_REF_NAME`, `CI_DEFAULT_BRANCH`
+  and `CI_PIPELINE_URL`; in GitHub Actions `GITHUB_REPOSITORY`,
+  `GITHUB_SERVER_URL`, `GITHUB_SHA`, `GITHUB_HEAD_REF` (a pull request's source
+  branch) or else `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, and the default branch
+  from the event payload (`GITHUB_EVENT_PATH`, `repository.default_branch`).
+  Anywhere else it is refused (exit 2) before anything is scanned or sent.
+- **The default branch decides what the run is for.** A run on the
+  repository's default branch becomes its *current* run: each call it found,
+  with its file, line and findings, is what "used in code" shows on the event,
+  until the next default-branch run replaces it, so a call removed from the
+  code disappears. A run on any other ref (a merge request, a feature branch, a
+  tag) goes to the check history only, as a summary: counts per status, commit,
+  ref and pipeline. `--default-branch NAME` names the default branch when the
+  CI's is not the one you mean; with none known, the run goes to the history
+  only.
+- **One snapshot per repository.** A project checked from several repositories
+  (iOS, Android, web) keeps one current run for each.
+- **Against the live plan only.** The run records which plan event each call
+  sends, so it is refused with a plan branch or a pinned plan revision, from a
+  flag or from the check config (`--revision live` is fine), and with
+  `--payloads` and `--list`.
+- **It never changes the verdict.** The upload is sent after the reports are
+  written; one line on stderr says what was recorded, or why not. A failed
+  upload (a `read` key, an outage, a run of more than 5,000 calls) is a warning,
+  and the exit code is the check's own.
+- **The key.** The upload is a write. Mint a key of scope `check_upload`
+  (`tk_c_`, under **Settings → API keys**, bound to the project): it reads like
+  a read key, which is all the check itself needs, and may record check runs
+  and nothing else. The user behind it needs an editing role in the project.
+- **Retention.** Every run but the current ones is deleted after
+  `CHECK_RUN_RETENTION_DAYS` (default 90; see
+  [Configuration](../run/configuration.md#operational-history-retention)).
+
+The runs are read through the API for now
+([Check runs](./agent-api-guide.md#check-runs)): the history, and per event
+where the code sends it. Showing them in the app, on the event page and in the
+project settings, comes next.
 
 ## Related pages {#related}
 

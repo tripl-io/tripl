@@ -256,6 +256,7 @@ at a glance what a key can do:
 |-------|--------------|----------|
 | `read` | `tk_r_…` | Read and query operations only. |
 | `write` | `tk_w_…` | Everything a read key can, plus create, update and delete. |
+| `check_upload` | `tk_c_…` | Everything a read key can, plus [recording a `tripl check` run](#check-runs). Nothing else. |
 
 Give a discovery-only agent a `tk_r_` key, keep `tk_w_` keys for the write
 step, and prefer a project-scoped key so a bug cannot touch the wrong project.
@@ -276,6 +277,7 @@ Scopes:
 - `read`: read-only. Mutation endpoints reject it, while read/query operations
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
+- `check_upload`: the key a CI job running `tripl check --upload` holds. It reads like a `read` key and may also call [`POST /projects/{slug}/check-runs`](#check-runs); every other mutation answers `403 API key may only upload check runs`. It must be bound to a project (`project_slug`; without one, creation answers `422`), and the upload still needs an editing project role of the user behind the key.
 - `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
 - Owner-only security and administration routes (data sources, scan SQL, members, invitations, a project's audit history) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The Platform settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
 - A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
@@ -2310,6 +2312,65 @@ An `info` finding never changes an item's `status`. Every finding also carries
 
 `field` names the plan field a finding is about, or is `null` for findings about
 the whole item. `message` is prose and may change. Select on `code`.
+
+## Check runs {#check-runs}
+
+`tripl check --upload` records each run here, so the history of the checks and
+where the code sends each event are in tripl, not only in CI logs.
+
+```bash
+curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
+  -H "Authorization: Bearer $TRIPL_API_KEY" -H 'Content-Type: application/json' \
+  -d '{
+    "repository": "shop/ios",
+    "repository_url": "https://gitlab.example.com/shop/ios",
+    "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+    "ref": "main",
+    "default_branch": "main",
+    "pipeline_url": "https://gitlab.example.com/shop/ios/-/pipelines/42",
+    "strict": false,
+    "calls": [
+      {"path": "App/Cart.swift", "line": 42, "column": 9, "status": "ok",
+       "event_id": "6f1c…", "event_type": "se", "name": null,
+       "identity": "cart:open:tap", "findings": []}
+    ]
+  }'
+```
+
+- **A write.** It needs a `check_upload` key (`tk_c_`, bound to the project) or
+  a `write` key, and the user behind the key needs an editing role in the
+  project. A `read` key gets `403`.
+- **One run per request,** at most 5,000 calls. `repository` is what the CI
+  calls the repository (`CI_PROJECT_PATH`, `GITHUB_REPOSITORY`); one project
+  can be checked from several. `repository_url` and `pipeline_url` must be
+  `http(s)` URLs. `commit_sha` is hex.
+- **The default branch decides what the run is for.** A run whose `ref` equals
+  its `default_branch` becomes the repository's *current* run: its calls, with
+  their locations and findings, are what "used in code" shows, and the calls of
+  the run it replaces are deleted, so a call removed from the code disappears.
+  Any other run (a merge request, a feature branch, a tag, or no
+  `default_branch`) is kept as a summary only: counts, commit, ref, pipeline.
+- **`event_id`** is the main-plan event the call resolved to, as
+  `POST /plan/validate` answered it. An id that is not an event of this
+  project's main plan is stored as `null`; the call keeps its `identity`.
+- **Retention:** every run but the current ones is deleted after
+  `CHECK_RUN_RETENTION_DAYS` (default 90).
+
+The answer (`201`) is the run as the history lists it: `id`, the fields above
+but `calls`, `is_default_branch`, `is_current`, `calls` as counts
+(`total`, `ok`, `warning`, `error`, `dynamic`) and `created_at`.
+
+Two reads, for any project member:
+
+- `GET /projects/{slug}/check-runs?repository=&default_branch=&limit=&offset=`:
+  the runs, newest first, as `{items, total}`. `default_branch=true` keeps the
+  default-branch runs only.
+- `GET /projects/{slug}/events/{event_id}/code-usage`: per repository that has
+  a current run, `{repository, repository_url, run, calls}`, where `calls` are
+  that run's calls of the event (`path`, `line`, `column`, `status`,
+  `findings`), sorted by file and line. An empty `calls` means the event is not
+  sent in that repository's code as of `run`. `404` for an event of another
+  project.
 
 ## Plan export {#plan-export}
 

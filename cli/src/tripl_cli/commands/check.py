@@ -88,14 +88,15 @@ import stat
 import sys
 import time
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, NoReturn, TextIO
 
 import httpx
 
+from tripl_cli.api import check_runs as check_runs_api
 from tripl_cli.api import event_types as event_types_api
 from tripl_cli.api import events as events_api
 from tripl_cli.check import baseline as baseline_mod
@@ -105,6 +106,7 @@ from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
 from tripl_cli.check import summary as summary_mod
+from tripl_cli.check import upload as upload_mod
 from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
 from tripl_cli.check.inventory import inventory
 from tripl_cli.check.listing import render_listing
@@ -362,6 +364,25 @@ def register(
             "never changes the exit code"
         ),
     )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help=(
+            "also record this run in tripl under its commit, ref, repository and pipeline, "
+            "read from GitLab CI or GitHub Actions variables; a run on the default branch "
+            "becomes what 'used in code' shows on each event, any other goes to the history; "
+            "a failed upload is a warning and never changes the exit code"
+        ),
+    )
+    parser.add_argument(
+        "--default-branch",
+        dest="default_branch",
+        metavar="NAME",
+        help=(
+            "with --upload: the repository's default branch, instead of the one the CI "
+            "names (CI_DEFAULT_BRANCH, or the GitHub event's repository)"
+        ),
+    )
     add_json(parser)
     add_timeout(parser)
     parser.set_defaults(handler=run, abandon=abandon, offline=sends_nothing)
@@ -549,6 +570,9 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
             "--coverage compares the scan with the plan, and --list sends nothing; "
             "run tripl check --coverage without --list."
         )
+    if args.upload or args.default_branch is not None:
+        flag = "--upload" if args.upload else "--default-branch"
+        return f"{flag} records a check's verdicts, and --list checks nothing; drop {flag}."
     gate = _gate_flag(args) or _baseline_flag(args)
     if gate == "--write-baseline":
         return "--write-baseline records a check's findings, and --list checks nothing; drop it."
@@ -771,7 +795,12 @@ def default_runner() -> Runner:
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
-    refusal = _gate_refusal(args) or _baseline_refusal(args, targets) or _coverage_refusal(args)
+    refusal = (
+        _gate_refusal(args)
+        or _baseline_refusal(args, targets)
+        or _coverage_refusal(args)
+        or _upload_refusal(args)
+    )
     if refusal is not None:
         raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
@@ -802,6 +831,8 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             "--coverage reads the events of the live plan, and this run is pinned to plan "
             f"revision {pin}; run it with --revision {REVISION_LIVE}."
         )
+    # Before the scan and any request: an upload that cannot happen stops the run.
+    ci = _upload_context(args, selector, pin)
     answered: list[JsonDict] = []
     files = 0
     skipped: tuple[SkippedFile, ...] = ()
@@ -941,7 +972,90 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
+    if ci is not None:
+        _upload(config, context.reader, project, report, ci, timeout=args.timeout)
     return report.exit_code
+
+
+def _upload_refusal(args: argparse.Namespace) -> str | None:
+    """Why ``--upload`` or ``--default-branch`` cannot do what it says; None when it can."""
+    if args.default_branch is not None and not args.upload:
+        return (
+            "--default-branch says which runs --upload records as the default branch's, "
+            "and there is no --upload; pass --upload, or drop --default-branch."
+        )
+    if args.upload and args.payloads is not None:
+        return (
+            "--upload records where the code sends each event, and captured events are not "
+            "in the code; drop --upload."
+        )
+    return None
+
+
+def _upload_context(
+    args: argparse.Namespace, branch: str | None, pin: str | None
+) -> upload_mod.CiContext | None:
+    """The CI's account of this run when it is to be uploaded; None without ``--upload``.
+
+    Refused for a run against anything but the live plan: a plan branch or a
+    pinned revision, from a flag or from the committed check config. What the
+    run records is where the code sends each event of the plan analysts see,
+    and the event ids of another plan are not that.
+    """
+    if not args.upload:
+        return None
+    if branch is not None:
+        _refuse_upload(
+            f"this run checks plan branch {branch!r} (--branch, or `branch` in the check "
+            "config); drop the branch for the run you upload"
+        )
+    if pin is not None:
+        _refuse_upload(
+            f"this run is pinned to plan revision {pin} (--revision, or `revision` in the "
+            f"check config); run it with --revision {REVISION_LIVE}"
+        )
+    return upload_mod.ci_context(os.environ, default_branch=args.default_branch)
+
+
+def _refuse_upload(why: str) -> NoReturn:
+    raise TriplConfigError(f"--upload records a run against the live plan, and {why}.")
+
+
+def _upload(
+    config: Config,
+    reader_of: Callable[[httpx.AsyncClient], Reader],
+    project: str,
+    report: CheckReport,
+    ci: upload_mod.CiContext,
+    *,
+    timeout: float,
+) -> None:
+    """Send the finished run; say on stderr what it recorded, or why it did not.
+
+    After every report and the output: the verdicts are this run's whatever the
+    upload does, so a failed upload is a warning and the exit code stays the check's.
+    """
+    body = upload_mod.run_body(report, ci)
+    calls = len(body["calls"])
+    if calls > check_runs_api.MAX_CALLS:
+        _emit(
+            f"Not uploaded: the run has {calls} calls, and tripl records at most "
+            f"{check_runs_api.MAX_CALLS} per run. The check result stands.",
+            sys.stderr,
+            primary=False,
+        )
+        return
+
+    async def send(client: httpx.AsyncClient) -> object:
+        return await reader_of(client).send(check_runs_api.upload(project, body))
+
+    try:
+        run_gate(config, send, timeout=timeout)
+    except TriplError as exc:
+        reason = str(exc).rstrip(".")
+        _emit(f"Not uploaded: {reason}. The check result stands.", sys.stderr, primary=False)
+        return
+    _emit(upload_mod.uploaded_line(ci, calls), sys.stderr, primary=False)
 
 
 def _pinned_revision(
