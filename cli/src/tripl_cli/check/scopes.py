@@ -49,9 +49,16 @@ Swift ``init`` and a TypeScript ``constructor`` also name the type whose body
 they sit in (``FunctionScope.owner``), which is what their callers write.
 
 Where each bracket closes is found once per file (``calls.closers``) and
-looked up from there, and a parameter list is read at its top level only, so
-declarations and calls nested in each other's brackets cost about the file's
-size, not the square of how deeply they nest. ``ScopeIndex`` keeps a file's
+looked up from there. A parameter list is read at its top level only, and an
+expression body steps over its bracketed groups rather than reading them, so
+declarations and calls nested in each other's brackets (a parameter list, a
+default value, a body in braces, a call inside an expression body) cost about
+the file's size, not the square of how deeply they nest. Two shapes still do
+cost that square, neither of them valid code: expression bodies nested with no
+bracket between them (``fun f() = fun f() = …``), whose ends are each found
+by reading on to the end of the nest; and, in Java and Objective-C, a body
+nested inside a parameter, since each parameter is read whole up to its
+default value. ``ScopeIndex`` keeps a file's
 scopes for the lookups made per call, by bisection, so a file with many calls
 costs about its own size too.
 
@@ -510,7 +517,7 @@ def _arrow(
     if arrow + 1 < len(tokens) and tokens[arrow + 1].is_punct("{"):
         body = (arrow + 1, closes[arrow + 1])
     else:
-        body = (arrow, _expression_end(tokens, source, arrow, "ts"))
+        body = (arrow, _expression_end(tokens, closes, source, arrow, "ts"))
     return FunctionScope(tokens[name].text, tokens[name].offset, found, body, signature_end)
 
 
@@ -666,7 +673,7 @@ def _body_after(
             position = closes[position] + 1
             continue
         if token.is_punct("=") and language == "kotlin":
-            return position, _expression_end(tokens, source, position, language)
+            return position, _expression_end(tokens, closes, source, position, language)
         if token.is_punct("(", "["):
             # A function or tuple type in the return type: `(Int) -> Unit`, `-> (A, B)`.
             position = closes[position] + 1
@@ -741,7 +748,9 @@ def _arrow_after(tokens: list[Token], closes: list[int], position: int) -> int |
     return None
 
 
-def _expression_end(tokens: list[Token], source: str, marker: int, language: str) -> int:
+def _expression_end(
+    tokens: list[Token], closes: list[int], source: str, marker: int, language: str
+) -> int:
     """The first token past the expression body after ``tokens[marker]`` (``=`` or ``=>``).
 
     The body's first token belongs to it wherever it is, the next line too. It
@@ -752,23 +761,21 @@ def _expression_end(tokens: list[Token], source: str, marker: int, language: str
     also a ternary's ``?`` or ``:`` and any binary operator). It also ends at a
     bracket closing the enclosing block or call, at ``;`` (and, for an arrow,
     at a ``,`` separating it from what follows), or at the end.
+
+    Nothing inside brackets can end the body, so each bracketed group is
+    stepped over through ``closes`` (``calls.closers(tokens)``) rather than
+    read: a body that holds further declarations in its brackets is then not
+    read again for each of them.
     """
-    depth = 0
     first = marker + 1
-    openers: list[int] = []
     # The `)` of a Kotlin `if (…)` outside brackets: its branch may start on the next line.
     condition = -1
-    for position in range(first, len(tokens)):
+    position = first
+    while position < len(tokens):
         token = tokens[position]
         if token.kind == PUNCT and token.text in _CLOSERS:
-            if depth == 0:
-                return position
-            depth -= 1
-            opener = openers.pop()
-            if not depth and language == "kotlin" and tokens[opener - 1].is_ident("if"):
-                condition = position
-            continue
-        if depth == 0 and position > first:
+            return position
+        if position > first:
             if token.is_punct(";") or (language == "ts" and token.is_punct(",")):
                 return position
             previous = position - 1
@@ -780,8 +787,14 @@ def _expression_end(tokens: list[Token], source: str, marker: int, language: str
             ):
                 return position
         if token.kind == PUNCT and token.text in _OPENERS:
-            depth += 1
-            openers.append(position)
+            close = closes[position]
+            if close >= len(tokens):
+                return len(tokens)  # a bracket left open runs to the end
+            if language == "kotlin" and tokens[position - 1].is_ident("if"):
+                condition = close
+            position = close + 1
+            continue
+        position += 1
     return len(tokens)
 
 

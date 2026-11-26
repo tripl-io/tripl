@@ -1974,6 +1974,12 @@ def _nest_read(language: str, nest: str, inside: str, close: str, depth: int) ->
         ("ts", "function f({ a = ", "1", " }) {}"),
         ("kotlin", "fun f(a: Int = ", "1", ") {}"),
         ("swift", "func f(a: Int = ", "1", ") {}"),
+        # Declarations with an expression body, each in the last one's body.
+        ("ts", "const a = (x) => g(() => { ", "h(x)", " })"),
+        ("ts", "const a = x => g(", "1", ")"),
+        ("ts", "const a = (x): T => g(", "1", ")"),
+        ("kotlin", "fun f() = run { ", "1", " }"),
+        ("kotlin", "fun f(): Int = g(", "1", ")"),
     ],
 )
 def test_brackets_nested_deep_are_not_read_again_at_each_level(
