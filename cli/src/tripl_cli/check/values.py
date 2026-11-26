@@ -153,6 +153,12 @@ _INTEGER_CONVERSIONS = frozenset("diu")
 # Length modifiers (`%ld`, `%lld`, `%lu`) exist in C's printf only.
 _LENGTH_LANGUAGES = frozenset({"swift", "objc"})
 _INTEGER = re.compile(r"-?[0-9]+")
+# A number as a number literal is written (hexadecimal, a fraction, an exponent),
+# and an integer as printf prints it: in decimal, with no leading zero.
+_NUMBER = re.compile(
+    r"-?(?:0[xXbBoO][0-9a-fA-F]+|[0-9]+(?:\.[0-9]*)?(?:[eE][-+]?[0-9]+)?|\.[0-9]+(?:[eE][-+]?[0-9]+)?)"
+)
+_PRINTED_INTEGER = re.compile(r"-?(?:0|[1-9][0-9]*)")
 # Binary operators, assignment and a lambda's arrow: each binds looser than a
 # member call.
 _OPERATORS = frozenset(
@@ -320,11 +326,13 @@ class Evaluator:
                 local = self._local(token, field)
                 if local is not None:
                     return local
-            resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
-            if resolved is None:
-                owner = self._member_path(token)
-                if owner is not None:
-                    resolved = self.symbols.member(owner, hint=field)
+            # A member of the type around the name hides a file-scope constant
+            # of that name, as it does in Kotlin and Java.
+            owner = self._member_path(token)
+            if owner is not None:
+                resolved = self.symbols.member(owner, hint=field)
+            else:
+                resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
             if resolved is not None:
                 return text(resolved)
             if not self.explain:
@@ -410,9 +418,9 @@ class Evaluator:
         """The path of the Kotlin or Java constant ``token`` names without its type, if any.
 
         ``HOME`` inside ``class Screen`` (or a type nested in it) is
-        ``Screen.HOME``, a companion's or a static one included. Looked for
-        only when no file-scope constant has the name (the caller asks only
-        then), only for a name that reads as a constant (``HOME``, ``kHome``),
+        ``Screen.HOME``, a companion's or a static one included, and it wins
+        over a file-scope constant of the same name, as the member does in the
+        code. Looked for only for a name that reads as a constant (``HOME``, ``kHome``),
         and from the innermost type out: the first type that declares it
         decides, an ambiguous one included. A parameter of a function around
         the call, or a local declared before it in the innermost one, hides
@@ -440,13 +448,13 @@ class Evaluator:
     def _ambiguous_name(self, token: Token, field: str | None) -> bool:
         """Whether the bare name ``token`` names constants of different values (``--list`` only).
 
-        File-scope constants of that name, or the members of the type around
-        it that ``_member_path`` finds.
+        The members of the type around it that ``_member_path`` finds, else
+        the file-scope constants of that name.
         """
-        if self.symbols.ambiguous([token.text], hint=field, language=self.language):
-            return True
         owner = self._member_path(token)
-        return owner is not None and self.symbols.ambiguous_member(owner, hint=field)
+        if owner is not None:
+            return self.symbols.ambiguous_member(owner, hint=field)
+        return self.symbols.ambiguous([token.text], hint=field, language=self.language)
 
     def _own_type(self, path: list[str], offset: int, field: str | None) -> str | None:
         """Swift's ``Self.x``: ``x`` of the type whose body holds ``offset``."""
@@ -508,6 +516,13 @@ class Evaluator:
         one string): ``a + b`` over values not read may be a sum, and so may
         an operand that is a number or a boolean. Objective-C has no ``+``
         for strings at all.
+
+        An operand that reads as a number (a number literal, or a constant or
+        a local set to one) may be added rather than joined, so it is never
+        joined where that is possible: anywhere when no string literal is an
+        operand (``a + b`` with ``val a = 1``), and in front of the first
+        literal when it is not alone there (``a + b + "x"`` is ``3x`` in Java
+        and TypeScript). Either leaves the value dynamic.
         """
         operands: list[list[Token]] = [[]]
         depth = 0
@@ -533,9 +548,16 @@ class Evaluator:
             return None
         pieces: list[str] = []
         interpolated = False
+        numbers = 0  # operands read as a number, before the first string literal
+        seen_literal = False
         for operand in operands:
+            seen_literal = seen_literal or (len(operand) == 1 and operand[0].kind == STRING)
             value = self.evaluate(operand, field=field)
             if value.kind == "text" and value.text is not None:
+                if not seen_literal and not value.interpolated and _NUMBER.fullmatch(value.text):
+                    numbers += 1
+                    if not literal or numbers > 1:
+                        return None  # a sum, or may be one
                 pieces.append(value.text)
                 interpolated = interpolated or value.interpolated
             elif not literal:
@@ -1016,6 +1038,13 @@ def _filled(
                 value.interpolated or not _INTEGER.fullmatch(value.text)
             ):
                 return None  # printed as a number: text would fail at runtime
+            if (
+                not value.interpolated
+                and _NUMBER.fullmatch(value.text)
+                and not _PRINTED_INTEGER.fullmatch(value.text)
+            ):
+                # `0x10`, `010`, `1.50`: printed otherwise than written (16, 8, 1.5).
+                return None
             pieces.append(value.text)
             interpolated = interpolated or value.interpolated
         elif value.kind == "dynamic":
@@ -1195,7 +1224,9 @@ def _ternary(span: list[Token], language: str) -> list[list[Token]] | None:
     space before it: ``x?`` is optional chaining). The ``:`` that matches it
     skips the ``?``/``:`` pairs of ternaries nested in the first branch.
     Empty when a branch is empty (Objective-C's ``a ?: b``); None when no
-    ``:`` matches, which is no ternary either.
+    ``:`` matches, which is no ternary either. None too for a lambda (a
+    top-level ``->`` or ``=>``): ``x => x ? "a" : "b"`` is a function, not
+    a string, whatever its body returns.
     """
 
     def opens(index: int) -> bool:
@@ -1204,7 +1235,12 @@ def _ternary(span: list[Token], language: str) -> list[list[Token]] | None:
             language != "swift" or (index > 0 and span[index - 1].end < token.offset)
         )
 
-    question = next((index for index, _ in _top_level(span) if index > 0 and opens(index)), None)
+    question: int | None = None
+    for index, token in _top_level(span):
+        if token.is_punct("->", "=>"):
+            return None
+        if question is None and index > 0 and opens(index):
+            question = index
     if question is None:
         return None
     nested = 0

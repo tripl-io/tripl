@@ -341,10 +341,10 @@ A **bare name** resolves to a constant declared at file scope. In Kotlin and
 Java it also resolves inside the type that declares it: `logEvent(PLAY_START)`
 in a method of `Analytics` (or of a class nested in it) reads `Analytics`'s own
 `PLAY_START`, from a `companion object`, an `object` or a `static final` field,
-when no file-scope constant has the name. Only a name written like a constant
-is looked up that way (`PLAY_START`, `PlayStart`, `kPlayStart`), and not when
-a parameter of the function around the call, or a local declared before it in
-that function, has the same name. In Swift, write `Self.playStart` for a member
+even when a file-scope constant has the same name, as in the code. Only a name
+written like a constant is looked up that way (`PLAY_START`, `PlayStart`,
+`kPlayStart`), and not when a parameter of the function around the call, or a
+local declared before it in that function, has the same name. In Swift, write `Self.playStart` for a member
 of the type around the call; a bare `playStart` is not read.
 
 Only declarations that cannot be reassigned are read: a stored `var` (Swift or
@@ -395,8 +395,10 @@ TypeScript and Objective-C. Every branch must be a constant: a literal, a
 constant the scan resolves, or another such choice. One branch that is
 anything else (a variable, a template with a `${…}` token, `null`), an `if`
 without `else`, a `switch`, or more than 50 values leave the whole value
-dynamic (reason `conditional` in [`--list`](#list-reasons)). Kotlin's `?:` and
-Swift's `??` fallbacks are not read: their left side is a variable.
+dynamic (reason `conditional` in [`--list`](#list-reasons)), and so does a
+lambda whose body is a ternary (`x => x ? "a" : "b"`): the argument is a
+function, not one of its results. Kotlin's `?:` and Swift's `??` fallbacks are
+not read: their left side is a variable.
 
 A **local** set to a constant is read where it is used, in plain `tripl check`
 as in `--list`:
@@ -415,8 +417,10 @@ TypeScript `const`, or a Java typed local such as `String event = …;` that the
 function never assigns again), and the named function around the call declares
 it exactly once, earlier, in a block that is still open at the call, and
 binds the name nowhere else: not as a parameter, another local, a lambda,
-closure or loop variable, or a destructured name. Its initializer must be a
-constant, or a conditional over constants as above; a local set from another
+closure, loop or `catch` variable, or a destructured or `case let` pattern
+name. Its initializer must be written with the declaration (`val x: String`
+set on a later line is not read) and be a constant, or a conditional over
+constants as above; a local set from another
 such local is read too. A local wins over a constant of the same name, as it
 does in the code. Anything else stays dynamic, with the reason `local` in
 `--list`: a `var`, a TypeScript `let`, a Swift `if let`, a local declared in a
@@ -442,7 +446,9 @@ constant) and every conversion in it is a plain `%s` or `%d` (Kotlin, Java),
 or `%@`, `%s`, `%d`, `%i` or `%u`, with `l`, `ll` and the other C length
 modifiers on the integer ones (Swift, Objective-C). `%1$s` takes its argument
 by position, and `%%` is a `%`. An argument that reads as text is written in;
-for `%d` that must be a whole number. It stays dynamic (reason `format` in
+for `%d` that must be a whole number. A number is written in only when it is a
+whole number written as printf prints it: `0x10`, `010` or `1.50` would print
+as `16`, `8` and `1.5`, so they leave the format dynamic. It stays dynamic (reason `format` in
 [`--list`](#list-reasons)) with any other conversion, a flag, a width or a
 precision (`%f`, `%x`, `%05d`, `%-10s`), with more or fewer arguments than the
 conversions use, with `%1$s` and `%s` in one template, with an argument that is
@@ -456,8 +462,10 @@ A **concatenation** with a string literal among its parts is read part by
 part. One without a literal is read only when every part reads as text (a
 constant, a filled-in format, a function that returns one string):
 `Events.PREFIX + id` stays dynamic, since `+` over a value the scan cannot read
-may be a sum, and so does one with a number or a boolean among its parts.
-Objective-C strings have no `+`.
+may be a sum, and so does one with a number or a boolean among its parts (a
+number literal, or a local set to one). Two numbers before the first string
+literal are a sum too (`1 + 2 + "x"` is `3x` in Java and TypeScript), so that
+concatenation stays dynamic. Objective-C strings have no `+`.
 
 A call the scan reads this way, or through a [conditional or a
 local](#conditionals) or a `Bundle().apply { … }` [properties

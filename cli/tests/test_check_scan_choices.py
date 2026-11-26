@@ -163,6 +163,28 @@ def test_a_conditional_with_a_branch_that_is_no_constant_stays_dynamic(
     assert (value.kind, value.reason) == ("dynamic", "conditional")
 
 
+@pytest.mark.parametrize(
+    ("language", "body"),
+    [
+        ("ts", 'track((x: boolean) => x ? "lazy_a" : "lazy_b")'),
+        ("ts", 'track(x => x ? "lazy_a" : "lazy_b")'),
+        ("java", 'track(() -> flag ? "a" : "b");'),
+        ("java", "track(x -> x ? Events.A : Events.B);"),
+    ],
+)
+def test_a_lambda_whose_body_is_a_ternary_is_no_choice(language: str, body: str) -> None:
+    """The argument is a function: its returns are not the value sent."""
+    value = _read(language, body)
+    assert (value.kind, value.reason) == ("dynamic", "conditional")
+
+
+def test_a_lambda_in_a_dictionary_entry_is_no_choice() -> None:
+    value = _read("ts", 'track({ name: () => x ? "a" : "b" })')
+    assert value.kind == "entries"
+    [(key, entry)] = value.entries
+    assert (key, entry.kind, entry.reason) == ("name", "dynamic", "conditional")
+
+
 def test_a_when_is_read_only_where_the_file_s_line_breaks_are_known() -> None:
     """An evaluator with no file cannot tell where an entry ends."""
     tokens = tokenize('when (x) {\n 1 -> "a"\n else -> "b"\n}', "kotlin")
@@ -344,6 +366,88 @@ def test_a_local_the_scan_cannot_be_sure_of_stays_dynamic(tmp_path: Path) -> Non
     )
     items = scan(_config(root, _LOG_CONFIG)).items
     assert [name for _, name in _names(items)] == [None] * 14
+
+
+def test_a_local_declared_without_an_initializer_stays_dynamic(tmp_path: Path) -> None:
+    """The ``=`` of the statement after ``val x: T`` is no initializer of ``x``."""
+    root = _repo(
+        tmp_path,
+        {
+            "ios/V.swift": """
+                func show(premium: Bool) {
+                    let screen: String
+                    analytics.mode = "debug"
+                    screen = premium ? loadScreen() : "home"
+                    Tracker.log(screen)
+                }
+            """,
+            "app/V.kt": """
+                fun show() {
+                    val name: String
+                    label = "x"
+                    name = compute()
+                    Tracker.log(name)
+                }
+                fun split() {
+                    val typed: String
+                        = "typed"
+                    Tracker.log(typed)
+                }
+            """,
+        },
+    )
+    config = _config(root, _LOG_CONFIG)
+    assert _names(scan(config).items) == [
+        ("app/V.kt:5", None),
+        ("app/V.kt:10", "typed"),
+        ("ios/V.swift:5", None),
+    ]
+    listed = {
+        f"{call.origin.path}:{call.origin.line}": call.fully_read
+        for call in inventory(config).calls
+    }
+    assert listed == {"app/V.kt:5": False, "app/V.kt:10": True, "ios/V.swift:5": False}
+
+
+@pytest.mark.parametrize(
+    ("language", "body"),
+    [
+        ("kotlin", "fun f() {\n    val a = 1\n    val b = 2\n    track(a + b)\n}\n"),
+        ("swift", "func f() {\n    let a = 1\n    let b = 2\n    track(a + b)\n}\n"),
+        ("ts", "function f() { const base = 10; const extra = 5; track(base + extra) }"),
+        ("java", "class A { void f() { int a = 1; int b = 2; track(a + b); } }"),
+        ("java", 'class A { void f() { int a = 1; int b = 2; track(a + b + "x"); } }'),
+    ],
+)
+def test_locals_set_to_numbers_are_added_not_joined(language: str, body: str) -> None:
+    value = _read(language, body, index="")
+    assert (value.kind, value.reason) == ("dynamic", "concatenation")
+
+
+@pytest.mark.parametrize(
+    ("language", "body"),
+    [
+        (
+            "kotlin",
+            'fun f() {\n    val name = "a"\n'
+            "    try { g() } catch (name: Exception) { track(name) }\n}\n",
+        ),
+        ("ts", 'function f() { const name = "a"; try { g() } catch (name) { track(name) } }'),
+        (
+            "swift",
+            'func f() {\n    let name = "a"\n'
+            "    if case let .some(name) = opt { track(name) }\n}\n",
+        ),
+        (
+            "swift",
+            'func f() {\n    let name = "a"\n'
+            "    if case let Result.success(name) = r { track(name) }\n}\n",
+        ),
+    ],
+)
+def test_a_catch_or_pattern_name_hides_a_local(language: str, body: str) -> None:
+    value = _read(language, body, index="")
+    assert value.kind == "dynamic"
 
 
 def test_a_local_inside_an_interpolation_is_read_where_its_string_is(tmp_path: Path) -> None:

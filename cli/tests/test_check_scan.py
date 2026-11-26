@@ -992,6 +992,10 @@ def test_an_objective_c_format_is_filled_in() -> None:
         ("java", 'String.format("%tY", date)'),
         ("swift", 'String(format: "%.1f", ratio)'),
         ("kotlin", '"x%".format()'),
+        # A number printed otherwise than it is written: 16, 8, 1.5.
+        ("kotlin", '"e_%s".format(0x10)'),
+        ("java", 'String.format("e_%d", 010)'),
+        ("kotlin", '"e_%s".format(1.50)'),
         # An integer conversion given text, an argument that is nothing, a spread.
         ("kotlin", '"%d".format(Events.Name.Open)'),
         ("kotlin", '"%s".format(null)'),
@@ -1028,6 +1032,9 @@ object Events {
         # A format that reads as text is a constant part too.
         ("kotlin", 'Events.Prefix + "%s".format(id)', "screen_${id}"),
         ("kotlin", 'Events.Prefix + String.format("%s", id)', "screen_${id}"),
+        # Next to a string literal, one number is joined as text.
+        ("java", '"n_" + 1 + 2', "n_12"),
+        ("java", '1 + "_x"', "1_x"),
     ],
 )
 def test_constants_joined_with_plus_are_read(language: str, argument: str, name: str) -> None:
@@ -1046,13 +1053,15 @@ def test_constants_joined_with_plus_are_read(language: str, argument: str, name:
         ("kotlin", "Events.Prefix + true"),
         ("kotlin", "Events.Prefix + null"),
         ("kotlin", "Events.Prefix + Unknown.Name"),
+        # Two numbers in front of a string literal are a sum: `1 + 2 + "x"` is
+        # "3x" in Java and TypeScript.
+        ("java", '1 + 2 + "x"'),
+        ("ts", '1 + 2 + "x"'),
         # Objective-C has no `+` for strings.
         ("objc", "Events.Prefix + Events.Shown"),
     ],
 )
-def test_a_concatenation_without_a_literal_is_read_only_from_text(
-    language: str, argument: str
-) -> None:
+def test_a_concatenation_that_may_be_a_sum_stays_dynamic(language: str, argument: str) -> None:
     value = _read_both_ways(language, argument, _CONSTANTS)
     assert (value.kind, value.reason) == ("dynamic", "concatenation")
 
@@ -1260,6 +1269,35 @@ def test_a_constant_named_inside_its_own_type_is_read(tmp_path: Path) -> None:
         # A bare Swift name is never a static member: that needs `Self.`.
         ("src/Screens.swift:5", None),
         ("src/Screens.swift:9", None),
+    ]
+
+
+def test_a_type_s_own_constant_wins_over_a_file_scope_one(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "src/Top.kt": 'const val HOME = "top"\n',
+            "src/Screen.kt": """
+                class Screen {
+                    companion object {
+                        const val HOME = "home"
+                    }
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                }
+                class Other {
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                }
+            """,
+        },
+    )
+    items = _summary(scan(_config(root, _BARE_CONFIG)).items)
+    assert [(item["at"], item["name"]) for item in items] == [
+        ("src/Screen.kt:6", "home"),
+        ("src/Screen.kt:11", "top"),
     ]
 
 

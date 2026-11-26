@@ -24,7 +24,7 @@ A local is read when all of this holds, and stays dynamic otherwise:
 * the innermost named function around the use declares it exactly once,
   earlier, in a block that is still open at the use, and binds the name
   nowhere else: no parameter of that function, no other local, no lambda,
-  closure or loop variable, no destructured name;
+  closure, loop or ``catch`` variable, no destructured or pattern name;
 * its initializer, which ends where the statement ends, reads as a constant
   (the evaluator decides that, see ``Evaluator._local``).
 """
@@ -235,8 +235,9 @@ def _constant_locals(tokens: list[Token], language: str) -> dict[str, list[int]]
 def _bindings(tokens: list[Token], language: str) -> dict[str, list[int]]:
     """Per name: every token index where something binds it, in order.
 
-    A local of any kind (and each name a destructuring declares), a Java
-    typed local or parameter, and the names before a lambda's, a closure's or
+    A local of any kind (and each name a destructuring or a Swift ``case
+    let .some(name)`` pattern declares), a Java typed local or parameter, a
+    ``catch`` clause's name, and the names before a lambda's, a closure's or
     a loop's ``->``, ``=>``, ``in`` or ``of``. It errs toward too many: a
     type's name or a ``when`` entry's condition counts too, which only ever
     leaves a local unread.
@@ -246,16 +247,38 @@ def _bindings(tokens: list[Token], language: str) -> dict[str, list[int]]:
     def bind(index: int) -> None:
         found.setdefault(tokens[index].text, []).append(index)
 
+    def bind_group(opening: int) -> None:
+        close = matching(tokens, opening)
+        for inner in range(opening + 1, min(close, len(tokens))):
+            if tokens[inner].kind == IDENT:
+                bind(inner)
+
     for index, token in enumerate(tokens):
         if token.kind == IDENT and token.text in _LOCAL_KEYWORDS and index + 1 < len(tokens):
             following = tokens[index + 1]
             if following.kind == IDENT:
                 bind(index + 1)
             elif following.is_punct("(", "[", "{"):
-                close = matching(tokens, index + 1)
-                for inner in range(index + 2, min(close, len(tokens))):
-                    if tokens[inner].kind == IDENT:
-                        bind(inner)
+                bind_group(index + 1)
+            if language == "swift":
+                # `case let .some(name)`, `case let Result.success(name)`: each
+                # name in the enum case's pattern.
+                position = index + (2 if following.is_punct(".") else 1)
+                while position < len(tokens) and tokens[position].kind == IDENT:
+                    position += 1
+                    if position < len(tokens) and tokens[position].is_punct("."):
+                        position += 1
+                    else:
+                        break
+                if index + 1 < position < len(tokens) and tokens[position].is_punct("("):
+                    bind_group(position)
+        elif (
+            token.is_ident("catch")
+            and index + 2 < len(tokens)
+            and tokens[index + 1].is_punct("(")
+            and tokens[index + 2].kind == IDENT
+        ):
+            bind(index + 2)  # Kotlin's `catch (name: Exception)`, TypeScript's `catch (name)`
         elif (
             language == "java"
             and token.kind == IDENT
@@ -292,6 +315,11 @@ def _initializer(
     statement does: at Java's ``;``, else where ``scopes.expression_end``
     ends an expression body. A Swift line after it that may go on with it
     (it starts with an operator) leaves the end unknown.
+
+    The declared type must sit on the declaration's line, the ``=`` alone
+    may start the next one: ``val x: String`` with no initializer is set
+    further down (``x = …``), and the ``=`` of whatever statement follows it
+    is no initializer of ``x``.
     """
     position = declared + 1
     if language != "java" and position < len(tokens) and tokens[position].is_punct(":"):
@@ -300,6 +328,8 @@ def _initializer(
             token = tokens[position]
             if token.is_punct("="):
                 break
+            if "\n" in source[tokens[position - 1].end : token.offset]:
+                return None  # a declaration with no initializer, then the next statement
             if token.is_punct("("):
                 position = matching(tokens, position) + 1  # a function type
             elif token.kind == IDENT or token.is_punct(".", "?", "<", ">", ",", "[", "]", "->"):
