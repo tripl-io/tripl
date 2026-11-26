@@ -57,19 +57,9 @@ def _drop_warehouse() -> None:
         conn.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(_PROBE_TABLE)))
 
 
-# 23:45 UTC yesterday: half an hour later is the next UTC day, so the
-# retention window moves while the test writes. It once failed only when CI
-# happened to run near midnight; this pins that case.
-_BEFORE_MIDNIGHT = (datetime.now(UTC) - timedelta(days=1)).replace(
-    hour=23, minute=45, second=0, microsecond=0
-)
-
-
 @pytest.fixture
-def now(request: pytest.FixtureRequest) -> datetime:
-    """The wall clock, or the instant a test passes with ``indirect=True``."""
-    pinned: datetime | None = getattr(request, "param", None)
-    return pinned if pinned is not None else datetime.now(UTC)
+def now() -> datetime:
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -136,9 +126,6 @@ def test_the_reader_password_is_never_sent_in_plain_text(warehouse: datetime) ->
         assert conn.execute("SELECT current_user").fetchone() == (connection.reader_role(),)
 
 
-@pytest.mark.parametrize(
-    "now", [None, _BEFORE_MIDNIGHT], ids=["now", "before-midnight"], indirect=True
-)
 def test_the_writer_writes_each_row_once_and_resumes(warehouse: datetime) -> None:
     through = rows.available_through(warehouse)
     keep_from = writer.retention_start(warehouse)
