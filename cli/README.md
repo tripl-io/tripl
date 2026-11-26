@@ -392,7 +392,8 @@ not moved).
 | 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 `check` uses 0, 1, 2 and 4: 1 when any call site or event has an error (or,
-with `--strict`, a warning), 2 for a bad check config or payload file, or a
+with `--strict`, a warning) or, with `--strict-suppressions`, a
+`tripl-check-ignore` marker is malformed or unused, 2 for a bad check config or payload file, or a
 config that matches no call (unless `--allow-empty`), and 4 for an unavailable
 instance. `codegen` uses them too: 1 for drift under `--check` (or a plan
 without a configured event type), 2 for a bad check config or template, 4 for
