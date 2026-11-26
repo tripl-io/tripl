@@ -132,6 +132,40 @@ def _callees(source: str, language: str) -> list[str]:
 @pytest.mark.parametrize(
     ("language", "source", "callees"),
     [
+        ("ts", "if (a) track(1); while (a) y(); for (;;) q(); return (b);", ["track", "y", "q"]),
+        ("ts", "switch (k) { case 1: track(2) } throw (e); typeof (a);", ["track"]),
+        ("kotlin", "if (a) track(1)\nwhen (x) { else -> y() }", ["track", "y"]),
+        ("swift", "guard (a) else { return }\nif (a) { track(1) }", ["track"]),
+        ("java", "synchronized (lock) { track(1); } catch (E e) { y(); }", ["track", "y"]),
+        ("objc", "@synchronized (self) h();", ["h"]),
+    ],
+)
+def test_a_control_keyword_is_never_a_callee(
+    language: str, source: str, callees: list[str]
+) -> None:
+    """`if (a) track(1)` is one call; a `pattern: ".*"` spec used to match `if` too."""
+    assert _callees(source, language) == callees
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "callees"),
+    [
+        # A function that happens to be named like a contextual keyword stays a call.
+        ("ts", "of(1, 2); with(a);", ["of", "with"]),
+        # After a dot it is a member: a Swift implicit member, a TS property.
+        ("swift", "let x: Foo = .for(a)", ["for"]),
+        ("ts", "lib.if(1)", ["lib.if"]),
+    ],
+)
+def test_a_keyword_named_member_or_function_is_still_a_call(
+    language: str, source: str, callees: list[str]
+) -> None:
+    assert _callees(source, language) == callees
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "callees"),
+    [
         # `->` opens a Kotlin `when` branch and a Kotlin/Java lambda body: calls.
         (
             "kotlin",
@@ -141,7 +175,7 @@ def _callees(source: str, language: str) -> list[str]:
                 else -> analytics.track("other")
             }
             """,
-            ["when", "analytics.track", "analytics.track"],
+            ["analytics.track", "analytics.track"],
         ),
         ("kotlin", 'items.forEach { item -> analytics.track("seen") }', ["analytics.track"]),
         (

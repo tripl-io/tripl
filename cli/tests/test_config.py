@@ -19,6 +19,7 @@ from tripl_cli.config import (
     require_api_key,
     require_base_url,
     resolve,
+    unresolved,
 )
 from tripl_cli.errors import EXIT_USAGE, TriplConfigError
 
@@ -385,3 +386,31 @@ class TestPermissionsWarning:
         resolve(config_path=path)
 
         assert capsys.readouterr().err == ""
+
+
+class TestUnresolved:
+    """The settings of a run that talks to no instance: nothing is read."""
+
+    def test_it_reads_no_flag_no_environment_and_no_file(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(ENV_BASE_URL, "tripl.example.com")  # no scheme
+        monkeypatch.setenv(ENV_API_KEY, "tk_r_env")
+        path = default_config_path()
+        path.parent.mkdir(parents=True)
+        path.write_text("base_url = [", encoding="utf-8")  # not valid TOML
+        with pytest.raises(TriplConfigError):
+            resolve()
+
+        config = unresolved()
+
+        assert config.base_url is None
+        assert config.api_key is None
+        assert config.sources == {}
+        assert config.path == path
+        # The file is there, and was not opened.
+        assert config.path_exists is False
+
+    def test_a_command_that_needs_a_setting_still_says_how_to_supply_it(self) -> None:
+        with pytest.raises(TriplConfigError, match="no tripl instance URL configured"):
+            require_base_url(unresolved())
