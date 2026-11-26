@@ -256,9 +256,10 @@ def mark(
             paths.add(link)
             fresh.append(link)
         inside = _under(normal, prefix)
-        if inside is None:
+        if inside is None or inside == ".":
             if entry.endswith("/") and _within(prefix, normal):
-                # The check root itself is untracked: nothing has a base.
+                # The check root itself is untracked, or a directory above it
+                # (git lists the topmost one): nothing has a base.
                 return Marking(every, files, untracked=(entry,), whole=True)
             continue
         under = (

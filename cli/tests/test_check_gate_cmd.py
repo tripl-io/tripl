@@ -1010,28 +1010,37 @@ def test_new_from_rev_with_a_check_root_below_the_repository_root(
 
 
 @needs_git
-def test_strict_suppressions_fails_on_any_marker_under_a_check_root_git_does_not_track(
+@pytest.mark.parametrize(("check_root", "untracked"), [("ios", "ios/"), ("apps/ios", "apps/")])
+def test_a_check_root_git_does_not_track_puts_every_call_and_marker_in_the_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     isolated_git: None,
     validator: Any,
     configured_env: None,
     capsys: pytest.CaptureFixture[str],
+    check_root: str,
+    untracked: str,
 ) -> None:
     root = tmp_path / "mono"
     _real_repo(root, {"README.md": "mono\n"})
-    # The whole check root is new: every call in it counts as new, every marker too.
+    # The whole check root is new, itself or a directory above it: every call
+    # in it counts as new, and every marker is in the change.
     _write(
         root,
         {
-            "ios/.tripl/check.yml": CONFIG,
-            "ios/Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n",
+            f"{check_root}/.tripl/check.yml": CONFIG,
+            f"{check_root}/Sources/Legacy.swift": f"func legacy() {{ {LEGACY_CALL} }}\n",
+            f"{check_root}/Sources/Old.swift": (
+                "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+            ),
         },
     )
-    monkeypatch.chdir(root / "ios")
+    monkeypatch.chdir(root / check_root)
     assert main(["check", "--new-from-rev", "HEAD", "--strict-suppressions", "--json"]) == 1
     document = json.loads(capsys.readouterr().out)
-    assert document["gate"]["untracked"] == ["ios/"]
+    assert document["gate"]["untracked"] == [untracked]
+    assert document["gate"]["changed_items"] == len(document["results"]) == 1
+    assert document["summary"]["failing"] == 1
     assert [entry["fails"] for entry in document["suppressions"]] == [True]
 
 
