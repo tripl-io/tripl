@@ -1344,8 +1344,20 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
             }
             """,
         ),
+        # An interface method with untyped parameters reads exactly like a call.
+        (
+            "web/tracking.ts",
+            """
+            export interface Tracker {
+              track(event, screen);
+            }
+            export function open() {
+              track("screen_view", "home");
+            }
+            """,
+        ),
     ],
-    ids=["kotlin", "java"],
+    ids=["kotlin", "java", "ts-interface"],
 )
 def test_a_function_declaration_is_not_sent_as_a_call(
     tmp_path: Path, path: str, source: str
@@ -1823,6 +1835,44 @@ def _bodiless(language: str, source: str) -> list[str]:
                 "log(event: string, props: object)",
                 "declare function track(event: string)",
                 "export function format(event: string)",
+            ],
+        ),
+        # An interface holds no calls, so a method in its body declares with
+        # no type, modifier or `;`. Its `{` closing ends that: a call after
+        # the interface, or in an object type, is still not a declaration.
+        (
+            "ts",
+            """
+            export interface Tracker<T extends { id: string }> extends Base<T>, Other {
+              trackEvent(name, props);
+              flush()
+              send<E>(event)
+              log?(event);
+              delete(key)
+              options: {
+                emit(name);
+              };
+              handler: (name) => void;
+            }
+            declare global {
+              interface Window {
+                trackPage(page);
+              }
+            }
+            type Api = { emit(name); };
+            const tracker = { send(name) { trackEvent(name); } };
+            function relay(event: string) {
+              trackEvent(name, props);
+              config.interface(name)
+            }
+            """,
+            [
+                "trackEvent(name, props)",
+                "flush()",
+                "send<E>(event)",
+                "log?(event)",
+                "delete(key)",
+                "trackPage(page)",
             ],
         ),
     ],
@@ -2515,6 +2565,7 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
             "web/tracker.ts": """
                 export interface Tracker {
                   trackEvent(name: string, props: object);
+                  logEvent(name, params);
                 }
                 tracker.trackEvent("shown", {});
             """,

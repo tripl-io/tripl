@@ -8,7 +8,8 @@ Swift's ``func`` and ``init``, TypeScript's ``function``) settles that on its
 own. Otherwise a Java or C declaration needs a return type before its name (the
 end of a preprocessor line, as in ``#endif``, is none) and a ``;`` after its
 list, and a TypeScript method a typed parameter, a modifier or a return type: a
-call statement has none of these.
+call statement has none of these. A TypeScript interface's method needs none
+of them; ``scopes``, which knows whose body a member sits in, reads it.
 """
 
 from __future__ import annotations
@@ -98,7 +99,9 @@ def declares(
     Java and C: a return type before the name and a ``;`` after the list
     (``throws …`` or attribute macros between). A TypeScript method: a typed
     parameter, a modifier on the name's line, or a return type on a member of
-    its own. ``source`` is read for line breaks only.
+    its own. ``source`` is read for line breaks only. A member of a TypeScript
+    interface's body declares with none of these, which ``scopes`` checks
+    before it asks here.
     """
     if language in ("java", "objc"):
         return _returns(tokens, source, name, language) and _prototype_end(
@@ -111,7 +114,7 @@ def declares(
     return (
         close + 1 < len(tokens)
         and tokens[close + 1].is_punct(":")
-        and _member_start(tokens, source, name)
+        and member_start(tokens, source, name)
     )
 
 
@@ -397,7 +400,7 @@ def _modified(tokens: list[Token], source: str, name: int) -> bool:
     )
 
 
-def _member_start(tokens: list[Token], source: str, name: int) -> bool:
+def member_start(tokens: list[Token], source: str, name: int) -> bool:
     """``tokens[name]`` starts a member: it is first on its line, or follows ``{};,``."""
     if not name:
         return True
