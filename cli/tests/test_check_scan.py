@@ -2174,6 +2174,12 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
                     fun property(kEvent: Event) {
                         analytics.logEvent(kEvent.name)
                     }
+                    fun upperPath(EVENT: E) {
+                        analytics.logEvent(EVENT.name)
+                    }
+                    fun typed(event: Event) {
+                        analytics.logEvent(Event.NAME)
+                    }
                     fun local() {
                         val SCREEN = pick()
                         analytics.logEvent(SCREEN)
@@ -2195,7 +2201,10 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
         # A parameter hides a constant of its name, whatever its case.
         {"name": ("parameter", "log", 2)},
         {"name": ("parameter", "upper", 5)},
-        # A bare name only: one of more segments stays a constant's.
+        # A longer path through it is a property of that parameter.
+        {"name": ("parameter_property", "property", 8)},
+        {"name": ("parameter_property", "upperPath", 11)},
+        # The head must be the parameter's exact name: its type's stays a constant.
         {"name": ("unknown_constant", None, None)},
         # Never a local, which may be one a block declared (the test below).
         {"name": ("unknown_constant", None, None)},

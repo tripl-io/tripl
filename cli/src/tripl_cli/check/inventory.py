@@ -366,17 +366,18 @@ def _refine(
     """``value``, with the scan's own reason when it is a variable its function explains.
 
     The parameter check comes first, so Swift's ``guard let event = event``
-    stays a parameter. A name of one segment that reads as a constant
-    (``kEvent``, ``EVENT``) is the parameter it names, whatever its case: a
-    parameter hides a constant of that name in the whole body. It is never a
-    local: locals are found without regard to blocks, so one of that name may
-    be out of scope at the call, and naming it would hide the advice a
-    constant gets (add its file to ``enums:`` or ``sources:``); a variable has
-    no advice to hide. Lambdas are no scopes: a lambda's own parameter stays a
-    ``variable`` unless the named function around it has one of that name.
+    stays a parameter. A path whose head reads as a constant (``kEvent``,
+    ``EVENT.name``) and names a parameter is that parameter, or a property of
+    it, whatever its case: a parameter hides a constant of that name in the
+    whole body. Such a head is never a local: locals are found without regard
+    to blocks, so one of that name may be out of scope at the call, and naming
+    it would hide the advice a constant gets (add its file to ``enums:`` or
+    ``sources:``); a variable has no advice to hide. Lambdas are no scopes: a
+    lambda's own parameter stays a ``variable`` unless the named function
+    around it has one of that name.
     """
     variable = value.reason == REASON_VARIABLE
-    constant = value.reason == REASON_UNKNOWN_CONSTANT and len(value.path) == 1
+    constant = value.reason == REASON_UNKNOWN_CONSTANT
     if not (variable or constant) or not value.path or scope is None:
         return ReadValue(value, value.reason)
     head = value.path[0]
