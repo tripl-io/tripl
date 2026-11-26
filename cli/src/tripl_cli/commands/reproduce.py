@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from itertools import zip_longest
 from pathlib import Path
 
-from tripl_cli.commands import add_json, bounded_text
+from tripl_cli.commands import add_json, bounded_text, never_connects
 from tripl_cli.config import Config
 from tripl_cli.errors import EXIT_CHECKS_FAILED, EXIT_OK, EXIT_UNAVAILABLE, TriplConfigError
 
@@ -186,4 +186,6 @@ def register(
             help=f"capture JSON from the {role} build",
         )
     add_json(parser)
-    parser.set_defaults(handler=run)
+    # It compares local capture files: no instance, so the connection settings
+    # are not read and a malformed one cannot stop it.
+    parser.set_defaults(handler=run, offline=never_connects)

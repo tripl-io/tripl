@@ -190,3 +190,25 @@ def test_first_difference_only_on_stable_shared_names(
         assert report["first_difference"] == {"position": 2, "healthy": "purchase", "suspect": None}
     else:
         assert "first_difference" not in report
+
+
+def test_it_reads_no_connection_settings_so_a_malformed_one_does_not_stop_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("TRIPL_BASE_URL", "tripl.example.com")  # no scheme
+    args = [
+        "reproduce",
+        "--config",
+        str(tmp_path / "missing.toml"),
+        "--event",
+        "purchase",
+        "--healthy",
+        str(FIXTURE / "healthy.json"),
+        "--suspect",
+        str(FIXTURE / "suspect.json"),
+        "--json",
+    ]
+    assert main(args) == 3
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out)["verdict"] == "reproduced"
