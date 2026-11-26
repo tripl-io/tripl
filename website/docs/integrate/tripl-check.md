@@ -60,10 +60,12 @@ It supports these languages, chosen by file extension:
 A value is **literal** when the scanner can read it from the source: a string
 literal, a number, an enum case or a string constant whose value it can find,
 a call to a function declared to return a string whose every `return` is a
-string literal (see [Enum sources](#enum-sources)), or constants joined with
-`+` (see [Formats and concatenations](#formats)). Anything else is
-**dynamic**: a local variable, a parameter, any other function call, or a value
-computed at run time. A dynamic
+string literal (see [Enum sources](#enum-sources)), constants joined with
+`+` (see [Formats and concatenations](#formats)), an `if`, `when` or ternary
+over constants, or a local set once to a constant (see
+[Conditionals and locals](#conditionals)). Anything else is **dynamic**: a
+parameter, any other local variable or function call, or a value computed at
+run time. A dynamic
 value is sent as `null`, which means "unknown at scan time". A dynamic value is
 never an error. `tripl check --list` shows what the scan reads from each call,
 and why it does not read a value (see [List what the scan reads](#list)).
@@ -205,8 +207,14 @@ A **target** is one of:
 - a plan field name;
 - `name`: the event's name or identity, for event types identified by a flat name;
 - `name:iglu`: the event name inside an Iglu schema URI (`iglu:com.acme/button_click/jsonschema/1-0-0` gives `button_click`);
-- `properties`: a free-form dictionary. When it is a literal, its keys are
-  checked as field names and its literal values like any other field value;
+- `properties`: a free-form dictionary. When it is a literal (a Swift or
+  Objective-C dictionary, a JavaScript object, Kotlin `mapOf(…)` or
+  `bundleOf(…)`, Java `Map.of(…)`, or Android's `Bundle().apply {
+  putString(K, v) }` written in the call), its keys are checked as field names
+  and its literal values like any other field value. A `Bundle().apply { … }`
+  block is read only when it holds nothing but `putX(key, value)` calls;
+  anything else in it (an `if`, a loop, `putAll`) leaves the properties
+  unread, since it may add keys the scan cannot see;
 - `field:<x>`: the plan field literally called `name` or `properties`;
 - `null`: ignore the argument.
 
@@ -311,8 +319,9 @@ enum AppEvents {
 - **Qualified cases** (`AppEvents.Category.onboarding`, with or without
   `.rawValue`) resolve through the enum's name.
 - A shorthand case declared in two enums with **different** raw values is
-  ambiguous. The scanner treats it as dynamic rather than guess. Use the
-  qualified form in that call, or rename one of the cases.
+  ambiguous. The scanner treats it as dynamic rather than guess (`--list`
+  gives it the reason `ambiguous_constant`). Use the qualified form in that
+  call, or rename one of the cases.
 - A case the sources do not declare is also dynamic.
 
 **String constants** resolve the same way, by their qualified name:
@@ -362,8 +371,56 @@ Every scanned source file is read for enums, constants and functions too, so
 `enums` is needed only for files outside `sources`. A file listed under `enums`
 that also matches `exclude` is not read.
 
-Still dynamic, though written from constants: a name picked by `if` or `when`,
-and a local variable the name was stored in before the call.
+### Conditionals and locals {#conditionals}
+
+A name picked from constants by `if`, `when` or a ternary is read as a choice,
+and the call is checked once for each value, as for a function with several
+`return`s:
+
+```kotlin
+analytics.logEvent(if (premium) Events.PAYWALL_PRO else Events.PAYWALL)
+analytics.logEvent(
+    when (source) {
+        Source.PUSH -> "open_from_push"
+        Source.LINK, Source.SHARE -> { "open_from_link" }
+        else -> "open"
+    }
+)
+```
+
+The forms read are Kotlin `if (…) a else b` (with `else if` chains and
+`{ … }` branches) and `when` (with or without a subject), Swift's
+`if … { a } else { b }` expression, and `c ? a : b` in Swift, Java,
+TypeScript and Objective-C. Every branch must be a constant: a literal, a
+constant the scan resolves, or another such choice. One branch that is
+anything else (a variable, a template with a `${…}` token, `null`), an `if`
+without `else`, a `switch`, or more than 50 values leave the whole value
+dynamic (reason `conditional` in [`--list`](#list-reasons)). Kotlin's `?:` and
+Swift's `??` fallbacks are not read: their left side is a variable.
+
+A **local** set to a constant is read where it is used, in plain `tripl check`
+as in `--list`:
+
+```kotlin
+fun onPaywallShown(premium: Boolean) {
+    val screen = Screens.PAYWALL                  // "paywall"
+    analytics.logEvent("${screen}_shown")         // read as paywall_shown
+    val event = if (premium) Events.PAYWALL_PRO else Events.PAYWALL
+    analytics.logEvent(event)                     // checked as both constants
+}
+```
+
+A local counts when it cannot be reassigned (Kotlin `val`, Swift `let`,
+TypeScript `const`, or a Java typed local such as `String event = …;` that the
+function never assigns again), and the named function around the call declares
+it exactly once, earlier, in a block that is still open at the call, and
+binds the name nowhere else: not as a parameter, another local, a lambda,
+closure or loop variable, or a destructured name. Its initializer must be a
+constant, or a conditional over constants as above; a local set from another
+such local is read too. A local wins over a constant of the same name, as it
+does in the code. Anything else stays dynamic, with the reason `local` in
+`--list`: a `var`, a TypeScript `let`, a Swift `if let`, a local declared in a
+block that closed before the call or in a lambda, and a local in Objective-C.
 
 ### Formats and concatenations {#formats}
 
@@ -402,9 +459,11 @@ constant, a filled-in format, a function that returns one string):
 may be a sum, and so does one with a number or a boolean among its parts.
 Objective-C strings have no `+`.
 
-A call the scan reads this way for the first time can report findings the
-same code did not report before: an `unknown_event` for a name that is now
-fully known, a warning for a template. Under the
+A call the scan reads this way, or through a [conditional or a
+local](#conditionals) or a `Bundle().apply { … }` [properties
+argument](#config-file), for the first time can report findings the same code
+did not report before: an `unknown_event` for a name that is now fully known,
+a warning for a template, an `unknown_field` for a property key. Under the
 [new-findings gate](#new-findings) both sides of the change are scanned by the
 same version, so only what the change brings in fails it. A
 [baseline](#baseline) written by an earlier version does not hold them, since
@@ -432,6 +491,12 @@ places. A token matches a token whatever its property is called, so
 `promo_sheet_${sheetId}_shown` in code matches `promo_sheet_${sheet_id}_shown` in
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
+
+An interpolation that reads as one constant is written in instead of a token:
+a constant or enum case, a Kotlin or Java constant named inside its own type,
+or a [local set to a constant](#conditionals). So `"${HOME}_tapped"` inside
+the type that declares `HOME = "home"` is sent as `home_tapped`. A local or a
+conditional with several values stays a token.
 
 A name the scanner cannot read at all (a variable, a parameter, a call of a
 function it does not read) is dynamic. Such a call is counted but cannot be
@@ -1054,13 +1119,14 @@ that kind of value yet.
 |--------|------------|------------|
 | `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
-| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name set to a constant is [read](#conditionals); any other local of that name does not make it `local`, because the local may be in a block that closed before the call. | Add its file to `enums:` or `sources:`. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `ambiguous_constant` | A constant or enum case that resolves in several objects to different values, such as `.home` in two enums or `HOME` declared at file scope in two files, and the field the value goes to does not tell them apart. Plain `tripl check` sends it as dynamic and reports nothing new for it. | Name its type more fully (`Screen.HOME`, `AppEvents.Category.home`), or rename one of the constants. |
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
-| `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
+| `local` | A local variable of the function, declared before the call, that the scan does not read: see [Conditionals and locals](#conditionals) for the ones it does. | Nothing to configure. A `var` set once can become a `val` (`let`, `const`). |
 | `format` | A printf-style format the scan does not fill in, such as `"promo_%.1f".format(ratio)` (see [Formats and concatenations](#formats) for the ones it does). The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure. |
 | `concatenation` | Values joined with `+`, with no string literal among them and a part that is not a constant (`Events.PREFIX + id`, or a number), or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | When a part is a constant in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
-| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
+| `conditional` | A choice between values the scan does not read: an `if`, `when` or ternary with a branch that is not a constant (see [Conditionals and locals](#conditionals)), a `switch`, or a `?:` or `??` fallback. | Nothing to configure. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda. | Nothing to configure. |
 | `variable` | A variable the scan does not follow: a property, a lambda parameter, a captured variable. | Nothing to configure. |

@@ -62,6 +62,7 @@ CAUSE_PLAN_BRANCH = "plan_branch"
 # dynamic target with no dynamic value has nothing readable.
 REASON_VARIABLE = "variable"
 REASON_UNKNOWN_CONSTANT = "unknown_constant"
+REASON_AMBIGUOUS_CONSTANT = "ambiguous_constant"
 REASON_FORMAT = "format"
 REASON_FUNCTION = "function"
 REASON_CONDITIONAL = "conditional"
@@ -75,6 +76,7 @@ REASON_WRONG_SHAPE = "wrong_shape"
 REASON_CODES: tuple[str, ...] = (
     REASON_VARIABLE,
     REASON_UNKNOWN_CONSTANT,
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_FORMAT,
     REASON_FUNCTION,
     REASON_CONDITIONAL,

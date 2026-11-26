@@ -12,10 +12,12 @@ Four outcomes, and the distinction between them is the whole point:
     each part the scan cannot read becoming a ``${name}`` token named after it.
 ``Value.choices``
     One of several known strings (a function whose every ``return`` is a
-    literal). The caller checks each.
+    literal, an ``if``/``when``/ternary whose every branch is a constant, or
+    a local set to one). The caller checks each.
 ``Value.entries``
     A dictionary literal — properties, or an object argument whose keys a
-    preset reads as labels.
+    preset reads as labels; Android's ``Bundle().apply { putString(k, v) }``
+    written inline is one too.
 ``dynamic``
     Not knowable without running the code. Sent to the validator as ``null``,
     which is never an error; ``--strict`` reports it.
@@ -36,11 +38,16 @@ where it gives up:
     ``$``) reads as a variable, a parameter or a property, which the scan does
     not follow; an upper-case one, a ``k`` before an upper-case one (Apple's
     and Google's ``kFIREventLogin``), or Swift's ``.home``, as a constant it
-    could not resolve: its file is not scanned, two constants share the name,
-    or the case has no string raw value. ``path`` keeps the segments:
+    could not resolve: its file is not scanned, or the case has no string raw
+    value. ``path`` keeps the segments:
     ``inventory`` refines a value into a parameter or a local from them,
     without re-reading the text. ``.home`` has none: it names a case of the
-    type the call expects, never a name in scope.
+    type the call expects, never a name in scope. A local set once to a
+    constant is read before any of this (``Evaluator._local``).
+``ambiguous_constant``
+    Such a constant that resolves in several objects to different values,
+    which the field the value goes to does not tell apart
+    (``SymbolIndex.ambiguous``).
 ``format``
     A printf-style format the scan does not fill in: ``x.format(…)`` /
     ``x.formatted(…)`` whatever ``x`` is, Swift ``String(format: …)`` and
@@ -57,8 +64,9 @@ where it gives up:
     map builder the dictionary reader rejected (Kotlin ``mapOf(a to b, )``) is
     an ``expression`` instead.
 ``conditional``
-    A choice between values: ``if`` / ``when`` / ``switch``, a ternary,
-    Kotlin's ``?:``, Swift's ``??``.
+    A choice between values the scan does not read: an ``if`` / ``when`` /
+    ternary with a branch that is no constant (``Evaluator._conditional``
+    reads the others), a ``switch``, Kotlin's ``?:``, Swift's ``??``.
 ``concatenation``
     A top-level ``+`` with no string literal among its operands and one the
     scan cannot read as text, or one whose operand is several values or a
@@ -78,6 +86,7 @@ from typing import TYPE_CHECKING
 from tripl_cli.check.calls import matching, split_top_level
 from tripl_cli.check.lexer import IDENT, NUMBER, PUNCT, STRING, Interp, Token, tokenize
 from tripl_cli.check.model import (
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_CONCATENATION,
     REASON_CONDITIONAL,
     REASON_EXPRESSION,
@@ -86,8 +95,10 @@ from tripl_cli.check.model import (
     REASON_UNKNOWN_CONSTANT,
     REASON_VARIABLE,
 )
+from tripl_cli.check.scopes import expression_end
 from tripl_cli.check.symbols import (
     CASE_NAME_ACCESSORS,
+    MAX_CHOICES,
     RAW_ACCESSORS,
     SymbolIndex,
     number_text,
@@ -116,6 +127,12 @@ _FORMAT_METHODS = frozenset({"format", "formatted"})
 _FORMAT_FORMS = {"kotlin": "method", "java": "method", "swift": "swift", "objc": "objc"}
 _OBJC_FORMATS = frozenset({"stringWithFormat", "localizedStringWithFormat"})
 _CHOICE_KEYWORDS = frozenset({"if", "when", "switch"})
+# The languages whose `if` is an expression, and the one whose `when` is.
+_IF_EXPRESSIONS = frozenset({"kotlin", "swift"})
+# How many locals one value may be read through: `val a = b` with `val b = "x"` is two.
+_MAX_LOCALS = 8
+# The Bundle methods an inline `Bundle().apply { … }` may call: `putString`, `putInt` …
+_BUNDLE_PUT = re.compile(r"put[A-Z][A-Za-z]*")
 # One printf conversion: `%s`, `%1$s`, `%ld`, `%-5.2f`, `%%`. Its parts are told
 # apart so that `_conversions` can refuse what it does not fill in.
 _CONVERSION = re.compile(
@@ -241,8 +258,11 @@ class Evaluator:
         # Set while a format is being filled in: a format inside it is not.
         self._formats = 0
         # Set while an interpolation is read: its tokens' offsets are not the
-        # file's, so nothing is looked up by where it is written.
-        self._detached = 0
+        # file's, so what is looked up by where it is written is looked up
+        # where its string is (this file offset) instead.
+        self._anchor: int | None = None
+        # How many locals the value being read goes through (`val a = b`).
+        self._locals = 0
 
     def evaluate(self, tokens: Sequence[Token], *, field: str | None = None) -> Value:
         span = _strip(list(tokens))
@@ -262,6 +282,9 @@ class Evaluator:
         entries = self._dictionary(span)
         if entries is not None:
             return Value("entries", entries=entries)
+        chosen = self._conditional(span, field)
+        if chosen is not None:
+            return chosen
         concatenated = self._concatenation(span, field)
         if concatenated is not None:
             return concatenated
@@ -293,16 +316,25 @@ class Evaluator:
                 return text("true")
             if token.text in _FALSE:
                 return text("false")
+            if self.places is not None and self.places.may_be_local(token.text):
+                local = self._local(token, field)
+                if local is not None:
+                    return local
             resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
             if resolved is None:
-                resolved = self._member(token, field)
+                owner = self._member_path(token)
+                if owner is not None:
+                    resolved = self.symbols.member(owner, hint=field)
             if resolved is not None:
                 return text(resolved)
             if not self.explain:
                 return dynamic(token.text)
+            reason = _path_reason(token.text, shorthand=False)
+            if reason == REASON_UNKNOWN_CONSTANT and self._ambiguous_name(token, field):
+                reason = REASON_AMBIGUOUS_CONSTANT
             return dynamic(
                 token.text,
-                reason=_path_reason(token.text, shorthand=False),
+                reason=reason,
                 expression=expression_text([token]),
                 path=(token.text,),
             )
@@ -312,67 +344,161 @@ class Evaluator:
         parts: list[str | Interp] = []
         for part in token.parts:
             if isinstance(part, Interp):
-                inlined = self._inline(part.expr, field)
+                inlined = self._inline(part.expr, token.offset, field)
                 parts.append(inlined if inlined is not None else part)
             else:
                 parts.append(part)
         interpolated = any(isinstance(part, Interp) for part in parts)
         return text(template_text(parts), interpolated=interpolated)
 
-    def _inline(self, expr: str, field: str | None) -> str | None:
-        """An interpolation that is itself a constant (an enum raw value, a literal) is inlined."""
+    def _inline(self, expr: str, offset: int, field: str | None) -> str | None:
+        """An interpolation that is itself a constant (an enum raw value, a literal) is inlined.
+
+        ``offset`` is its string's: what depends on where the interpolation is
+        written (a local, a type's member) is looked up there, its own tokens'
+        offsets being the expression's.
+        """
         try:
             tokens = tokenize(expr, self.language)
         except ValueError:
             return None
-        self._detached += 1
+        anchor = self._anchor
+        if anchor is None:
+            self._anchor = offset
         try:
             value = self.evaluate(tokens, field=field)
         finally:
-            self._detached -= 1
+            self._anchor = anchor
         return value.text if value.kind == "text" and not value.interpolated else None
 
-    def _member(self, token: Token, field: str | None) -> str | None:
-        """A Kotlin or Java constant named without its type, inside that type's body.
+    def _offset(self, token: Token) -> int:
+        """Where ``token`` is written in the file: its string's offset inside an interpolation."""
+        return token.offset if self._anchor is None else self._anchor
+
+    def _local(self, token: Token, field: str | None) -> Value | None:
+        """A local set once to a constant, named further down its function.
+
+        ``places.FilePlaces.local_initializer`` says which locals qualify; the
+        initializer must then read as one or more constants: text with no
+        ``${name}`` hole, or choices with none (a conditional over constants).
+        Read without explaining, at most ``_MAX_LOCALS`` locals deep (``val a
+        = b`` with ``val b = "x"``). A local takes precedence over a constant
+        of the same name, as it does in the code.
+        """
+        places = self.places
+        if places is None or self._locals >= _MAX_LOCALS:
+            return None
+        reader = self._reader()
+        anchor = reader._anchor
+        try:
+            initializer = places.local_initializer(self._offset(token), token.text)
+            if initializer is None:
+                return None
+            # The initializer's tokens are the file's own, wherever the name was.
+            reader._anchor = None
+            reader._locals += 1
+            try:
+                value = reader.evaluate(initializer, field=field)
+            finally:
+                reader._locals -= 1
+                reader._anchor = anchor
+        except RecursionError:
+            return None
+        return value if _constant_options(value) is not None else None
+
+    def _member_path(self, token: Token) -> tuple[str, ...] | None:
+        """The path of the Kotlin or Java constant ``token`` names without its type, if any.
 
         ``HOME`` inside ``class Screen`` (or a type nested in it) is
         ``Screen.HOME``, a companion's or a static one included. Looked for
-        only when no file-scope constant has the name, only for a name that
-        reads as a constant (``HOME``, ``kHome``), and from the innermost type
-        out: the first type that declares it decides, an ambiguous one
-        included. A parameter of a function around the call, or a local
-        declared before it in the innermost one, hides the constant.
+        only when no file-scope constant has the name (the caller asks only
+        then), only for a name that reads as a constant (``HOME``, ``kHome``),
+        and from the innermost type out: the first type that declares it
+        decides, an ambiguous one included. A parameter of a function around
+        the call, or a local declared before it in the innermost one, hides
+        the constant.
         """
         places = self.places
         name = token.text
         if (
             places is None
-            or self._detached
             or self.language not in ("kotlin", "java")
             or _path_reason(name, shorthand=False) != REASON_UNKNOWN_CONSTANT
             or not self.symbols.names_member(name)
         ):
             return None
-        for owner in places.types_around(token.offset):
+        offset = self._offset(token)
+        for owner in places.types_around(offset):
             path = (*owner, name)
             if not self.symbols.declares(path):
                 continue
-            if places.shadowed(token.offset, name):
+            if places.shadowed(offset, name):
                 return None
-            return self.symbols.member(path, hint=field)
+            return path
         return None
+
+    def _ambiguous_name(self, token: Token, field: str | None) -> bool:
+        """Whether the bare name ``token`` names constants of different values (``--list`` only).
+
+        File-scope constants of that name, or the members of the type around
+        it that ``_member_path`` finds.
+        """
+        if self.symbols.ambiguous([token.text], hint=field, language=self.language):
+            return True
+        owner = self._member_path(token)
+        return owner is not None and self.symbols.ambiguous_member(owner, hint=field)
 
     def _own_type(self, path: list[str], offset: int, field: str | None) -> str | None:
         """Swift's ``Self.x``: ``x`` of the type whose body holds ``offset``."""
         places = self.places
-        if places is None or self._detached or self.language != "swift":
+        if places is None or self.language != "swift":
             return None
-        owners = places.types_around(offset)
+        owners = places.types_around(offset if self._anchor is None else self._anchor)
         if not owners:
             return None
         return self.symbols.resolve([*owners[0], *path[1:]], hint=field, language=self.language)
 
     # --- compound forms ------------------------------------------------------
+    def _conditional(self, span: list[Token], field: str | None) -> Value | None:
+        """``if`` / ``when`` / a ternary whose every branch is a constant: those constants.
+
+        Read: Kotlin ``if (…) a else b`` (``else if`` chains, ``{ … }``
+        branches) and ``when``, Swift's ``if … { a } else { b }``, and the
+        ternary ``c ? a : b`` in Swift, Java, TypeScript and Objective-C. Each
+        branch must read as text with no ``${name}`` hole, or as such choices;
+        the result is their distinct values in order, one text when they
+        agree, else choices each checked as a function's returns are. Any
+        other branch, an ``if`` with no ``else``, a ``switch``, or more than
+        ``symbols.MAX_CHOICES`` values make the whole value dynamic, with the
+        ``conditional`` reason. None for what is no such form, Kotlin's ``?:``
+        and Swift's ``??`` included: they read on as before.
+        """
+        source = self.places.source if self.places is not None and self._anchor is None else None
+        branches = _branches(span, self.language, source)
+        if branches is None:
+            return None
+        options: list[str] = []
+        reader = self._reader()
+        try:
+            for branch in branches:
+                if _statements(branch, self.language):
+                    found = None
+                else:
+                    found = _constant_options(reader.evaluate(branch, field=field))
+                if found is None:
+                    options = []
+                    break
+                options.extend(option for option in found if option not in options)
+        except RecursionError:
+            options = []
+        if options and len(options) <= MAX_CHOICES:
+            if len(options) == 1:
+                return text(options[0])
+            return Value("choices", choices=tuple(options))
+        if not self.explain:
+            return dynamic(_hint_of(span))
+        return dynamic(_hint_of(span), reason=REASON_CONDITIONAL, expression=expression_text(span))
+
     def _concatenation(self, span: list[Token], field: str | None) -> Value | None:
         """``"a" + x + "b"``, C's adjacent literals ``@"a" @"b"``, and constants: ``A + B``.
 
@@ -484,9 +610,14 @@ class Evaluator:
         if segments is None:
             # Not a plain path after all: `!flag`, `::name`, an infix `a to b`.
             return self._unread(span, field, hint)
+        reason = _path_reason(segments[0], shorthand=shorthand)
+        if reason == REASON_UNKNOWN_CONSTANT and self.symbols.ambiguous(
+            path, hint=field, shorthand=shorthand, language=self.language
+        ):
+            reason = REASON_AMBIGUOUS_CONSTANT
         return dynamic(
             hint,
-            reason=_path_reason(segments[0], shorthand=shorthand),
+            reason=reason,
             expression=expression_text(span),
             path=() if shorthand else segments,
         )
@@ -546,7 +677,8 @@ class Evaluator:
         if not self.explain:
             return self
         reader = Evaluator(self.symbols, self.language, places=self.places)
-        reader._detached = self._detached
+        reader._anchor = self._anchor
+        reader._locals = self._locals
         return reader
 
     def _format(self, span: list[Token], field: str | None) -> Value | None:
@@ -601,6 +733,8 @@ class Evaluator:
             return self._pairs(span, ":")
         if first.is_punct("{") and self.language == "ts":
             return self._pairs(span, ":", bare_keys=True)
+        if first.kind == IDENT and self.language == "kotlin" and span[-1].is_punct("}"):
+            return self._bundle(span)
         if first.kind == IDENT and self.language in ("kotlin", "java") and span[-1].is_punct(")"):
             builder = next(
                 (
@@ -620,6 +754,63 @@ class Evaluator:
                 return self._kotlin_pairs(inner)
             return self._java_pairs(inner)
         return None
+
+    def _bundle(self, span: list[Token]) -> tuple[tuple[str, Value], ...] | None:
+        """Android's ``Bundle().apply { putString(K, v) … }``, written inline, as key/value pairs.
+
+        The receiver is ``Bundle()`` (``android.os.Bundle()``, or with a
+        capacity), and the block holds nothing but ``putX(key, value)`` calls
+        (``this.putX`` too), one per statement: anything else in it, a
+        ``Bundle(other)`` or a ``putAll`` may add keys nobody can see, and
+        then it is no dictionary. A key the scan cannot read is left out, as
+        in ``mapOf``; a key put twice keeps its last value, as at runtime.
+        """
+        opening = _opening(span, len(span) - 1)
+        if opening < 3 or not span[opening - 1].is_ident("apply"):
+            return None
+        if not span[opening - 2].is_punct(".") or not span[opening - 3].is_punct(")"):
+            return None
+        receiver = span[: opening - 2]
+        arguments = _opening(receiver, len(receiver) - 1)
+        inside = receiver[arguments + 1 : -1]
+        if (
+            arguments < 1
+            or not receiver[arguments - 1].is_ident("Bundle")
+            or _segments(receiver[:arguments]) is None
+            or not (not inside or (len(inside) == 1 and inside[0].kind == NUMBER))
+        ):
+            return None
+        body = span[opening + 1 : -1]
+        pairs: list[tuple[str, Value]] = []
+        position = 0
+        while position < len(body):
+            if body[position].is_punct(";"):
+                position += 1
+                continue
+            if body[position].is_ident("this") and position + 1 < len(body):
+                if not body[position + 1].is_punct("."):
+                    return None
+                position += 2
+            method = body[position] if position < len(body) else None
+            if (
+                method is None
+                or method.kind != IDENT
+                or not _BUNDLE_PUT.fullmatch(method.text)
+                or position + 1 >= len(body)
+                or not body[position + 1].is_punct("(")
+            ):
+                return None
+            close = matching(body, position + 1)
+            if close >= len(body):
+                return None
+            parts = split_top_level(body[position + 2 : close])
+            if len(parts) != 2 or not parts[0] or not parts[1]:
+                return None
+            key = self._key(parts[0], False)
+            if key is not None:
+                pairs.append((key, self.evaluate(parts[1], field=key)))
+            position = close + 1
+        return tuple(pairs)
 
     def _pairs(
         self, span: list[Token], separator: str, *, bare_keys: bool = False
@@ -834,6 +1025,200 @@ def _filled(
             return None  # several values, a dictionary, or nothing
     pieces.append(source[last:])
     return text("".join(pieces), interpolated=interpolated)
+
+
+def _constant_options(value: Value) -> tuple[str, ...] | None:
+    """The constants ``value`` is: text with no ``${name}`` hole, or such choices; else None."""
+    if value.kind == "text" and value.text is not None and not value.interpolated:
+        return (value.text,)
+    if value.kind == "choices" and not any("${" in choice for choice in value.choices):
+        return value.choices
+    return None
+
+
+def _statements(branch: list[Token], language: str) -> bool:
+    """A Kotlin or Swift branch block of string literals alone: statements, the last its value.
+
+    ``{ "a" "b" }`` there is two statements, never the adjacent literals C
+    joins, which is how the evaluator would read it.
+    """
+    return language != "objc" and len(branch) > 1 and all(token.kind == STRING for token in branch)
+
+
+def _branches(span: list[Token], language: str, source: str | None) -> list[list[Token]] | None:
+    """The branches of the conditional ``span``, each to be read as a value.
+
+    None when ``span`` is no ``if``, ``when``, ``switch`` or ternary (Kotlin's
+    ``?:`` and Swift's ``??`` are none); empty when it is one this does not
+    read. ``source`` is the file's text, for where a ``when`` entry ends;
+    without it (an interpolation's tokens) a ``when`` is not read.
+    """
+    first = span[0]
+    if first.is_ident("if") and language in _IF_EXPRESSIONS:
+        return _if_branches(span, language) or []
+    if first.is_ident("when") and language == "kotlin":
+        return (_when_branches(span, source) if source is not None else None) or []
+    if first.is_ident(*_CHOICE_KEYWORDS):
+        return []
+    if language == "kotlin":
+        return None  # no ternary: `?` `:` is the elvis operator
+    return _ternary(span, language)
+
+
+def _if_branches(span: list[Token], language: str) -> list[list[Token]] | None:
+    """Kotlin ``if (c) a else if (d) { b } else c``, Swift ``if c { a } else { b }``.
+
+    None for an ``if`` with no ``else``, one this does not bound, or more after it.
+    """
+    branches: list[list[Token]] = []
+    position = 0
+    while True:
+        # `span[position]` is an `if`; its branch starts past the condition.
+        start = _condition_end(span, position + 1, language)
+        if start >= len(span):
+            return None
+        if span[start].is_punct("{"):
+            close = matching(span, start)
+            if close >= len(span):
+                return None
+            branches.append(span[start + 1 : close])
+            after = close + 1
+        elif language == "kotlin":
+            found = next(
+                (
+                    index
+                    for index, token in _top_level(span)
+                    if index > start and token.is_ident("else")
+                ),
+                None,
+            )
+            if found is None:
+                return None
+            branches.append(span[start:found])
+            after = found
+        else:
+            return None
+        if after >= len(span) or not span[after].is_ident("else"):
+            return None
+        position = after + 1
+        if position < len(span) and span[position].is_ident("if"):
+            continue
+        rest = span[position:]
+        if rest and rest[0].is_punct("{"):
+            if matching(rest, 0) != len(rest) - 1:
+                return None
+            branches.append(rest[1:-1])
+        elif rest and language == "kotlin":
+            branches.append(rest)
+        else:
+            return None
+        return branches
+
+
+def _condition_end(span: list[Token], position: int, language: str) -> int:
+    """Past an ``if``'s condition at ``position``: Kotlin's ``(…)``, Swift's up to ``{``."""
+    if language == "kotlin":
+        if position >= len(span) or not span[position].is_punct("("):
+            return len(span)
+        return matching(span, position) + 1
+    depth = 0
+    while position < len(span):
+        token = span[position]
+        if token.is_punct("(", "["):
+            depth += 1
+        elif token.is_punct(")", "]"):
+            depth -= 1
+        elif token.is_punct("{") and depth == 0:
+            return position
+        position += 1
+    return position
+
+
+def _when_branches(span: list[Token], source: str) -> list[list[Token]] | None:
+    """The results of Kotlin's ``when (x) { a -> "x"; b, c -> { "y" } else -> "z" }``.
+
+    An entry's result is a block or an expression, which ends where
+    ``scopes.expression_end`` ends an expression body (a line that does not
+    go on with it, a ``;``). None when the ``when`` is not one ``{ … }`` to
+    the end of ``span``, an entry has no condition, or a result runs into
+    the next entry's ``->``.
+    """
+    position = 1
+    if position < len(span) and span[position].is_punct("("):
+        position = matching(span, position) + 1
+    if position >= len(span) or not span[position].is_punct("{"):
+        return None
+    if matching(span, position) != len(span) - 1:
+        return None
+    body = span[position + 1 : -1]
+    branches: list[list[Token]] = []
+    condition = 0  # where the current entry's condition starts
+    end = 0  # past the last result
+    for index, token in _top_level(body):
+        if not token.is_punct("->"):
+            continue
+        if index < end or index == condition:
+            return None
+        if index + 1 < len(body) and body[index + 1].is_punct("{"):
+            close = matching(body, index + 1)
+            branches.append(body[index + 2 : close])
+            end = close + 1
+        else:
+            end = expression_end(body, source, index, "kotlin")
+            # A line that starts with `else` goes on with an `if` in the
+            # result, unless it is the next entry: `else ->`.
+            end = next(
+                (
+                    index + 1 + offset
+                    for offset, word in _top_level(body[index + 1 : end])
+                    if word.is_ident("else")
+                    and index + 2 + offset < len(body)
+                    and body[index + 2 + offset].is_punct("->")
+                ),
+                end,
+            )
+            branches.append(body[index + 1 : end])
+        if end <= index + 1:
+            return None
+        while end < len(body) and body[end].is_punct(";"):
+            end += 1
+        condition = end
+    if not branches or end < len(body):
+        return None
+    return branches
+
+
+def _ternary(span: list[Token], language: str) -> list[list[Token]] | None:
+    """The two branches of ``c ? a : b``; None when ``span`` has no top-level ``?``.
+
+    The first top-level ``?`` ends the condition (in Swift only one with a
+    space before it: ``x?`` is optional chaining). The ``:`` that matches it
+    skips the ``?``/``:`` pairs of ternaries nested in the first branch.
+    Empty when a branch is empty (Objective-C's ``a ?: b``); None when no
+    ``:`` matches, which is no ternary either.
+    """
+
+    def opens(index: int) -> bool:
+        token = span[index]
+        return token.is_punct("?") and (
+            language != "swift" or (index > 0 and span[index - 1].end < token.offset)
+        )
+
+    question = next((index for index, _ in _top_level(span) if index > 0 and opens(index)), None)
+    if question is None:
+        return None
+    nested = 0
+    for index, token in _top_level(span):
+        if index <= question:
+            continue
+        if opens(index):
+            nested += 1
+        elif token.is_punct(":"):
+            if nested == 0:
+                first, second = span[question + 1 : index], span[index + 1 :]
+                return [first, second] if first and second else []
+            nested -= 1
+    return None
 
 
 def _length_fits(length: str | None, kind: str, language: str) -> bool:

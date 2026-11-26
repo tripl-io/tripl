@@ -887,14 +887,16 @@ def _evaluated(language: str, source: str) -> Value:
         ("kotlin", "flag && y.format(z)", "expression", "flag && y.format(z)"),
         ("kotlin", '("a_" + id).format(z)', "format", "format of a_${id}"),
         ("kotlin", "getMapTypeLog()", "function", "getMapTypeLog()"),
-        ("kotlin", 'if (flag) "a" else "b"', "conditional", 'if (flag) "a" else "b"'),
+        # A conditional with a branch that is no constant.
+        ("kotlin", 'if (flag) "a" else b', "conditional", 'if (flag) "a" else b'),
         (
             "kotlin",
             'when (x) { 1 -> "a" else -> "b" }',
             "conditional",
             'when (x) { 1 -> "a" else -> "b" }',
         ),
-        ("ts", 'flag ? "a" : "b"', "conditional", 'flag ? "a" : "b"'),
+        ("ts", 'flag ? "a" : b', "conditional", 'flag ? "a" : b'),
+        ("ts", 'flag ? "a" + x : "b"', "conditional", 'flag ? "a" + x : "b"'),
         ("kotlin", 'name ?: "fallback"', "conditional", 'name ?: "fallback"'),
         ("swift", 'name ?? "fallback"', "conditional", 'name ?? "fallback"'),
         ("kotlin", "Event.A + Params.B", "concatenation", "Event.A + Params.B"),
@@ -1251,8 +1253,8 @@ def test_a_constant_named_inside_its_own_type_is_read(tmp_path: Path) -> None:
         ("src/Screen.kt:9", None),
         ("src/Screen.kt:13", None),
         ("src/Screen.kt:17", "home"),
-        # Inside an interpolation nothing is looked up by where it is written.
-        ("src/Screen.kt:18", "${HOME}_tapped"),
+        # Inside an interpolation the name is looked up where its string is.
+        ("src/Screen.kt:18", "home_tapped"),
         ("src/Screen.kt:24", None),
         ("src/Screens.swift:4", "swift_home"),
         # A bare Swift name is never a static member: that needs `Self.`.
@@ -2558,7 +2560,7 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
 def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
     tmp_path: Path,
 ) -> None:
-    """Locals are found with no regard to blocks: the one named may be out of scope."""
+    """A local is read only where its block is still open; past it, the name is a constant."""
     root = _repo(
         tmp_path,
         {
@@ -2598,7 +2600,8 @@ def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
     )
     found = inventory(_config(root, LOG_EVENT_CONFIG))
     # After each block, and after the lambda, the name is a constant the scan
-    # could not resolve, not the local; inside, nothing tells the two apart.
+    # could not resolve, not the local. Inside, a local set to a constant is
+    # read; one set to a variable (`if let`, `const kName = n`) is not.
     assert [(call.origin.path, call.origin.line) for call in found.calls] == [
         ("app/Report.kt", 4),
         ("app/Report.kt", 6),
@@ -2609,9 +2612,18 @@ def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
         ("web/report.ts", 11),
         ("web/report.ts", 12),
     ]
+    unknown = {"name": ("unknown_constant", None, None)}
     assert [_reads(call) for call in found.calls] == [
-        {"name": ("unknown_constant", None, None)}
-    ] * len(found.calls)
+        {},
+        unknown,
+        unknown,
+        unknown,
+        {},
+        unknown,
+        unknown,
+        unknown,
+    ]
+    assert [call.items[0].name for call in found.calls if call.fully_read] == ["a_open"] * 2
 
 
 def test_unmapped_arguments_and_fields_read_from_default_labels(tmp_path: Path) -> None:

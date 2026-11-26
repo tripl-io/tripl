@@ -39,6 +39,7 @@ from tripl_cli.check.config import (
     selector_field,
 )
 from tripl_cli.check.model import (
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_LOCAL,
     REASON_NOT_PASSED,
     REASON_PARAMETER,
@@ -367,8 +368,9 @@ def _refine(
 
     The parameter check comes first, so Swift's ``guard let event = event``
     stays a parameter. A name of one segment that reads as a constant
-    (``kEvent``, ``EVENT``) is the parameter it names, whatever its case: a
-    parameter hides a constant of that name in the whole body. It is never a
+    (``kEvent``, ``EVENT``), unresolved or ambiguous, is the parameter it
+    names, whatever its case: a parameter hides a constant of that name in
+    the whole body. It is never a
     local: locals are found without regard to blocks, so one of that name may
     be out of scope at the call, and naming it would hide the advice a
     constant gets (add its file to ``enums:`` or ``sources:``); a variable has
@@ -376,7 +378,10 @@ def _refine(
     ``variable`` unless the named function around it has one of that name.
     """
     variable = value.reason == REASON_VARIABLE
-    constant = value.reason == REASON_UNKNOWN_CONSTANT and len(value.path) == 1
+    constant = (
+        value.reason in (REASON_UNKNOWN_CONSTANT, REASON_AMBIGUOUS_CONSTANT)
+        and len(value.path) == 1
+    )
     if not (variable or constant) or not value.path or scope is None:
         return ReadValue(value, value.reason)
     head = value.path[0]

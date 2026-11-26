@@ -2559,6 +2559,16 @@ gate for every CI, and the hookups for Jenkins, Azure Pipelines, Bitbucket,
 CircleCI and TeamCity, are in
 [Check tracking code in CI](../how-to/check-tracking-in-ci.md).
 
+**After an upgrade.** A newer `tripl` may read calls an older one left
+dynamic (a format, constants joined with `+`, an `if` or `when` over
+constants, a local set to a constant, a `Bundle().apply { … }` argument), and
+so report findings on code nobody changed. The gate scans both sides of a
+change with the same version, so it fails only on what the change adds. A
+committed baseline written by the older version does not hold the new
+findings, and its entries for those calls are reported as not seen: write it
+again, or prune it. See the guide's
+[Formats and concatenations](../integrate/tripl-check.md#formats).
+
 **Cost:** one request per 5,000 calls or payloads, plus one to resolve
 `--branch` when you pass it. Under a gate with `--branch`, one more batch:
 the unchanged calls that would fail, validated against main.
@@ -4738,23 +4748,25 @@ every key present:
 | `expression` | A `dynamic` value as written, at most 60 characters. Else `null`. |
 | `declared` | `{function, line}` for the codes `parameter` and `parameter_property` (the function the call sits in, and its declaration line) and `local` (that function, and the local's line). Else `null`, and always `null` on an entry. |
 
-The reason codes. The first seven come from reading the argument. The next three
+The reason codes. The first eight come from reading the argument. The next three
 refine a `variable` from the function the call sits in, a hint read from the
-source and never a verdict; a bare `unknown_constant` such as `kEvent` is
-refined into `parameter` only. The last two are about the target, not a value:
+source and never a verdict; a bare `unknown_constant` or `ambiguous_constant`
+such as `kEvent` is refined into `parameter` only. The last two are about the
+target, not a value:
 
 | Code | Meaning |
 |------|---------|
 | `variable` | A variable the scan does not follow (a property, a lambda parameter, a captured variable), not a constant. |
-| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
+| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead; a Swift shorthand such as `.home` never is. A local of that name set to a constant is read; any other local of that name does not make it `local`, because the local may be in a block that closed before the call. |
+| `ambiguous_constant` | Such a constant that resolves in several objects to different values (`.home` in two enums, `HOME` at file scope in two files), which the field the value goes to does not tell apart. Plain `tripl check` sends it as dynamic, with no finding of its own. |
 | `format` | A printf-style format the scan does not fill in: a template it cannot read, a conversion other than a plain `%s`, `%d` or `%@` (a flag, a width or a precision included), arguments the conversions do not use up exactly, an argument that is several values, a dictionary or `null`, a spread, or a format inside another format. The guide's [Formats and concatenations](../integrate/tripl-check.md#formats) lists the formats it fills in. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript), in a file under `sources` or `enums`. The guide's [Enum sources](../integrate/tripl-check.md#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. |
-| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. |
+| `conditional` | A choice between values the scan does not read: an `if`, `when` or ternary with a branch that is not a constant, a `switch`, or a `?:` or `??` fallback. The guide's [Conditionals and locals](../integrate/tripl-check.md#conditionals) lists the ones it reads. |
 | `concatenation` | A concatenation the scan does not join: one with no string literal among its parts and a part that is not a constant (`Events.PREFIX + id`, or a number), or one with a part that is several values or a dictionary. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda, or a map literal the scan could not read. |
 | `parameter` | A parameter of the function the call sits in: the value comes from its callers. |
 | `parameter_property` | A property of such a parameter: the value is set where that object is built. |
-| `local` | A local variable of that function, declared before the call. |
+| `local` | A local variable of that function, declared before the call, that the scan does not read: it reads one declared once with `val`, `let`, `const` or a Java type and set to a constant (see [Conditionals and locals](../integrate/tripl-check.md#conditionals)). |
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds. Always reported on `name`. |
 | `wrong_shape` | The value has the wrong shape for its target: properties that are not a dictionary, or a name or field that is one. |
 

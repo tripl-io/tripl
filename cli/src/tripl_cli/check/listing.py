@@ -30,6 +30,7 @@ from tripl_cli.check.inventory import (
     UnmatchedGroup,
 )
 from tripl_cli.check.model import (
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_CODES,
     REASON_CONCATENATION,
     REASON_CONDITIONAL,
@@ -63,8 +64,12 @@ REASON_TEXT: dict[str, str] = {
     ),
     REASON_UNKNOWN_CONSTANT: (
         "a constant or enum case the scan could not resolve: add its file to enums: "
-        "or sources:, or name its type more fully when several share the name; "
-        "an enum case needs a string raw value; a local named like a constant needs nothing"
+        "or sources:; an enum case needs a string raw value; a local named like a "
+        "constant needs nothing"
+    ),
+    REASON_AMBIGUOUS_CONSTANT: (
+        "a name that resolves to constants of different values in several objects: "
+        "name its type more fully"
     ),
     REASON_FORMAT: (
         "a printf-style format the scan does not fill in: a template it cannot read, "
@@ -78,7 +83,10 @@ REASON_TEXT: dict[str, str] = {
         'declared like fun f(): String, fun f() = "...", func f() -> String, String f() '
         "or function f(): string, in a file under sources: or enums:"
     ),
-    REASON_CONDITIONAL: "a choice between values (if / when / a ternary / a fallback)",
+    REASON_CONDITIONAL: (
+        "a choice between values (if / when / a ternary / a fallback); the scan reads "
+        "an if, when or ternary whose every branch is a constant"
+    ),
     REASON_CONCATENATION: (
         "a concatenation the scan does not join: no string literal in it and a part "
         "that is not a constant, or a part that is several values or a dictionary"
@@ -92,7 +100,10 @@ REASON_TEXT: dict[str, str] = {
         "a property of such a parameter: the value is set where that object is built; "
         "configure that, not the function's callers"
     ),
-    REASON_LOCAL: "a local variable; the scan does not follow locals",
+    REASON_LOCAL: (
+        "a local variable; the scan reads one declared once in its function with val, let, "
+        "const or a Java type, set to a constant"
+    ),
     # Reported on the name: nothing the call passes gives the event a name or a field.
     REASON_NOT_PASSED: (
         "the call passes no name and no field value the scan can read (no argument or "

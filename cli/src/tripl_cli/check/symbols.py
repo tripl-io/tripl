@@ -235,20 +235,45 @@ class SymbolIndex:
         name_accessors = CASE_NAME_ACCESSORS.get(language, frozenset())
         if len(segments) > 1 and segments[-1] in name_accessors and not self._has(segments):
             return self.case_name(segments[:-1], shorthand=shorthand)
+        return _pick(self._candidates(segments, shorthand, name_accessors), hint)
+
+    def ambiguous(
+        self,
+        path: Sequence[str],
+        *,
+        hint: str | None = None,
+        shorthand: bool = False,
+        language: str = "",
+    ) -> bool:
+        """Whether ``resolve`` gives up on ``path`` because it names constants of different values.
+
+        The constants ``resolve`` would choose among, which the field ``hint``
+        does not tell apart. For ``tripl check --list`` only.
+        """
+        segments = [segment for segment in path if segment]
+        name_accessors = CASE_NAME_ACCESSORS.get(language, frozenset())
+        if len(segments) > 1 and segments[-1] in name_accessors and not self._has(segments):
+            return False
+        return _ambiguous(self._candidates(segments, shorthand, name_accessors), hint)
+
+    def _candidates(
+        self, segments: list[str], shorthand: bool, name_accessors: frozenset[str]
+    ) -> list[Entry]:
+        """The entries ``resolve`` picks a value among: those of the longest matching suffix."""
         raw_accessors = RAW_ACCESSORS - name_accessors
         while len(segments) > 1 and segments[-1] in raw_accessors and not self._has(segments):
             segments.pop()
         if not segments:
-            return None
+            return []
         if shorthand:
-            return _pick(self._suffixes.get((segments[-1],), []), hint)
+            return self._suffixes.get((segments[-1],), [])
         if len(segments) == 1:
-            return _pick(self._constants.get(segments[0], []), hint)
+            return self._constants.get(segments[0], [])
         for size in range(len(segments), 1, -1):
             candidates = self._suffixes.get(tuple(segments[-size:]))
             if candidates:
-                return _pick(candidates, hint)
-        return None
+                return candidates
+        return []
 
     def member(self, path: Sequence[str], *, hint: str | None = None) -> str | None:
         """The value of the member whose qualified path is exactly ``path``, or None.
@@ -258,6 +283,11 @@ class SymbolIndex:
         """
         wanted = tuple(path)
         return _pick([e for e in self._suffixes.get(wanted, []) if e.path == wanted], hint)
+
+    def ambiguous_member(self, path: Sequence[str], *, hint: str | None = None) -> bool:
+        """Whether ``member`` gives up on ``path`` because it is declared with different values."""
+        wanted = tuple(path)
+        return _ambiguous([e for e in self._suffixes.get(wanted, []) if e.path == wanted], hint)
 
     def names_member(self, name: str) -> bool:
         """Whether some type has a member called ``name`` (a cheap test before ``member``)."""
@@ -311,6 +341,11 @@ def _pick(candidates: list[Entry], hint: str | None) -> str | None:
         and (wanted in normalise_name(e.path[-2]) or normalise_name(e.path[-2]) in wanted)
     }
     return preferred.pop() if len(preferred) == 1 else None
+
+
+def _ambiguous(candidates: list[Entry], hint: str | None) -> bool:
+    """Whether ``candidates`` hold several values and ``_pick`` cannot choose one."""
+    return len({e.value for e in candidates}) > 1 and _pick(candidates, hint) is None
 
 
 # --- scoped languages: Swift, Kotlin, Java ---------------------------------------

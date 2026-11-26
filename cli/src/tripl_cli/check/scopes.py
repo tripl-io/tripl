@@ -51,7 +51,11 @@ they sit in (``FunctionScope.owner``), which is what their callers write.
 ``ScopeIndex`` keeps a file's scopes for the lookups made per call, by
 bisection, so a file with many calls costs about its own size.
 
-A hint, never a verdict: nothing ``tripl check`` sends or decides depends on it.
+Mostly a hint for ``--list``. What ``tripl check`` sends depends on it in a few
+places only: a declaration a call spec matched is no call (``scan``), and,
+through ``places.FilePlaces``, a parameter or a local hides a type's member
+named without its type, and a local set once to a constant is read.
+``expression_end`` also tells the evaluator where a Kotlin ``when`` entry ends.
 """
 
 from __future__ import annotations
@@ -488,7 +492,7 @@ def _arrow(tokens: list[Token], source: str, keyword: int) -> FunctionScope | No
     if arrow + 1 < len(tokens) and tokens[arrow + 1].is_punct("{"):
         body = (arrow + 1, matching(tokens, arrow + 1))
     else:
-        body = (arrow, _expression_end(tokens, source, arrow, "ts"))
+        body = (arrow, expression_end(tokens, source, arrow, "ts"))
     return FunctionScope(tokens[name].text, tokens[name].offset, found, body, signature_end)
 
 
@@ -641,7 +645,7 @@ def _body_after(
             position = matching(tokens, position) + 1
             continue
         if token.is_punct("=") and language == "kotlin":
-            return position, _expression_end(tokens, source, position, language)
+            return position, expression_end(tokens, source, position, language)
         if token.is_punct("(", "["):
             # A function or tuple type in the return type: `(Int) -> Unit`, `-> (A, B)`.
             position = matching(tokens, position) + 1
@@ -716,7 +720,7 @@ def _arrow_after(tokens: list[Token], position: int) -> int | None:
     return None
 
 
-def _expression_end(tokens: list[Token], source: str, marker: int, language: str) -> int:
+def expression_end(tokens: list[Token], source: str, marker: int, language: str) -> int:
     """The first token past the expression body after ``tokens[marker]`` (``=`` or ``=>``).
 
     The body's first token belongs to it wherever it is, the next line too. It
