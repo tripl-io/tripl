@@ -266,8 +266,8 @@ class Inventory:
     calls: tuple[ListedCall, ...]
     # Constant-signal groups first, then by calls (descending) and method.
     unmatched: tuple[UnmatchedGroup, ...]
-    # By unmatched callers in the same file, then elsewhere by name in any
-    # language (both descending).
+    # By unmatched callers in the same file, then elsewhere in the function's
+    # own language (both descending): the counts the text line shows.
     forwarders: tuple[Forwarder, ...]
     files: int
     skipped: tuple[SkippedFile, ...] = ()
@@ -958,7 +958,9 @@ def _forwarders(
     """The functions whose own parameter reaches a matched call, with their callers.
 
     ``languages`` is each scanned file's language, by path. They are ordered
-    by their callers counted by name, in every language.
+    by their unmatched callers as the text line counts them: in the same file,
+    then elsewhere in the function's own language, so a function whose only
+    calls are in another language does not come before one with real callers.
     """
     found = [
         Forwarder(
@@ -985,7 +987,10 @@ def _forwarders(
     found.sort(
         key=lambda forwarder: (
             -(forwarder.callers.same_file - forwarder.callers.same_file_matched),
-            -(forwarder.callers.other_files - forwarder.callers.other_files_matched),
+            -(
+                forwarder.callers.other_files_same_language
+                - forwarder.callers.other_files_same_language_matched
+            ),
             forwarder.function,
             forwarder.location.path,
             forwarder.location.line,

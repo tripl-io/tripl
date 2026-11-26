@@ -2537,7 +2537,9 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
         ("TrackEvent", 1, "ios/Track.m", 5),
         ("logEvent", 1, "src/Base.java", 4),
     ]
-    # ... and only those calls are counted as the forwarders' callers.
+    # ... and only those calls are counted as the forwarders' callers. Both
+    # Java functions have one unmatched Java caller (the Kotlin and TypeScript
+    # `trackEvent` calls are another language's), so their names order them.
     assert [
         (
             forwarder.function,
@@ -2549,8 +2551,8 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
         for forwarder in found.forwarders
     ] == [
         ("TrackEvent", "ios/Track.m", 1, 0, Location("ios/Track.m", 5, 5)),
-        ("trackEvent", "src/Tracker.java", 0, 3, Location("app/Tracker.kt", 5, 5)),
         ("logEvent", "src/Tracker.java", 0, 1, Location("src/Base.java", 4, 9)),
+        ("trackEvent", "src/Tracker.java", 0, 3, Location("app/Tracker.kt", 5, 5)),
     ]
 
 
@@ -3192,6 +3194,93 @@ def test_callers_elsewhere_are_also_counted_in_the_forwarder_s_own_language(
     assert (page.other_files, page.other_files_same_language) == (2, 1)
     assert page.first_unmatched == Location("web/main.js", 1, 1)
     assert page.first_unmatched_same_language == Location("web/main.js", 1, 1)
+
+
+def test_forwarders_are_ordered_by_their_unmatched_callers_in_their_own_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/W.kt": "object W {\n"
+            "    fun alpha(name: String) { analytics.track(name) }\n"
+            "    fun beta(name: String) { analytics.track(name) }\n"
+            "}\n",
+            # Three calls of `alpha`, all from Java: none counted in Kotlin.
+            "app/J.java": 'class J {\n  void f() { alpha("a"); alpha("b"); alpha("c"); }\n}\n',
+            "app/K.kt": 'fun k() {\n    W.beta("x"); W.beta("y")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.track", name_arg: 0}]}
+        """,
+    )
+    # `beta` has two unmatched Kotlin callers, `alpha` none: `beta` comes first,
+    # though `alpha` has more calls by name in every language.
+    found = inventory(config).forwarders
+    assert [forwarder.function for forwarder in found] == ["beta", "alpha"]
+    assert [forwarder.callers.other_files for forwarder in found] == [2, 3]
+
+
+def test_a_swift_type_s_init_through_its_metatype_is_a_call_of_the_type(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "ios/S.swift": "struct Screen {\n"
+            "    init(screen: String) { analytics.track(screen) }\n"
+            "}\n"
+            "func f() {\n"
+            '    _ = Screen.self.init(screen: "a")\n'
+            '    _ = Screen.init(screen: "b")\n'
+            '    _ = Self.self.init(screen: "c")\n'
+            "}\n",
+        },
+    )
+    track = '{function: "analytics.track", name_arg: 0}'
+    listed = _config(root, f"project: demo\nevent_types:\n  event: {{calls: [{track}]}}\n")
+    # `Screen.self.init(…)` is the call `Screen(…)`; `Self.self.init` names no type.
+    [forwarder] = inventory(listed).forwarders
+    assert (forwarder.function, forwarder.callers.same_file) == ("Screen", 2)
+    assert forwarder.callers.first_unmatched == Location("ios/S.swift", 5, 9)
+    spec = '{function: "Screen", args: {screen: name}}'
+    config = _config(root, f"project: demo\nevent_types:\n  event: {{calls: [{track}, {spec}]}}\n")
+    # A spec for `Screen` reads both spellings.
+    assert [item.name for item in scan(config).items if item.name is not None] == ["a", "b"]
+
+
+def test_a_pattern_spec_matches_a_swift_type_s_init_called_by_name(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "App/S.swift": "func f() {\n"
+            '    tracker.track(ScreenView(name: "home"))\n'
+            '    tracker.track(ScreenView.init(name: "settings"))\n'
+            '    tracker.track(SPScreenView.self.init(name: "about"))\n'
+            "}\n",
+            # Only Swift calls an initializer `init`.
+            "app/S.kt": 'fun f() {\n    tracker.track(ScreenView.init(name = "kotlin"))\n}\n',
+        },
+    )
+    # The Snowplow preset matches the type with a `pattern:`.
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {preset: snowplow_screen_view}
+        """,
+    )
+    assert [(item.origin.path, item.name) for item in scan(config).items] == [
+        ("App/S.swift", "home"),
+        ("App/S.swift", "settings"),
+        ("App/S.swift", "about"),
+    ]
 
 
 def test_the_first_unmatched_caller_in_the_language_skips_other_languages(

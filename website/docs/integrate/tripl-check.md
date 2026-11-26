@@ -187,8 +187,8 @@ Each item under `calls` describes one way this event type is tracked:
 
 | Key | Meaning |
 |-----|---------|
-| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. In Swift, a type's initializer called by name matches as the type: `ScreenView` also matches `ScreenView.init(screen: name)` and `Outer.ScreenView.init(…)`, the same call as `ScreenView(screen: name)`. That takes a type name with a capital first letter, as Swift writes them; `self.init`, `super.init` and `Self.init` are matched only by a spec that names them. |
-| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). |
+| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. In Swift, a type's initializer called by name matches as the type: `ScreenView` also matches `ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)` and `Outer.ScreenView.init(…)`, the same call as `ScreenView(screen: name)`. That takes a type name with a capital first letter, as Swift writes them; `self.init`, `super.init` and `Self.init` are matched only by a spec that names them. |
+| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). In Swift, a type's initializer called by name also matches when the type alone does: a pattern that matches `ScreenView` matches `ScreenView.init(…)` and `ScreenView.self.init(…)` too, as [`function`](#config-keys) does. |
 | `objc_selector` | An Objective-C selector, for example `trackWithCategory:action:label:`. It matches a message send with exactly these selector parts. |
 | `receiver` | Only with `objc_selector`: a regular expression the receiver must contain (`re.search`), for example `(?i)tracker`. |
 | `args` | Maps an **argument label** (Swift label, Kotlin named argument, a key of the `object_arg` object, or the label of an Objective-C selector part) to a **target**. |
@@ -262,7 +262,7 @@ between the receiver and the method are allowed.
 | `segment_track` | `.track(…)` on a receiver whose name contains `analytics` or `segment`: `analytics.track("Name", {…})` (JS/TS, Kotlin, Java), `analytics.track(name: "Name", properties: […])` (Swift); Objective-C `track:properties:` and `track:` sent to such a receiver | the first argument, or the `name` / `event` label, to the event name; the second, or `properties`, to `properties` |
 | `amplitude_log_event` | `.logEvent(…)` or `.track(…)` on a receiver whose name contains `amplitude`: `amplitude.track("Name", {…})`, `Amplitude.instance().logEvent("Name", withEventProperties: […])`, `amplitude.track(eventType: "Name", eventProperties: […])`; Objective-C `logEvent:withEventProperties:` and `logEvent:` | the first argument, or `eventType` / `event_type`, to the event name; the second, or `eventProperties` / `event_properties` / `withEventProperties`, to `properties` |
 | `snowplow_structured` | `Structured(category: "c", action: "a")` (also `SPStructured`, `StructuredEvent`, `Structured.builder()`) with chained `.label(…)` / `.property(…)` / `.value(…)`; JS `trackStructEvent({category, action, label, property, value})`; Objective-C `[[SPStructured alloc] initWithCategory:action:]` | `category`, `action`, `label`, `property` and `value` to the fields of the same names |
-| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
+| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`, and in Swift `ScreenView.init(…)`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
 | `snowplow_self_describing` | `SelfDescribing(schema: "iglu:…", payload: […])` (also `SPSelfDescribing`, `SelfDescribingJson`); JS `trackSelfDescribingEvent({event: {schema, data}})`; Objective-C `initWithSchema:payload:` | the Iglu schema's name segment to the event name; `payload` / `data` / `eventData` to `properties` |
 
 To start a call spec of your own from a preset, print it.
@@ -1056,11 +1056,14 @@ calls of that name in other languages are counted at the end of the line
 across languages too: a Java call of a Kotlin wrapper, or an Objective-C call
 of a Swift one, is among those. The JSON keeps the counts by name in every
 language, and adds the narrowed ones (see the
-[`check --list` document](../run/cli.md#check---list-document)).
+[`check --list` document](../run/cli.md#check---list-document)). The
+functions are listed by those the line counts, most unmatched calls first: in
+their own file, then elsewhere in their own language.
 
 A Swift `init` or a TypeScript `constructor` is listed under its type's name,
 which is what its callers write (`ScreenView(screen: name)`,
-`ScreenView.init(screen: name)`, `new PageView(path)`), though the reason line
+`ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)`,
+`new PageView(path)`), though the reason line
 under the call, and `declared.function` in the JSON, still name it `init` or
 `constructor`; `declared.type` in the JSON names the type. One in an anonymous
 class is not listed. A call spec with `function: "ScreenView"` matches both

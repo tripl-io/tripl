@@ -28,7 +28,8 @@ A call spec names its call ONE way — ``function`` (a dotted callee, matched on
 whole segments from the right, so ``Analytics.shared.log`` also matches
 ``self.analytics.shared.log``, and ``ScreenView`` also matches Swift's
 ``ScreenView.init``), ``pattern`` (a regex over the whole normalised
-callee) or ``objc_selector`` — and then says where each plan field comes from:
+callee, or over the type of a Swift ``Type.init`` call) or ``objc_selector``
+— and then says where each plan field comes from:
 
 ``args``
     argument label -> target. Swift ``label:`` and Kotlin ``label =`` labels,
@@ -276,14 +277,16 @@ class CallSpec:
         if call.selector is not None:
             return False
         callee = _plain_callee(call.callee)
+        # `ScreenView.init(screen:)` is the call `ScreenView(screen:)` spelled out,
+        # so a spec that matches `ScreenView` matches it too.
+        built = initialized_type(callee, language)
         if self.pattern is not None:
-            return self.pattern.fullmatch(callee) is not None
+            if self.pattern.fullmatch(callee) is not None:
+                return True
+            return built is not None and self.pattern.fullmatch(built) is not None
         wanted = _plain_callee(self.function or "")
         if callee == wanted or callee.endswith("." + wanted):
             return True
-        # `ScreenView.init(screen:)` is the call `ScreenView(screen:)` spelled out,
-        # so a spec for `ScreenView` matches it too.
-        built = initialized_type(callee, language)
         return built is not None and (built == wanted or built.endswith("." + wanted))
 
     def target_for(self, arg: Arg) -> tuple[bool, str | None]:
@@ -417,19 +420,21 @@ def _plain_callee(callee: str) -> str:
     return re.sub(r"\(\)|\[\]|\s", "", callee)
 
 
-# A Swift initializer called by name: a capitalised segment, then `.init`. Swift
-# types are capitalised by convention, which leaves out `self.init`,
-# `super.init`, a metatype held in a variable and `factory().init`; `Self`
-# names no type, and the implicit `.init(…)` writes none.
-_SWIFT_INIT_CALL = re.compile(r"((?:.*\.)?([A-Z][A-Za-z0-9_]*))\.init")
+# A Swift initializer called by name: a capitalised segment, then `.init`, or
+# `.self.init` through the type's metatype. Swift types are capitalised by
+# convention, which leaves out `self.init`, `super.init`, a metatype held in a
+# variable and `factory().init`; `Self` names no type, and the implicit
+# `.init(…)` writes none.
+_SWIFT_INIT_CALL = re.compile(r"((?:.*\.)?([A-Z][A-Za-z0-9_]*))(?:\.self)?\.init")
 
 
 def initialized_type(callee: str, language: str) -> str | None:
     """The type a Swift ``Type.init(…)`` call builds, as written before ``.init``; else None.
 
-    ``ScreenView.init`` is ``ScreenView`` and ``Outer.ScreenView.init`` is
-    ``Outer.ScreenView``: the callee of the same call written without
-    ``.init``. Any other call, and any call in another language, is None.
+    ``ScreenView.init`` and ``ScreenView.self.init`` are ``ScreenView``, and
+    ``Outer.ScreenView.init`` is ``Outer.ScreenView``: the callee of the same
+    call written without ``.init``. Any other call, and any call in another
+    language, is None.
     """
     if language != "swift":
         return None
