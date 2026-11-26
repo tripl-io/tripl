@@ -2321,6 +2321,45 @@ def test_strict_suppressions_does_not_fail_a_run_that_writes_a_baseline(
     out = capsys.readouterr().out
     assert "Unused suppression: Sources/Old.swift:2" in out
     assert "fail the run (--strict-suppressions)" not in out
+    # The flag is ignored, so its JSON key is not there either.
+    argv = ["check", "--strict-suppressions", "--write-baseline", "known.json", "--json"]
+    assert main(argv) == 0
+    assert "failing_suppressions" not in json.loads(capsys.readouterr().out)["summary"]
+
+
+def test_strict_suppressions_fails_a_doc_comment_line_that_starts_with_the_keyword(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    example = (
+        "/// Waive a finding with a comment like this one:\n"
+        "/// tripl-check-ignore[unknown_event] -- debug menu only\n"
+        "func helper() {}\n"
+    )
+    _write(repo, {"Sources/Help.swift": example})
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "Unused suppression: Sources/Help.swift:2" in capsys.readouterr().out
+    # In backticks the line does not start with the keyword: not a marker.
+    _write(
+        repo,
+        {
+            "Sources/Help.swift": example.replace("/// tripl", "/// `tripl").replace(
+                "only\n", "only`\n"
+            )
+        },
+    )
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out).get("suppressions", []) == []
+
+
+def test_strict_suppressions_fails_an_allow_empty_run_on_a_marker_it_scanned(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources/Feed.swift").unlink()  # the fixture's only calls
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--allow-empty"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--allow-empty", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run" in capsys.readouterr().out
 
 
 def test_strict_suppressions_is_refused_with_payloads_before_any_request(

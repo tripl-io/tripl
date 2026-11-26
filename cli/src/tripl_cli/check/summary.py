@@ -143,6 +143,15 @@ def _code(text: str) -> str:
     return "`" + text.replace("`", "'").replace("|", "\\|").replace("\n", " ") + "`"
 
 
+def _inline(text: str) -> str:
+    """``text`` as inline code in running text or a list item: no backtick ends it.
+
+    Not ``_code``: outside a table a pipe is plain text, and a backslash before
+    it inside a code span is shown as written.
+    """
+    return "`" + text.replace("`", "'").replace("\n", " ") + "`"
+
+
 def _places(places: Sequence[str]) -> str:
     shown = ", ".join(_code(place) for place in places[:MAX_PLACES])
     more = len(places) - MAX_PLACES
@@ -259,12 +268,12 @@ def _marker_lines(report: CheckReport) -> list[str]:
     ]
     for state in failing[:MAX_FINDINGS]:
         marker = state.marker
-        where = _code(f"{marker.path}:{marker.line}")
+        where = _inline(f"{marker.path}:{marker.line}")
         if marker.problem is None:
-            lines.append(f"- {where} {_code(label(marker))} matched no finding")
+            lines.append(f"- {where} {_inline(label(marker))} matched no finding")
         else:
-            why = _PROBLEMS.get(marker.problem, _code(marker.problem))
-            lines.append(f"- {where} {_code(marker.text)} {why}, so it suppresses nothing")
+            why = _PROBLEMS.get(marker.problem, _inline(marker.problem))
+            lines.append(f"- {where} {_inline(marker.text)} {why}, so it suppresses nothing")
     if len(failing) > MAX_FINDINGS:
         lines.append(f"- and {len(failing) - MAX_FINDINGS} more.")
     return lines

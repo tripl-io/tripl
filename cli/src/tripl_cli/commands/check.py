@@ -778,6 +778,7 @@ def _change(
         unreconstructable=marking.unreconstructable,
         unmapped=marking.unmapped,
         untracked=marking.untracked,
+        whole=marking.whole,
     )
     return info, marking.changed, marking.base
 

@@ -201,6 +201,20 @@ def test_the_summary_shows_a_malformed_marker_as_code(
     )
 
 
+def test_a_marker_line_keeps_a_pipe_as_written(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A list item, not a table cell: an escaped pipe would show its backslash.
+    broken = "// tripl-check-ignore[unknown_field] a | b\nfunc o() {}\n"
+    (repo / "Sources/Old.swift").write_text(broken, encoding="utf-8")
+    (repo / "Sources/Legacy.swift").unlink()
+    assert main(["check", "--format", "markdown", "--strict-suppressions"]) == 1
+    assert capsys.readouterr().out.endswith(
+        "- `Sources/Old.swift:1` `tripl-check-ignore[unknown_field] a | b` gives no "
+        "reason after `--`, so it suppresses nothing\n"
+    )
+
+
 def test_the_summary_sample_in_the_guide_is_real_output(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:

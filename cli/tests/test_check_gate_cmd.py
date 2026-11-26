@@ -450,6 +450,13 @@ def test_a_deleted_file_whose_base_cannot_be_rebuilt_makes_every_call_changed(
     gate = json.loads(capsys.readouterr().out)["gate"]
     assert gate["unreconstructable"] == ["Tracking/Events.swift"]
     assert gate["changed_items"] == gate["failing"] + 3  # every row: three of them pass
+    # Every call is in the change, and so is every marker, in a file the diff never named.
+    _write(
+        repo, {"Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"}
+    )
+    assert main(["check", "--new-from-patch", save(repo, patch), "--strict-suppressions", "--json"])
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert entry["fails"] is True
 
 
 # --- symlinks -----------------------------------------------------------------------------
@@ -546,6 +553,41 @@ def test_strict_suppressions_fails_a_gated_run_only_on_a_marker_in_the_change(
         "Sources/Old.swift": False,
     }
     assert main(["check", "--new-from-patch", patch]) == 0
+
+
+def test_strict_suppressions_counts_every_marker_in_the_change_when_every_call_is(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources/Legacy.swift").unlink()  # the fixture's one call that always fails
+    _write(
+        repo, {"Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"}
+    )
+    malformed = "// tripl-check-ignore[unknown_field]\nfunc n() {}\n"
+    patch = change(repo, {"Sources/New.swift": malformed, "Sources/Ghost.swift": "func g() {}\n"})
+    # The diff names a file this checkout does not have: every call counts as
+    # changed, and so does every marker, the ones the change did not write too.
+    (repo / "Sources/Ghost.swift").unlink()
+    argv = ["check", "--new-from-patch", save(repo, patch), "--strict-suppressions"]
+    assert main([*argv, "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["gate"]["unmapped"] == ["Sources/Ghost.swift"]
+    assert document["summary"]["failing_suppressions"] == 2
+    assert {entry["location"]["path"]: entry["fails"] for entry in document["suppressions"]} == {
+        "Sources/New.swift": True,
+        "Sources/Old.swift": True,
+    }
+    # The listing names both, as it names every finding in that mode.
+    assert main(argv) == 1
+    out = capsys.readouterr().out
+    assert "Sources/New.swift:1" in out and "Sources/Old.swift:1" in out
+    assert "Suppressions outside this change" not in out
+    assert main([*argv[:-1], "--format", "sarif"]) == 0
+    run = json.loads(capsys.readouterr().out)["runs"][0]
+    assert {
+        result["properties"]["inChange"]
+        for result in run["results"]
+        if result["ruleId"] in {"unused_suppression", "invalid_suppression"}
+    } == {True}
 
 
 # --- the plan branch --------------------------------------------------------------------------
@@ -965,6 +1007,32 @@ def test_new_from_rev_with_a_check_root_below_the_repository_root(
     out = capsys.readouterr().out
     assert "Sources/New.swift:1:14  error" in out
     assert "Legacy.swift" not in out
+
+
+@needs_git
+def test_strict_suppressions_fails_on_any_marker_under_a_check_root_git_does_not_track(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_git: None,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "mono"
+    _real_repo(root, {"README.md": "mono\n"})
+    # The whole check root is new: every call in it counts as new, every marker too.
+    _write(
+        root,
+        {
+            "ios/.tripl/check.yml": CONFIG,
+            "ios/Sources/Old.swift": "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n",
+        },
+    )
+    monkeypatch.chdir(root / "ios")
+    assert main(["check", "--new-from-rev", "HEAD", "--strict-suppressions", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["gate"]["untracked"] == ["ios/"]
+    assert [entry["fails"] for entry in document["suppressions"]] == [True]
 
 
 @needs_git

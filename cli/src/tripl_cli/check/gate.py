@@ -80,7 +80,11 @@ class Marking:
     scan reads, relative to the check root, at their new path;
     ``unreconstructable`` the ones of those the diff did not fit, and each
     submodule it moves (ending in ``/``); ``unmapped`` the paths it names that
-    the checkout does not have, which make every item changed.
+    the checkout does not have, which make every item changed. ``whole``
+    says every item is changed because the diff cannot be read against this
+    tree as files (a path it does not have, a submodule or an untracked
+    directory holding the check root, a hunk that does not fit, a deleted
+    file whose base cannot be rebuilt): every scanned file is in the change.
     """
 
     changed: tuple[bool, ...]
@@ -93,6 +97,7 @@ class Marking:
     # Every item of the base tree's scan, for comparing what the two trees send
     # (``summary.py``); None when the base could not be rebuilt as a whole.
     base: tuple[CheckItem, ...] | None = None
+    whole: bool = False
 
 
 def item_key(item: CheckItem, *, markers: bool = True) -> str:
@@ -212,7 +217,7 @@ def mark(
     every = (True,) * len(items)
     nets, submodules, missing = _fold(changes, root)
     if missing:
-        return Marking(every, len(nets) + len(submodules), unmapped=tuple(missing))
+        return Marking(every, len(nets) + len(submodules), unmapped=tuple(missing), whole=True)
     files = len(nets) + len(submodules)
     prefix = _prefix(config.root, root)
     texts: dict[Path, str | None] = {}
@@ -225,7 +230,7 @@ def mark(
     for moved in submodules:
         if _under(moved, prefix) is None and _within(prefix, moved):
             # The check root is in the submodule: all of it moved.
-            return Marking(every, files, unreconstructable=(f"{moved}/",))
+            return Marking(every, files, unreconstructable=(f"{moved}/",), whole=True)
     walked = _walked(config) if nets or untracked or submodules else []
     links = _links(config, walked)
     for moved in submodules:
@@ -254,7 +259,7 @@ def mark(
         if inside is None:
             if entry.endswith("/") and _within(prefix, normal):
                 # The check root itself is untracked: nothing has a base.
-                return Marking(every, files, untracked=(entry,))
+                return Marking(every, files, untracked=(entry,), whole=True)
             continue
         under = (
             [name for name in names if name.startswith(f"{inside}/")]
@@ -331,7 +336,12 @@ def mark(
                 broken.append(link)
     if blind:
         return Marking(
-            every, files, frozenset(paths), tuple(sorted(set(broken))), untracked=tuple(fresh)
+            every,
+            files,
+            frozenset(paths),
+            tuple(sorted(set(broken))),
+            untracked=tuple(fresh),
+            whole=True,
         )
     if not paths and not deleted and not absent:
         # Nothing the scan reads changed: the base sends what this tree does.

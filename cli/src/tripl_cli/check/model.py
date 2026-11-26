@@ -285,7 +285,9 @@ class GateInfo:
     submodule it moved (ending in ``/``), each counted as changed throughout;
     ``unmapped`` the paths the diff names that the checkout does not have,
     which make every item count as changed; ``untracked`` the scanned files
-    git does not track, each new as a whole.
+    git does not track, each new as a whole. ``whole`` says every item counts
+    as changed because the diff cannot be read against this tree file by file
+    (``gate.Marking.whole``): every scanned file is then in the change.
     """
 
     source: str
@@ -298,6 +300,11 @@ class GateInfo:
     base: str | None = None
     patch: str | None = None
     plan_branch: PlanBranchComparison | None = None
+    whole: bool = False
+
+    def touches(self, path: str) -> bool:
+        """Whether the change touches ``path``, a scanned file relative to the check root."""
+        return self.whole or path in self.paths
 
 
 # What a run does with its baseline file: compare with it (``--baseline``),
@@ -473,7 +480,7 @@ class CheckReport:
             marker = state.marker
             if state.code is None:
                 continue
-            if self.gate is not None and marker.path not in self.gate.paths:
+            if self.gate is not None and not self.gate.touches(marker.path):
                 continue
             if state.code == CODE_UNUSED_SUPPRESSION and (
                 (marker.path, marker.line, marker.column) in unjudged
