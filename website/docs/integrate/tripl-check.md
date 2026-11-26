@@ -168,6 +168,7 @@ event_types:
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
 | `exclude` | Glob patterns for files to skip, even when a `sources` pattern matches them. They are added to the built-in excludes: `.git`, `node_modules`, `Pods`, `Carthage`, `DerivedData`, `.build`, `build` and `dist` directories, and `*.min.js` files. |
 | `enums` | Files that declare the enums your calls use: a glob string, or `{file: GLOB, languages: [...]}`. See [Enum sources](#enum-sources). |
+| `lint` | Optional. Checks of names and keys that need no plan: see [Lint names and keys without a plan](#lint). Without it nothing is linted. |
 | `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. A `preset` and a `presets` list can be combined: the `preset` comes first. An entry with neither is a config error. |
 
 An `event_types` entry can also have `field_map`, which renames targets to
@@ -393,6 +394,9 @@ message text.
 | `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
+| `name_characters` | warning | An event name, field key or property key has a non-ASCII character, whitespace or a quote. Raised by the CLI, only with a [`lint:` section](#lint). |
+| `name_pattern` | warning | An event name does not match `name_pattern`, or a key does not match `key_pattern`. Raised by the CLI, only with a [`lint:` section](#lint). |
+| `duplicate_constant` | warning | The name or key is read from a constant that holds the same value as another constant of the same object. Raised by the CLI, only with a [`lint:` section](#lint). |
 
 Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
 call. The CLI raises them and they never fail the run. They are the rule
@@ -420,6 +424,51 @@ templates.
 A `null` (dynamic) value never produces `value_not_allowed` or
 `missing_required_field`. An `info` finding does not change an item's status,
 except with `--strict`, where it makes an otherwise clean item a warning.
+
+## Lint names and keys without a plan {#lint}
+
+Some mistakes pass every plan check once the plan has taken the names from the
+warehouse: the plan then holds the wrong name too. A Cyrillic `а` inside a
+Latin event name, a typographic `’` inside a property key, and two constants
+with one value (one button logs another button's event) all look right in
+review. The lint finds them with no plan and no server. It is off until the
+check config has a `lint:` section:
+
+```yaml
+# .tripl/check.yml
+lint:
+  characters: true                    # the default
+  duplicates: true                    # the default
+  name_pattern: "[a-z][a-z0-9_]*"     # optional
+  key_pattern: "[a-z][a-z0-9_]*"      # optional
+```
+
+A bare `lint:` turns on `characters` and `duplicates`. Quote a pattern: in
+YAML an unquoted `[a-z]…` is a list.
+
+| Key | Meaning |
+|-----|---------|
+| `characters` | `true` or `false`. Flags an event name, field key or property key with a non-ASCII character, whitespace, or a straight quote (`"`, `'`, `` ` ``). Code `name_characters`. A runtime part of a name (`${id}`) is not read; the text around it is. |
+| `duplicates` | `true` or `false`. Flags a call whose event name or property key is read from a constant that holds the same value as another constant of the same type or object, as `Events.SHARE_TAP = "save_tap"` next to `Events.SAVE_TAP = "save_tap"`. Code `duplicate_constant`. Only constants some tracking call reads a name or key from count, so an unrelated constant with the same value is never flagged; a file-scope constant has no object, so it is never compared. Every call that reads one of the duplicated constants gets the finding. |
+| `name_pattern` | Optional. A regular expression (Python syntax) that must match the **whole** event name. Code `name_pattern`. A name with a runtime part (`promo_${id}_shown`) is not matched, because only the plan's name rule can say what fills it. |
+| `key_pattern` | Optional. The same, for every field key and property key. Code `name_pattern`, with the key as the finding's field. |
+
+An unknown key, a value that is not `true` or `false`, or a pattern that is
+not a valid regular expression is a config error (exit 2).
+
+Each lint finding is a `warning`, so it fails the run only with `--strict`,
+like `oversize_value`. There is no setting to make it an error. The findings
+come with the plan's own, in a static run and in a [payload run](#modes) that
+finds a check config (the character and pattern rules: a captured event has
+no constants). A finding on a key names the key as its field. Lint findings
+are [suppressed](#suppress), fingerprinted, [baselined](#baseline) and
+[gated](#new-findings) like any other: under a gate, a constant edited into a
+duplicate makes the calls that read it new, even in files the change did not
+touch. A message writes a name with escapes for anything outside ASCII, so
+the letter at fault shows as `\u0430` instead of looking like `a`.
+
+[`tripl check --list`](#list) shows the lint's findings under each call and
+counts them, with no URL and no key, and still exits 0.
 
 ## Suppress a finding {#suppress}
 

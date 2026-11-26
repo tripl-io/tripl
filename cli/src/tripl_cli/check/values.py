@@ -82,6 +82,7 @@ from tripl_cli.check.model import (
 from tripl_cli.check.symbols import (
     CASE_NAME_ACCESSORS,
     RAW_ACCESSORS,
+    Entry,
     SymbolIndex,
     number_text,
     template_text,
@@ -129,6 +130,12 @@ class Value:
     reason: str = field(default="", compare=False)
     expression: str = field(default="", compare=False)
     path: tuple[str, ...] = field(default=(), compare=False)
+    # The named constants a text value was read from, whole or in part (an
+    # operand of a concatenation, an inlined interpolation); for a dictionary,
+    # the constants each key was read from. Outside equality too: the lint
+    # (``lint.py``) reads them to find two constants holding one value.
+    constants: tuple[Entry, ...] = field(default=(), compare=False)
+    key_constants: tuple[tuple[str, tuple[Entry, ...]], ...] = field(default=(), compare=False)
 
     @property
     def is_known(self) -> bool:
@@ -138,9 +145,13 @@ class Value:
 DYNAMIC = Value("dynamic")
 ABSENT = Value("absent")
 
+# One entry of a dictionary literal: its key, its value, and the constants the
+# key was read from.
+_Pair = tuple[str, Value, tuple[Entry, ...]]
 
-def text(value: str, *, interpolated: bool = False) -> Value:
-    return Value("text", text=value, interpolated=interpolated)
+
+def text(value: str, *, interpolated: bool = False, constants: tuple[Entry, ...] = ()) -> Value:
+    return Value("text", text=value, interpolated=interpolated, constants=constants)
 
 
 def dynamic(
@@ -210,9 +221,11 @@ class Evaluator:
             if not self.explain:
                 return DYNAMIC
             return self._unread(span, field, "value")
-        entries = self._dictionary(span)
-        if entries is not None:
-            return Value("entries", entries=entries)
+        pairs = self._dictionary(span)
+        if pairs is not None:
+            # Wrapped here, not in a helper `_dictionary` calls: no frame is
+            # added to the recursion a nested dictionary goes through.
+            return _entries(pairs)
         concatenated = self._concatenation(span, field)
         if concatenated is not None:
             return concatenated
@@ -241,9 +254,9 @@ class Evaluator:
                 return text("true")
             if token.text in _FALSE:
                 return text("false")
-            resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
+            resolved = self.symbols.lookup([token.text], hint=field, language=self.language)
             if resolved is not None:
-                return text(resolved)
+                return text(resolved[0], constants=resolved[1])
             if not self.explain:
                 return dynamic(token.text)
             return dynamic(
@@ -256,23 +269,28 @@ class Evaluator:
 
     def _string(self, token: Token, field: str | None) -> Value:
         parts: list[str | Interp] = []
+        constants: list[Entry] = []
         for part in token.parts:
             if isinstance(part, Interp):
                 inlined = self._inline(part.expr, field)
-                parts.append(inlined if inlined is not None else part)
+                if inlined is None or inlined.text is None:
+                    parts.append(part)
+                else:
+                    parts.append(inlined.text)
+                    constants.extend(inlined.constants)
             else:
                 parts.append(part)
         interpolated = any(isinstance(part, Interp) for part in parts)
-        return text(template_text(parts), interpolated=interpolated)
+        return text(template_text(parts), interpolated=interpolated, constants=tuple(constants))
 
-    def _inline(self, expr: str, field: str | None) -> str | None:
+    def _inline(self, expr: str, field: str | None) -> Value | None:
         """An interpolation that is itself a constant (an enum raw value, a literal) is inlined."""
         try:
             tokens = tokenize(expr, self.language)
         except ValueError:
             return None
         value = self.evaluate(tokens, field=field)
-        return value.text if value.kind == "text" and not value.interpolated else None
+        return value if value.kind == "text" and not value.interpolated else None
 
     # --- compound forms ------------------------------------------------------
     def _concatenation(self, span: list[Token], field: str | None) -> Value | None:
@@ -297,11 +315,13 @@ class Evaluator:
         if not any(len(op) == 1 and op[0].kind == STRING for op in operands):
             return None
         pieces: list[str] = []
+        constants: list[Entry] = []
         interpolated = False
         for operand in operands:
             value = self.evaluate(operand, field=field)
             if value.kind == "text" and value.text is not None:
                 pieces.append(value.text)
+                constants.extend(value.constants)
                 interpolated = interpolated or value.interpolated
             elif value.kind == "dynamic":
                 pieces.append(f"${{{value.hint}}}")
@@ -311,7 +331,7 @@ class Evaluator:
                 if not self.explain:
                     return dynamic(_hint_of(span))
                 return self._unread(span, field, _hint_of(span), otherwise=REASON_CONCATENATION)
-        return text("".join(pieces), interpolated=interpolated)
+        return text("".join(pieces), interpolated=interpolated, constants=tuple(constants))
 
     def _reference(self, span: list[Token], field: str | None) -> Value | None:
         """``.home``, ``A.B.home.rawValue``, ``Category.HOME.value``, ``name(for: x)``.
@@ -359,11 +379,11 @@ class Evaluator:
                 only = values[0]
                 return text(only, interpolated="${" in only)
             return Value("choices", choices=values)
-        resolved = self.symbols.resolve(
+        resolved = self.symbols.lookup(
             path, hint=field, shorthand=shorthand, language=self.language
         )
         if resolved is not None:
-            return text(resolved)
+            return text(resolved[0], constants=resolved[1])
         hint = variable_name(".".join(path))
         if not self.explain:
             return dynamic(hint)
@@ -426,14 +446,14 @@ class Evaluator:
             return None
         return template.text if template.kind == "text" else None
 
-    def _dictionary(self, span: list[Token]) -> tuple[tuple[str, Value], ...] | None:
-        """A dictionary literal's ``(key, value)`` pairs, or None when ``span`` is not one."""
+    def _dictionary(self, span: list[Token]) -> list[_Pair] | None:
+        """A dictionary literal's ``(key, value, key constants)``; None when ``span`` is not one."""
         first = span[0]
         if first.is_punct("@") and len(span) > 1 and span[1].is_punct("{"):
             return self._pairs(span[1:], ":")  # ObjC @{ @"k": v }
         if first.is_punct("[") and self.language == "swift":
             if len(span) == 3 and span[1].is_punct(":"):
-                return ()  # [:]
+                return []  # [:]
             return self._pairs(span, ":")
         if first.is_punct("{") and self.language == "ts":
             return self._pairs(span, ":", bare_keys=True)
@@ -459,13 +479,13 @@ class Evaluator:
 
     def _pairs(
         self, span: list[Token], separator: str, *, bare_keys: bool = False
-    ) -> tuple[tuple[str, Value], ...] | None:
+    ) -> list[_Pair] | None:
         if matching(span, 0) != len(span) - 1:
             return None
-        pairs: list[tuple[str, Value]] = []
+        pairs: list[_Pair] = []
         parts = split_top_level(span[1:-1])
         if not parts:
-            return ()
+            return []
         for part in parts:
             if not part:
                 continue
@@ -475,32 +495,33 @@ class Evaluator:
             if split is None:
                 if bare_keys and len(part) == 1 and part[0].kind == IDENT:
                     # `{ category }` shorthand: key and variable share a name.
-                    pairs.append((part[0].text, self.evaluate(part, field=part[0].text)))
+                    pairs.append((part[0].text, self.evaluate(part, field=part[0].text), ()))
                     continue
                 if part[0].is_punct("..."):
                     continue  # a spread adds keys nobody can see statically
                 return None
             key_tokens = part[:split]
             key = self._key(key_tokens, bare_keys)
-            value = self.evaluate(part[split + 1 :], field=key)
-            if key is not None:
-                pairs.append((key, value))
-        return tuple(pairs)
+            value = self.evaluate(part[split + 1 :], field=None if key is None else key.text)
+            if key is not None and key.text is not None:
+                pairs.append((key.text, value, key.constants))
+        return pairs
 
-    def _key(self, tokens: list[Token], bare_keys: bool) -> str | None:
+    def _key(self, tokens: list[Token], bare_keys: bool) -> Value | None:
+        """A dictionary key as a text value (with the constants it was read from), or None."""
         stripped = [token for token in tokens if not token.is_punct("@")]
         if len(stripped) == 1:
             token = stripped[0]
             if token.kind == STRING:
                 value = self._string(token, None)
-                return value.text if not value.interpolated else None
+                return value if not value.interpolated else None
             if bare_keys and token.kind == IDENT:
-                return token.text
+                return text(token.text)
         value = self.evaluate(stripped)
-        return value.text if value.kind == "text" and not value.interpolated else None
+        return value if value.kind == "text" and not value.interpolated else None
 
-    def _kotlin_pairs(self, inner: list[Token]) -> tuple[tuple[str, Value], ...] | None:
-        pairs: list[tuple[str, Value]] = []
+    def _kotlin_pairs(self, inner: list[Token]) -> list[_Pair] | None:
+        pairs: list[_Pair] = []
         parts = split_top_level(inner)
         if parts and not parts[-1]:
             parts = parts[:-1]  # a trailing comma: `mapOf("a" to x,)`
@@ -509,20 +530,31 @@ class Evaluator:
             if split is None:
                 return None
             key = self._key(part[:split], False)
-            if key is not None:
-                pairs.append((key, self.evaluate(part[split + 1 :], field=key)))
-        return tuple(pairs)
+            if key is not None and key.text is not None:
+                value = self.evaluate(part[split + 1 :], field=key.text)
+                pairs.append((key.text, value, key.constants))
+        return pairs
 
-    def _java_pairs(self, inner: list[Token]) -> tuple[tuple[str, Value], ...] | None:
+    def _java_pairs(self, inner: list[Token]) -> list[_Pair] | None:
         parts = split_top_level(inner)
         if len(parts) % 2:
             return None
-        pairs: list[tuple[str, Value]] = []
+        pairs: list[_Pair] = []
         for index in range(0, len(parts), 2):
             key = self._key(parts[index], False)
-            if key is not None:
-                pairs.append((key, self.evaluate(parts[index + 1], field=key)))
-        return tuple(pairs)
+            if key is not None and key.text is not None:
+                value = self.evaluate(parts[index + 1], field=key.text)
+                pairs.append((key.text, value, key.constants))
+        return pairs
+
+
+def _entries(pairs: list[_Pair]) -> Value:
+    """A dictionary literal's pairs as an ``entries`` value, each key's constants kept aside."""
+    return Value(
+        "entries",
+        entries=tuple((key, value) for key, value, _ in pairs),
+        key_constants=tuple((key, constants) for key, _, constants in pairs if constants),
+    )
 
 
 def _strip(span: list[Token]) -> list[Token]:

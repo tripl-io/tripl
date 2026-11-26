@@ -555,7 +555,9 @@ def check_document(report: CheckReport) -> JsonDict:
     is the NDJSON line, or 1 for an event in a JSON array (``snippet`` then
     names its position). Finding ``code``s are the validator's plus the CLI's
     own ``dynamic_value`` (``--strict`` only), ``oversize_value`` (a value over
-    the validator's size limits, sent as null) and ``no_verdict``. A finding's
+    the validator's size limits, sent as null), ``no_verdict``, and the lint's
+    ``name_characters``, ``name_pattern`` and ``duplicate_constant`` (only
+    with a ``lint:`` section in the check config). A finding's
     ``fingerprint`` is the line-free identity every machine format shares (see
     ``check/fingerprint.py``). ``skipped`` lists the configured files the scan
     did not read.
@@ -723,7 +725,9 @@ def check_list_document(
     (``check.model.REASON_CODES``), value ``kind``s and ``signal``s are the
     stable vocabulary; ``items`` are the ones ``tripl check`` would build,
     within the validator's size limits, ``sent`` false for a call it reports
-    as dynamic and sends nothing for.
+    as dynamic and sends nothing for. ``lint`` says whether the check config
+    has a ``lint:`` section; each call's ``lint`` lists the lint's findings on
+    it, and ``summary.lint`` counts the calls with one, per code.
     """
     from tripl_cli.check.inventory import summarize
     from tripl_cli.check.payloads import enforce_limits
@@ -736,6 +740,7 @@ def check_list_document(
     document["truncated"] = found.truncated
     document["files_scanned"] = found.files
     document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in found.skipped]
+    document["lint"] = found.linted
     document["summary"] = {
         "calls": summary.calls,
         "items": summary.items,
@@ -750,6 +755,7 @@ def check_list_document(
             name: list(dict.fromkeys(field for field, _ in pairs))
             for name, pairs in summary.default_label_fields.items()
         },
+        "lint": dict(summary.lint),
     }
     document["calls"] = [
         {
@@ -778,6 +784,15 @@ def check_list_document(
                     "sent": item.sendable,
                 }
                 for item in map(enforce_limits, call.items)
+            ],
+            "lint": [
+                {
+                    "code": finding.code,
+                    "severity": finding.severity,
+                    "field": finding.field,
+                    "message": finding.message,
+                }
+                for finding in call.lint
             ],
         }
         for call in found.calls

@@ -91,6 +91,17 @@ RULE_TEXT: dict[str, str] = {
     "policy_violation": "The call breaks a plan rule the server adds (an organization policy).",
     "oversize_value": "A value exceeded the validator's size limits and was sent as null.",
     "no_verdict": "The validator returned no verdict for this item.",
+    "name_characters": (
+        "An event name or key has a non-ASCII character, whitespace or a quote (lint: in the "
+        "check config)."
+    ),
+    "name_pattern": (
+        "An event name or key does not match the check config's name_pattern or key_pattern."
+    ),
+    "duplicate_constant": (
+        "The name or key comes from a constant that holds the same value as another constant "
+        "of the same object."
+    ),
     CODE_INVALID_SUPPRESSION: (
         "A tripl-check-ignore marker is malformed (no code, no reason, or no_verdict) "
         "and suppresses nothing."

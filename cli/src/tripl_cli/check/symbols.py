@@ -217,10 +217,30 @@ class SymbolIndex:
         In ``language`` a trailing case-name accessor (Kotlin/Java ``name``,
         Swift ``description``) yields the enum case's identifier instead.
         """
+        found = self.lookup(path, hint=hint, shorthand=shorthand, language=language)
+        return None if found is None else found[0]
+
+    def lookup(
+        self,
+        path: Sequence[str],
+        *,
+        hint: str | None = None,
+        shorthand: bool = False,
+        language: str = "",
+    ) -> tuple[str, tuple[Entry, ...]] | None:
+        """``resolve``, with the entries the value was read from.
+
+        The entries are every candidate holding the value picked: one
+        constant as a rule, several when the same declaration was indexed
+        twice or a shorthand names cases of several enums with one raw value.
+        A case name read through its accessor comes from no entry, so it has
+        none.
+        """
         segments = [segment for segment in path if segment]
         name_accessors = CASE_NAME_ACCESSORS.get(language, frozenset())
         if len(segments) > 1 and segments[-1] in name_accessors and not self._has(segments):
-            return self.case_name(segments[:-1], shorthand=shorthand)
+            name = self.case_name(segments[:-1], shorthand=shorthand)
+            return None if name is None else (name, ())
         raw_accessors = RAW_ACCESSORS - name_accessors
         while len(segments) > 1 and segments[-1] in raw_accessors and not self._has(segments):
             segments.pop()
@@ -263,22 +283,24 @@ class SymbolIndex:
         return distinct.pop() if len(distinct) == 1 else None
 
 
-def _pick(candidates: list[Entry], hint: str | None) -> str | None:
+def _pick(candidates: list[Entry], hint: str | None) -> tuple[str, tuple[Entry, ...]] | None:
+    """The value ``candidates`` agree on (``hint`` narrows them if not), and its entries."""
     values = {e.value for e in candidates}
     if len(values) == 1:
-        return values.pop()
+        return values.pop(), tuple(candidates)
     if not values or not hint:
         return None
     wanted = normalise_name(hint)
     if not wanted:
         return None
-    preferred = {
-        e.value
+    preferred = [
+        e
         for e in candidates
         if len(e.path) > 1
         and (wanted in normalise_name(e.path[-2]) or normalise_name(e.path[-2]) in wanted)
-    }
-    return preferred.pop() if len(preferred) == 1 else None
+    ]
+    chosen = {e.value for e in preferred}
+    return (chosen.pop(), tuple(preferred)) if len(chosen) == 1 else None
 
 
 # --- scoped languages: Swift, Kotlin, Java ---------------------------------------
