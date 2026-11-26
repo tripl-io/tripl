@@ -36,6 +36,7 @@ from tripl_cli.check.config import (
     EventTypeSpec,
     default_target,
     field_target,
+    initialized_type,
     selector_field,
 )
 from tripl_cli.check.model import (
@@ -91,12 +92,17 @@ class Declared:
 
     ``line`` is the function's declaration line for ``parameter`` and
     ``parameter_property`` (``parameter`` says which one), the local's own
-    line for ``local``.
+    line for ``local``. ``function`` is the name the function is declared
+    with, so a Swift ``init`` or a TypeScript ``constructor`` says just that;
+    ``type`` is then the type it belongs to, the name its callers write
+    (None for any other function, and for an initializer of a type the scan
+    cannot name).
     """
 
     function: str
     line: int
     parameter: Parameter | None = None
+    type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -207,10 +213,18 @@ class Callers:
 
     Every call whose last callee segment is the name the forwarder is called
     by, in its file and elsewhere, but none in its own body: a call of that
-    name there is the tracking call it forwards to, or itself. By name alone,
-    so a call of another function of the same name counts too, a tracking
-    call named like it included. ``first_unmatched`` is the first unmatched
-    call in the forwarder's file, else the first one elsewhere.
+    name there is the tracking call it forwards to, or itself. A Swift
+    ``Type.init(…)`` is a call of ``Type``. By name alone, so a call of
+    another function of the same name counts too, a tracking call named like
+    it included. ``first_unmatched`` is the first unmatched call in the
+    forwarder's file, else the first one elsewhere.
+
+    The ``*_same_language`` ones narrow the calls elsewhere to the files of
+    the forwarder's own language (``SourceFile.language``, so a ``.js`` file
+    is ``ts``): a function of another language with the same name is no
+    caller. A Java call of a Kotlin function, or an Objective-C one of a
+    Swift function, is left out of them too, which is why the counts by name
+    stay. The calls in its own file are all of its language.
     """
 
     same_file: int
@@ -218,6 +232,9 @@ class Callers:
     other_files: int
     other_files_matched: int
     first_unmatched: Location | None
+    other_files_same_language: int
+    other_files_same_language_matched: int
+    first_unmatched_same_language: Location | None
 
 
 @dataclass(frozen=True)
@@ -226,9 +243,10 @@ class Forwarder:
 
     The value is in its callers, so a call spec for this function reads them.
     ``function`` is the name they call it by: a Swift ``init``'s or a
-    TypeScript ``constructor``'s is its type's (``ScreenView(screen:)``, ``new
-    PageView(…)``). ``location`` is its file and declaration line; ``calls``
-    counts the tracking calls in it that forward a parameter.
+    TypeScript ``constructor``'s is its type's (``ScreenView(screen:)`` or
+    ``ScreenView.init(screen:)``, ``new PageView(…)``). ``location`` is its
+    file and declaration line, ``language`` that file's; ``calls`` counts the
+    tracking calls in it that forward a parameter.
     """
 
     function: str
@@ -236,6 +254,7 @@ class Forwarder:
     parameters: tuple[ForwardedParameter, ...]
     calls: int
     callers: Callers
+    language: str
 
 
 @dataclass(frozen=True)
@@ -247,7 +266,8 @@ class Inventory:
     calls: tuple[ListedCall, ...]
     # Constant-signal groups first, then by calls (descending) and method.
     unmatched: tuple[UnmatchedGroup, ...]
-    # By unmatched callers in the same file, then elsewhere (both descending).
+    # By unmatched callers in the same file, then elsewhere by name in any
+    # language (both descending).
     forwarders: tuple[Forwarder, ...]
     files: int
     skipped: tuple[SkippedFile, ...] = ()
@@ -273,8 +293,11 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
     listed: list[ListedCall] = []
     groups: dict[str, _Group] = {}
     tallies: dict[str, dict[str, _Tally]] = {}
+    # Each scanned file's language, by its path, to narrow callers elsewhere by.
+    languages: dict[str, str] = {}
     forwarders: dict[tuple[str, str, int], _Forwarding] = {}
     for found in second_pass(config, tree, explain=True):
+        languages[found.source.relative] = found.source.language
         scopes = ScopeIndex(found.tokens, found.source.language, found.text)
         # A call `find_calls` reports with a parameter list's end is that
         # declaration, with a body or without one.
@@ -300,7 +323,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         named = {name: _Named() for name in here}
         for call, hit in found.calls:
             if call.selector is None and call.end not in declarations:
-                name = call.callee.rpartition(".")[2]
+                name = _called_name(call.callee, found.source.language)
                 _count_call(tallies, name, call, hit is not None, found)
                 if name in named:
                     named[name].add(bisect_left(offsets, call.offset), call, hit is not None)
@@ -315,7 +338,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         root=config.root,
         calls=tuple(listed),
         unmatched=_unmatched(groups),
-        forwarders=_forwarders(forwarders.values(), tallies),
+        forwarders=_forwarders(forwarders.values(), tallies, languages),
         files=len(tree.parsed),
         skipped=tree.skipped,
         truncated=truncated,
@@ -380,15 +403,16 @@ def _refine(
     if not (variable or constant) or not value.path or scope is None:
         return ReadValue(value, value.reason)
     head = value.path[0]
+    built = _initialized(scope, found.source.language)
     parameter = scope.parameter(head)
     if parameter is not None:
         reason = REASON_PARAMETER if len(value.path) == 1 else REASON_PARAMETER_PROPERTY
         line = found.lines.position(scope.offset)[0]
-        return ReadValue(value, reason, Declared(scope.name, line, parameter))
+        return ReadValue(value, reason, Declared(scope.name, line, parameter, built))
     local = scopes.local_declaration(scope, at, head) if variable else None
     if local is not None:
         line = found.lines.position(found.tokens[local].offset)[0]
-        return ReadValue(value, REASON_LOCAL, Declared(scope.name, line))
+        return ReadValue(value, REASON_LOCAL, Declared(scope.name, line, type=built))
     return ReadValue(value, value.reason)
 
 
@@ -758,6 +782,27 @@ def _unmatched(groups: Mapping[str, _Group]) -> tuple[UnmatchedGroup, ...]:
 _INITIALIZERS = frozenset({("swift", "init"), ("ts", "constructor")})
 
 
+def _initialized(scope: FunctionScope, language: str) -> str | None:
+    """The type ``scope`` belongs to when it is an ``init`` or a ``constructor``; else None.
+
+    None too for an initializer of a type the scan cannot name (an
+    anonymous class).
+    """
+    return scope.owner if (language, scope.name) in _INITIALIZERS else None
+
+
+def _called_name(callee: str, language: str) -> str:
+    """The name a call is counted under: its last callee segment.
+
+    A Swift ``ScreenView.init(…)`` is a call of ``ScreenView``, the name an
+    initializer's forwarder is listed under, as a ``ScreenView`` call spec
+    matches it (``config.initialized_type``); ``self.init`` and
+    ``super.init`` stay ``init``.
+    """
+    built = initialized_type(callee, language)
+    return (built if built is not None else callee).rpartition(".")[2]
+
+
 @dataclass
 class _Tally:
     """Calls of one name, in one file."""
@@ -781,6 +826,7 @@ class _Forwarding:
 
     function: str
     location: Location
+    language: str
     # Its scopes in that file: one, unless two functions of its name are
     # declared on its line.
     scopes: list[FunctionScope] = field(default_factory=list)
@@ -885,14 +931,14 @@ def _forwarding(
     if not forwarded:
         return
     initializer = (found.source.language, scope.name) in _INITIALIZERS
-    function = scope.owner if initializer else scope.name
+    function = _initialized(scope, found.source.language) if initializer else scope.name
     if function is None:
         return
     path = found.source.relative
     line = found.lines.position(scope.offset)[0]
     forwarding = forwarders.get((function, path, line))
     if forwarding is None:
-        forwarding = _Forwarding(function, Location(path, line))
+        forwarding = _Forwarding(function, Location(path, line), found.source.language)
         forwarders[(function, path, line)] = forwarding
         here.setdefault(function, []).append(forwarding)
     if scope not in forwarding.scopes:
@@ -905,9 +951,15 @@ def _forwarding(
 
 
 def _forwarders(
-    forwarders: Iterable[_Forwarding], tallies: Mapping[str, Mapping[str, _Tally]]
+    forwarders: Iterable[_Forwarding],
+    tallies: Mapping[str, Mapping[str, _Tally]],
+    languages: Mapping[str, str],
 ) -> tuple[Forwarder, ...]:
-    """The functions whose own parameter reaches a matched call, with their callers."""
+    """The functions whose own parameter reaches a matched call, with their callers.
+
+    ``languages`` is each scanned file's language, by path. They are ordered
+    by their callers counted by name, in every language.
+    """
     found = [
         Forwarder(
             function=forwarding.function,
@@ -920,8 +972,13 @@ def _forwarders(
             ),
             calls=forwarding.calls,
             callers=_callers(
-                forwarding.own, tallies.get(forwarding.function, {}), forwarding.location.path
+                forwarding.own,
+                tallies.get(forwarding.function, {}),
+                forwarding.location.path,
+                forwarding.language,
+                languages,
             ),
+            language=forwarding.language,
         )
         for forwarding in forwarders
     ]
@@ -937,18 +994,36 @@ def _forwarders(
     return tuple(found)
 
 
-def _callers(own: _Tally, per_file: Mapping[str, _Tally], path: str) -> Callers:
-    """A forwarder's calls by name: ``own`` in its file ``path``, the rest from ``per_file``."""
-    others = [tally for other, tally in per_file.items() if other != path]
-    first = own.first_unmatched or next(
-        (tally.first_unmatched for tally in others if tally.first_unmatched is not None), None
-    )
+def _callers(
+    own: _Tally,
+    per_file: Mapping[str, _Tally],
+    path: str,
+    language: str,
+    languages: Mapping[str, str],
+) -> Callers:
+    """A forwarder's calls by name: ``own`` in its file ``path``, the rest from ``per_file``.
+
+    ``language`` is the forwarder's, ``languages`` each file's by path.
+    """
+    others = [(other, tally) for other, tally in per_file.items() if other != path]
+    every = [tally for _, tally in others]
+    alike = [tally for other, tally in others if languages.get(other) == language]
     return Callers(
         same_file=own.calls,
         same_file_matched=own.matched,
-        other_files=sum(tally.calls for tally in others),
-        other_files_matched=sum(tally.matched for tally in others),
-        first_unmatched=first,
+        other_files=sum(tally.calls for tally in every),
+        other_files_matched=sum(tally.matched for tally in every),
+        first_unmatched=_first_unmatched(own, every),
+        other_files_same_language=sum(tally.calls for tally in alike),
+        other_files_same_language_matched=sum(tally.matched for tally in alike),
+        first_unmatched_same_language=_first_unmatched(own, alike),
+    )
+
+
+def _first_unmatched(own: _Tally, others: Iterable[_Tally]) -> Location | None:
+    """The first unmatched call in the forwarder's own file, else the first in ``others``."""
+    return own.first_unmatched or next(
+        (tally.first_unmatched for tally in others if tally.first_unmatched is not None), None
     )
 
 

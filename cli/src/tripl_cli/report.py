@@ -65,7 +65,13 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
+    from tripl_cli.check.inventory import (
+        Forwarder,
+        Inventory,
+        Location,
+        ReadValue,
+        UnmatchedGroup,
+    )
     from tripl_cli.check.model import CheckReport, Origin, Suppression
     from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
@@ -792,7 +798,17 @@ def _read_document(read: ReadValue | None) -> JsonDict | None:
     if read is None:
         return None
     declared = read.declared
-    where = None if declared is None else {"function": declared.function, "line": declared.line}
+    where = (
+        None
+        if declared is None
+        else {
+            "function": declared.function,
+            "line": declared.line,
+            # The type a Swift `init` or a TypeScript `constructor` builds, which
+            # is what its callers write; null for any other function.
+            "type": declared.type,
+        }
+    )
     return _value_document(read.value, reason=read.reason, declared=where)
 
 
@@ -835,18 +851,28 @@ def _forwarder_document(forwarder: Forwarder) -> JsonDict:
         "calls": forwarder.calls,
         # By name alone, the forwarder's own body left out: in its file and
         # elsewhere, a call of another function of the same name counts too.
+        # The `*_same_language` keys count the calls elsewhere only in files of
+        # the forwarder's own language.
         "callers": {
             "same_file": callers.same_file,
             "same_file_matched": callers.same_file_matched,
             "other_files": callers.other_files,
             "other_files_matched": callers.other_files_matched,
-            "first_unmatched": (
-                None
-                if first is None
-                else {"path": first.path, "line": first.line, "column": first.column}
+            "first_unmatched": _location_document(first),
+            "other_files_same_language": callers.other_files_same_language,
+            "other_files_same_language_matched": callers.other_files_same_language_matched,
+            "first_unmatched_same_language": _location_document(
+                callers.first_unmatched_same_language
             ),
         },
+        "language": forwarder.language,
     }
+
+
+def _location_document(place: Location | None) -> JsonDict | None:
+    if place is None:
+        return None
+    return {"path": place.path, "line": place.line, "column": place.column}
 
 
 def _unmatched_document(group: UnmatchedGroup) -> JsonDict:

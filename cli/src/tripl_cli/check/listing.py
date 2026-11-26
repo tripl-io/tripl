@@ -287,32 +287,46 @@ def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:
 
 
 def _callers(forwarder: Forwarder) -> str:
-    """Where a forwarder's own calls are, by name: in its file first, then elsewhere."""
+    """Where a forwarder's own calls are, by name: in its file first, then elsewhere.
+
+    Elsewhere is the files of its own language: a call of the same name in
+    another language is most likely another function's, so it is only
+    counted at the end. The JSON keeps both counts.
+    """
     callers = forwarder.callers
-    total = callers.same_file + callers.other_files
-    if not total:
-        return "no calls found"
-    if callers.same_file_matched + callers.other_files_matched == total:
-        return "its calls are matched"
-    first = callers.first_unmatched
-    here = forwarder.location.path
+    elsewhere = callers.other_files_same_language
+    elsewhere_matched = callers.other_files_same_language_matched
+    other_languages = callers.other_files - elsewhere
+    total = callers.same_file + elsewhere
     parts: list[str] = []
-    if callers.same_file:
-        part = (
-            f"{plural(callers.same_file, 'call')} in this file, "
-            f"{_matched(callers.same_file, callers.same_file_matched)}"
+    if not total:
+        parts.append("no calls found")
+    elif callers.same_file_matched + elsewhere_matched == total:
+        parts.append("its calls are matched")
+    else:
+        first = callers.first_unmatched_same_language
+        here = forwarder.location.path
+        if callers.same_file:
+            part = (
+                f"{plural(callers.same_file, 'call')} in this file, "
+                f"{_matched(callers.same_file, callers.same_file_matched)}"
+            )
+            if first is not None and first.path == here:
+                part += f" (first :{first.line})"
+            parts.append(part)
+        if elsewhere:
+            part = (
+                f"{plural(elsewhere, 'call')} named {forwarder.function} elsewhere, "
+                f"{_matched(elsewhere, elsewhere_matched)}"
+            )
+            if first is not None and first.path != here:
+                part += f" (first {first.path}:{first.line})"
+            parts.append(part)
+    if other_languages:
+        parts.append(
+            f"{plural(other_languages, 'call')} named {forwarder.function} "
+            "in other languages, not counted"
         )
-        if first is not None and first.path == here:
-            part += f" (first :{first.line})"
-        parts.append(part)
-    if callers.other_files:
-        part = (
-            f"{plural(callers.other_files, 'call')} named {forwarder.function} elsewhere, "
-            f"{_matched(callers.other_files, callers.other_files_matched)}"
-        )
-        if first is not None and first.path != here:
-            part += f" (first {first.path}:{first.line})"
-        parts.append(part)
     return "; ".join(parts)
 
 

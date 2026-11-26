@@ -26,7 +26,8 @@ flat events through a third::
 
 A call spec names its call ONE way — ``function`` (a dotted callee, matched on
 whole segments from the right, so ``Analytics.shared.log`` also matches
-``self.analytics.shared.log``), ``pattern`` (a regex over the whole normalised
+``self.analytics.shared.log``, and ``ScreenView`` also matches Swift's
+``ScreenView.init``), ``pattern`` (a regex over the whole normalised
 callee) or ``objc_selector`` — and then says where each plan field comes from:
 
 ``args``
@@ -278,7 +279,12 @@ class CallSpec:
         if self.pattern is not None:
             return self.pattern.fullmatch(callee) is not None
         wanted = _plain_callee(self.function or "")
-        return callee == wanted or callee.endswith("." + wanted)
+        if callee == wanted or callee.endswith("." + wanted):
+            return True
+        # `ScreenView.init(screen:)` is the call `ScreenView(screen:)` spelled out,
+        # so a spec for `ScreenView` matches it too.
+        built = initialized_type(callee, language)
+        return built is not None and (built == wanted or built.endswith("." + wanted))
 
     def target_for(self, arg: Arg) -> tuple[bool, str | None]:
         """``(mapped, target)`` for one argument; ``mapped`` False means "not configured"."""
@@ -409,6 +415,28 @@ def selector_field(part: str) -> str:
 
 def _plain_callee(callee: str) -> str:
     return re.sub(r"\(\)|\[\]|\s", "", callee)
+
+
+# A Swift initializer called by name: a capitalised segment, then `.init`. Swift
+# types are capitalised by convention, which leaves out `self.init`,
+# `super.init`, a metatype held in a variable and `factory().init`; `Self`
+# names no type, and the implicit `.init(…)` writes none.
+_SWIFT_INIT_CALL = re.compile(r"((?:.*\.)?([A-Z][A-Za-z0-9_]*))\.init")
+
+
+def initialized_type(callee: str, language: str) -> str | None:
+    """The type a Swift ``Type.init(…)`` call builds, as written before ``.init``; else None.
+
+    ``ScreenView.init`` is ``ScreenView`` and ``Outer.ScreenView.init`` is
+    ``Outer.ScreenView``: the callee of the same call written without
+    ``.init``. Any other call, and any call in another language, is None.
+    """
+    if language != "swift":
+        return None
+    found = _SWIFT_INIT_CALL.fullmatch(_plain_callee(callee))
+    if found is None or found.group(2) == "Self":
+        return None
+    return found.group(1)
 
 
 # --- locating and loading ------------------------------------------------------

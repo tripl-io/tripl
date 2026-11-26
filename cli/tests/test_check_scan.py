@@ -3026,6 +3026,13 @@ def test_an_initializer_is_a_forwarder_under_its_type_s_name(tmp_path: Path) -> 
         {"name": ("parameter", "constructor", 2)},
         {"name": ("parameter", "constructor", 7)},
     ]
+    # ... and it says which type it builds, unless the scan cannot name it.
+    assert [
+        None
+        if call.read.name is None or call.read.name.declared is None
+        else call.read.name.declared.type
+        for call in found.calls
+    ] == ["ScreenView", "PageView", None]
     # Its callers write its type's name, never `super.init` or `self.init`. A
     # class with no name has no callers to count: it is left out.
     assert [
@@ -3042,6 +3049,175 @@ def test_an_initializer_is_a_forwarder_under_its_type_s_name(tmp_path: Path) -> 
         ("ScreenView", "App/ScreenView.swift", 2, 1, Location("App/Home.swift", 6, 13)),
     ]
     assert [forwarder.callers.same_file for forwarder in found.forwarders] == [0, 0]
+
+
+EXPLICIT_INIT_SOURCES = {
+    "App/Home.swift": """
+        final class HomeViewController: UIViewController {
+            func show() {
+                _ = ScreenView(screen: "home")
+                _ = ScreenView.init(screen: "settings")
+                _ = UI.ScreenView.init(screen: "profile")
+                let implicit: ScreenView = .init(screen: "about")
+                _ = factory().init(screen: "factory")
+                _ = metatype.init(screen: "metatype")
+            }
+        }
+    """,
+    "App/ScreenView.swift": """
+        struct ScreenView {
+            init(screen: String) {
+                analytics.track(screen)
+            }
+            init() {
+                self.init(screen: "default")
+            }
+            static func make() -> ScreenView {
+                Self.init(screen: "made")
+            }
+        }
+    """,
+}
+
+
+def test_a_swift_type_s_init_called_by_name_is_a_call_of_the_type(tmp_path: Path) -> None:
+    root = _repo(tmp_path, EXPLICIT_INIT_SOURCES)
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.track", name_arg: 0}]}
+        """,
+    )
+    [forwarder] = inventory(config).forwarders
+    # `ScreenView(…)`, `ScreenView.init(…)` and `UI.ScreenView.init(…)` are
+    # its callers. The implicit `.init(…)` names no type, a call's result or a
+    # variable is no type name, and `self.init`, `Self.init` are its own.
+    assert forwarder.function == "ScreenView"
+    callers = forwarder.callers
+    assert (callers.same_file, callers.other_files, callers.other_files_same_language) == (0, 3, 3)
+    assert callers.first_unmatched == Location("App/Home.swift", 3, 13)
+
+
+def test_a_spec_for_a_swift_type_matches_its_init_called_by_name(tmp_path: Path) -> None:
+    root = _repo(tmp_path, EXPLICIT_INIT_SOURCES)
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event:
+            calls:
+              - {function: "analytics.track", name_arg: 0}
+              - {function: "ScreenView", args: {screen: name}}
+        """,
+    )
+    # The scan reads all three spellings of the call, and only those.
+    assert [(item.origin.path, item.name) for item in scan(config).items] == [
+        ("App/Home.swift", "home"),
+        ("App/Home.swift", "settings"),
+        ("App/Home.swift", "profile"),
+        ("App/ScreenView.swift", None),
+    ]
+    # So the forwarder's callers are all matched.
+    [forwarder] = inventory(config).forwarders
+    callers = forwarder.callers
+    assert (callers.other_files, callers.other_files_matched) == (3, 3)
+    assert callers.first_unmatched is None
+
+
+def test_a_spec_for_a_swift_type_s_init_matches_nothing_in_another_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/Main.kt": 'fun main() {\n    ScreenView.init("home")\n}\n',
+            "App/Main.swift": 'func main() {\n    ScreenView.init("home")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "ScreenView", name_arg: 0}]}
+        """,
+    )
+    # Only Swift calls an initializer `init`.
+    assert [item.origin.path for item in scan(config).items] == ["App/Main.swift"]
+
+
+def test_callers_elsewhere_are_also_counted_in_the_forwarder_s_own_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/Tracking.kt": "object Tracking {\n"
+            "    fun track(event: String) = analytics.logEvent(event)\n"
+            "}\n",
+            "app/Home.kt": 'fun home() {\n    Tracking.track("home")\n}\n',
+            # Java calls the Kotlin wrapper: a caller by name, of another language.
+            "app/Legacy.java": (
+                'class Legacy {\n  void a() { Tracking.INSTANCE.track("legacy"); }\n}\n'
+            ),
+            # Another function of the same name, in Swift.
+            "ios/Shop.swift": 'func shop() {\n    tracker.track("shop")\n}\n',
+            "web/page.ts": "export function page(path: string) {\n  analytics.logEvent(path)\n}\n",
+            # A `.js` file is in the language of a `.ts` one.
+            "web/main.js": 'page("/")\n',
+            "web/other.kt": 'fun other() {\n    page("/")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.logEvent", name_arg: 0}]}
+        """,
+    )
+    found = {forwarder.function: forwarder for forwarder in inventory(config).forwarders}
+    assert (found["track"].language, found["page"].language) == ("kotlin", "ts")
+    track = found["track"].callers
+    # By name, as before: every language.
+    assert (track.same_file, track.other_files, track.other_files_matched) == (0, 3, 0)
+    assert track.first_unmatched == Location("app/Home.kt", 2, 5)
+    # In Kotlin only: the Swift `tracker.track` and the Java call are left out.
+    assert (track.other_files_same_language, track.other_files_same_language_matched) == (1, 0)
+    assert track.first_unmatched_same_language == Location("app/Home.kt", 2, 5)
+    page = found["page"].callers
+    assert (page.other_files, page.other_files_same_language) == (2, 1)
+    assert page.first_unmatched == Location("web/main.js", 1, 1)
+    assert page.first_unmatched_same_language == Location("web/main.js", 1, 1)
+
+
+def test_the_first_unmatched_caller_in_the_language_skips_other_languages(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "a/Other.swift": 'func a() {\n    relay("swift")\n}\n',
+            "b/Relay.kt": "fun relay(event: String) = analytics.logEvent(event)\n",
+            "c/Caller.kt": 'fun c() {\n    relay("kotlin")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.logEvent", name_arg: 0}]}
+        """,
+    )
+    [forwarder] = inventory(config).forwarders
+    callers = forwarder.callers
+    # By name, the first is the Swift call; in Kotlin, the Kotlin one.
+    assert callers.first_unmatched == Location("a/Other.swift", 2, 5)
+    assert callers.first_unmatched_same_language == Location("c/Caller.kt", 2, 5)
 
 
 # --- the inventory as a whole ----------------------------------------------------------
