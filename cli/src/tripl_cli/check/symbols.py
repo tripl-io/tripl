@@ -100,6 +100,10 @@ class Entry:
     value: str
     # A member of a type (enum case, static constant) rather than a file-scope constant.
     member: bool
+    # The file the entry was declared in, relative to the repository root ("" when
+    # not given). Two objects with one name in two files (``object Events`` in each
+    # feature module) are told apart by it, since ``path`` carries no package.
+    source: str = ""
 
 
 def normalise_name(text: str) -> str:
@@ -175,10 +179,12 @@ class SymbolIndex:
     _case_suffixes: set[tuple[str, ...]] = field(
         default_factory=set, init=False, repr=False, compare=False
     )
+    # The file ``index_tokens`` is reading, given to each entry it adds.
+    _source: str = field(default="", init=False, repr=False, compare=False)
 
     # --- building ------------------------------------------------------------
     def add(self, path: tuple[str, ...], value: str, *, member: bool) -> None:
-        entry = Entry(path, value, member)
+        entry = Entry(path, value, member, self._source)
         self.entries.append(entry)
         for start in range(len(path)):
             self._suffixes.setdefault(path[start:], []).append(entry)
@@ -192,7 +198,9 @@ class SymbolIndex:
     def add_function(self, name: str, values: tuple[str, ...] | None, *, language: str) -> None:
         self.functions.setdefault((language, name), []).append(values)
 
-    def index_tokens(self, tokens: list[Token], language: str) -> None:
+    def index_tokens(self, tokens: list[Token], language: str, *, source: str = "") -> None:
+        """Index one file's ``tokens``; ``source`` is the file, kept on each entry."""
+        self._source = source
         if language == "swift":
             _index_scoped(self, tokens, language, _SWIFT_TYPES)
         elif language in ("kotlin", "java"):
@@ -228,14 +236,30 @@ class SymbolIndex:
         shorthand: bool = False,
         language: str = "",
     ) -> tuple[str, tuple[Entry, ...]] | None:
-        """``resolve``, with the entries the value was read from.
+        """``resolve``, with the declaration the value was read from.
 
-        The entries are every candidate holding the value picked: one
-        constant as a rule, several when the same declaration was indexed
-        twice or a shorthand names cases of several enums with one raw value.
-        A case name read through its accessor comes from no entry, so it has
-        none.
+        The entries are that one declaration (once, even when its file was
+        indexed twice). They are none when the path may name several
+        declarations that hold the value (a shorthand naming members of
+        several types, one object name declared in two files): which one the
+        code reads is unknown. A case name read through its accessor comes
+        from no entry either.
         """
+        found = self._lookup(path, hint=hint, shorthand=shorthand, language=language)
+        if found is None:
+            return None
+        value, entries = found
+        declarations = {(entry.source, entry.path): entry for entry in entries}
+        return value, tuple(declarations.values()) if len(declarations) == 1 else ()
+
+    def _lookup(
+        self,
+        path: Sequence[str],
+        *,
+        hint: str | None,
+        shorthand: bool,
+        language: str,
+    ) -> tuple[str, tuple[Entry, ...]] | None:
         segments = [segment for segment in path if segment]
         name_accessors = CASE_NAME_ACCESSORS.get(language, frozenset())
         if len(segments) > 1 and segments[-1] in name_accessors and not self._has(segments):

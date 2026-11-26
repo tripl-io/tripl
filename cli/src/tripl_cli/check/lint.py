@@ -10,13 +10,21 @@ finding fails the run only under ``--strict`` (like ``oversize_value``):
 ``name_pattern``
     An event name that ``name_pattern`` does not match as a whole, or a field
     or property key that ``key_pattern`` does not.
+
+Field keys are read only where the data supplies them (a payload run). A static
+run's field keys are the plan fields its check config names (``field:screen``),
+written once in check.yml: reporting them on every call site would ask each
+call for a marker over a line none of them holds.
 ``duplicate_constant``
     A call's event name or dictionary key read from a constant that holds the
     same value as another constant of the same object (``Events.SHARE_TAP``
     holding ``"save_tap"`` next to ``Events.SAVE_TAP``): one button logs the
     other's event. Only constants that a tracking call of the run reads a name
-    or a key from count, grouped by the type or object that declares them; a
-    file-scope constant has no object and is never grouped. The finding is on
+    or a key from count, grouped by the type or object that declares them and
+    the file it is declared in, so the ``object Events`` of two feature modules
+    are two objects. A file-scope constant has no object and is never grouped,
+    and a reference that may name several declarations (a Swift shorthand
+    naming members of several types) reads no constant. The finding is on
     every call that reads one of the duplicated constants.
 
 The findings are notes on the items (``CheckItem.notes``), as the size limits'
@@ -52,32 +60,55 @@ _HOLE = re.compile(r"\$\{[^{}]*\}")
 _QUOTES = frozenset("\"'`")
 # The characters one finding names before the rest are only counted.
 _NAMED = 3
+# Control characters have no Unicode name, only an alias: the whitespace ones.
+_ALIASES = {
+    "\t": "CHARACTER TABULATION",
+    "\n": "LINE FEED",
+    "\x0b": "LINE TABULATION",
+    "\x0c": "FORM FEED",
+    "\r": "CARRIAGE RETURN",
+    "\x1c": "INFORMATION SEPARATOR FOUR",
+    "\x1d": "INFORMATION SEPARATOR THREE",
+    "\x1e": "INFORMATION SEPARATOR TWO",
+    "\x1f": "INFORMATION SEPARATOR ONE",
+    "\x85": "NEXT LINE",
+}
+# A constant as the duplicate rule tells it apart: its file and its qualified name.
+_Declared = tuple[str, tuple[str, ...]]
 
 
-def lint_items(items: Sequence[CheckItem], lint: LintConfig | None) -> list[CheckItem]:
+def lint_items(
+    items: Sequence[CheckItem], lint: LintConfig | None, *, field_keys: bool = True
+) -> list[CheckItem]:
     """``items``, each with the lint's findings added to its notes; unchanged with no lint.
 
-    The duplicate rule reads every item at once: whether a constant is
-    duplicated depends on the other calls of the run.
+    ``field_keys`` is False for a static run's items, whose field keys come
+    from the check config rather than the code. The duplicate rule reads every
+    item at once: whether a constant is duplicated depends on the other calls
+    of the run.
     """
     if lint is None:
         return list(items)
     twins = _duplicated(items) if lint.duplicates else {}
-    return [_lint_item(item, lint, twins) for item in items]
+    return [_lint_item(item, lint, twins, field_keys=field_keys) for item in items]
 
 
 def _lint_item(
-    item: CheckItem, lint: LintConfig, twins: dict[tuple[str, ...], tuple[tuple[str, ...], ...]]
+    item: CheckItem,
+    lint: LintConfig,
+    twins: dict[_Declared, tuple[tuple[str, ...], ...]],
+    *,
+    field_keys: bool,
 ) -> CheckItem:
     notes: list[CheckFinding] = []
     if item.name is not None:
         notes.extend(_text_notes(item.name, None, "the event name", lint, lint.name_pattern))
-    for key in item.fields:
+    for key in item.fields if field_keys else ():
         notes.extend(_text_notes(key, key, "the field key", lint, lint.key_pattern))
     for key in item.properties or {}:
         notes.extend(_text_notes(str(key), str(key), "the property key", lint, lint.key_pattern))
     for use in dict.fromkeys(item.constants):
-        others = twins.get(use.path)
+        others = twins.get((use.source, use.path))
         if others:
             notes.append(_duplicate_note(use, others))
     if not notes:
@@ -125,30 +156,31 @@ def _offenders(text: str) -> list[str]:
             kind = "a quote"
         else:
             continue
-        found.append(f"{kind} U+{ord(char):04X} {unicodedata.name(char, 'UNNAMED')}")
+        name = _ALIASES.get(char) or unicodedata.name(char, "")
+        found.append(f"{kind} U+{ord(char):04X} {name}".rstrip())
     return found
 
 
-def _duplicated(
-    items: Sequence[CheckItem],
-) -> dict[tuple[str, ...], tuple[tuple[str, ...], ...]]:
+def _duplicated(items: Sequence[CheckItem]) -> dict[_Declared, tuple[tuple[str, ...], ...]]:
     """Each constant a name or key is read from, mapped to its object's others of its value.
 
-    Only a constant with such a twin is in the map.
+    An object is its qualified name in one file. Only a constant with such a
+    twin is in the map.
     """
-    by_object: dict[tuple[str, ...], dict[str, set[tuple[str, ...]]]] = {}
+    by_object: dict[_Declared, dict[str, set[tuple[str, ...]]]] = {}
     for item in items:
         for use in item.constants:
             if len(use.path) < 2:
                 continue  # a file-scope constant: no object to group by
-            by_object.setdefault(use.path[:-1], {}).setdefault(use.value, set()).add(use.path)
-    twins: dict[tuple[str, ...], tuple[tuple[str, ...], ...]] = {}
-    for values in by_object.values():
+            owner = (use.source, use.path[:-1])
+            by_object.setdefault(owner, {}).setdefault(use.value, set()).add(use.path)
+    twins: dict[_Declared, tuple[tuple[str, ...], ...]] = {}
+    for (source, _), values in by_object.items():
         for paths in values.values():
             if len(paths) < 2:
                 continue
             for path in paths:
-                twins[path] = tuple(sorted(other for other in paths if other != path))
+                twins[source, path] = tuple(sorted(other for other in paths if other != path))
     return twins
 
 

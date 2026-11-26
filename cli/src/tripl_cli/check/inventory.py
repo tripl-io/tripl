@@ -344,7 +344,7 @@ def _linted(listed: Sequence[ListedCall], lint: LintConfig | None) -> tuple[List
     """``listed`` with the lint run over every item at once, as ``scan()`` runs it."""
     if lint is None:
         return tuple(listed)
-    linted = lint_items([item for call in listed for item in call.items], lint)
+    linted = lint_items([item for call in listed for item in call.items], lint, field_keys=False)
     calls: list[ListedCall] = []
     start = 0
     for call in listed:

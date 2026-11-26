@@ -186,12 +186,14 @@ class ConstantUse:
 
     ``path`` is the constant's qualified name (``Events.BUTTON_A``) and
     ``value`` the string it holds; ``key`` is the key it gave, None for the
-    event name. The lint (``lint.py``) reads these; nothing else does.
+    event name; ``source`` is the file that declares it. The lint (``lint.py``)
+    reads these; nothing else does.
     """
 
     path: tuple[str, ...]
     value: str
     key: str | None = None
+    source: str = ""
 
 
 @dataclass(frozen=True)

@@ -329,7 +329,7 @@ def scan(config: CheckConfig) -> ScanOutcome:
             items.extend(
                 call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
             )
-    linted = tuple(lint_items(items, config.lint))
+    linted = tuple(lint_items(items, config.lint, field_keys=False))
     return ScanOutcome(linted, len(tree.parsed), matched, tree.skipped, tuple(found_markers))
 
 
@@ -373,7 +373,7 @@ def base_items(config: CheckConfig, snapshot: Snapshot) -> list[CheckItem]:
             )
     # Linted as scan() lints, so a finding the base had is not new, and one a
     # change brought in (a constant edited into a duplicate) changes the item.
-    return lint_items(items, config.lint)
+    return lint_items(items, config.lint, field_keys=False)
 
 
 def enum_files(config: CheckConfig) -> Iterator[tuple[Path, str, frozenset[str]]]:
@@ -411,7 +411,7 @@ def first_pass(
             skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
             continue
         for language in sorted(languages):
-            symbols.index_tokens(tokenize(text, language), language)
+            symbols.index_tokens(tokenize(text, language), language, source=relative)
         seen.add(path)
     for source in files:
         text, why = read(source.path)
@@ -422,7 +422,7 @@ def first_pass(
             continue
         tokens = tokenize(text, source.language)
         if source.path not in seen:
-            symbols.index_tokens(tokens, source.language)
+            symbols.index_tokens(tokens, source.language, source=source.relative)
         parsed.append((source, text, tokens))
     return Tree(symbols, tuple(parsed), tuple(skipped[path] for path in sorted(skipped)))
 
@@ -665,10 +665,13 @@ def _constants(collected: _Collected) -> tuple[ConstantUse, ...]:
     """The constants ``collected``'s name and its properties' keys were read from, each once."""
     uses: list[ConstantUse] = []
     if collected.name is not None and collected.name.kind == "text":
-        uses.extend(ConstantUse(entry.path, entry.value) for entry in collected.name.constants)
+        uses.extend(
+            ConstantUse(entry.path, entry.value, source=entry.source)
+            for entry in collected.name.constants
+        )
     if collected.properties is not None and collected.properties.kind == "entries":
         uses.extend(
-            ConstantUse(entry.path, entry.value, key)
+            ConstantUse(entry.path, entry.value, key, entry.source)
             for key, entries in collected.properties.key_constants
             for entry in entries
         )

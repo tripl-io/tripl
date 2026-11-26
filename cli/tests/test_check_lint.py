@@ -112,6 +112,20 @@ def test_a_runtime_part_of_a_name_is_no_character_and_skips_name_pattern() -> No
     )
 
 
+@pytest.mark.parametrize(
+    ("char", "named"),
+    [
+        ("\t", "U+0009 CHARACTER TABULATION"),
+        ("\n", "U+000A LINE FEED"),
+        ("\r", "U+000D CARRIAGE RETURN"),
+        ("\x85", "U+0085 NEXT LINE"),
+    ],
+)
+def test_a_control_whitespace_character_is_named_by_its_alias(char: str, named: str) -> None:
+    [(_, _, message)] = _notes(_item(f"a{char}b"))
+    assert message.endswith(named)
+
+
 def test_rules_switched_off_report_nothing() -> None:
     lint = LintConfig(characters=False, duplicates=False)
     assert _notes(_item("sеttings opened"), lint) == []
@@ -281,6 +295,93 @@ def test_two_constants_of_one_object_with_one_value_flag_every_call_using_one(
 def test_without_a_lint_section_the_scan_adds_no_finding(shop: Path) -> None:
     _write(shop, {".tripl/check.yml": KOTLIN_CONFIG.replace("lint:\n", "")})
     assert all(notes == [] for notes in _scanned(shop).values())
+
+
+TRACK_CONFIG = """
+project: shop
+sources: ["app/**"]
+lint:
+event_types:
+  event:
+    calls:
+      - {function: "track", positional: [name, properties]}
+      - {function: "log", positional: [name]}
+"""
+
+
+def _scan_notes(root: Path, sources: dict[str, str], config: str = TRACK_CONFIG) -> list[Any]:
+    _write(root, {".tripl/check.yml": config, **sources})
+    items = scan(load(root / ".tripl" / "check.yml")).items
+    return [(item.origin.path, [(n.code, n.field) for n in item.notes]) for item in items]
+
+
+def test_same_named_objects_in_two_files_are_two_objects(tmp_path: Path) -> None:
+    # Two feature modules each declare their own `Events`, and each logs the
+    # same event name once: no constant has a twin in its own object.
+    sources = {
+        "app/home/Events.kt": 'package app.home\nobject Events { const val SHOW = "opened" }\n',
+        "app/map/Events.kt": 'package app.map\nobject Events { const val OPEN = "opened" }\n',
+        "app/home/Home.kt": "package app.home\nfun h() { track(Events.SHOW) }\n",
+        "app/map/Map.kt": "package app.map\nfun m() { track(Events.OPEN) }\n",
+        "app/a/Keys.java": (
+            'package a;\npublic final class Keys { public static final String SHOW = "x"; }\n'
+        ),
+        "app/b/Keys.java": (
+            'package b;\npublic final class Keys { public static final String OPEN = "x"; }\n'
+        ),
+        "app/a/A.java": "package a;\nclass A { void f() { track(Keys.SHOW); } }\n",
+        "app/b/B.java": "package b;\nclass B { void f() { track(Keys.OPEN); } }\n",
+        "app/home/events.ts": "export const Ev = { SHOW: 'opened' } as const;\n",
+        "app/map/events.ts": "export const Ev = { OPEN: 'opened' } as const;\n",
+        "app/home/home.ts": "import { Ev } from './events';\ntrack(Ev.SHOW);\n",
+        "app/map/map.ts": "import { Ev } from './events';\ntrack(Ev.OPEN);\n",
+    }
+    found = _scan_notes(tmp_path, sources)
+    assert len(found) == 6
+    assert all(notes == [] for _, notes in found)
+
+
+def test_a_reference_that_may_name_several_constants_reads_none_of_them(tmp_path: Path) -> None:
+    # `.home` can be Screen.home, Tab.home or Old.home: which one the call
+    # reads is unknown, so Old.home's twin says nothing about it.
+    sources = {
+        "app/E.swift": (
+            'enum Screen: String { case home = "home" }\n'
+            'enum Tab: String { case home = "home" }\n'
+            'enum Old { static let home = "home"; static let start = "home" }\n'
+        ),
+        "app/A.swift": "func f() { track(Old.start) }\nfunc g() { log(.home) }\n",
+    }
+    items = {item.origin.line: item for item in _scanned_items(tmp_path, sources)}
+    assert items[2].constants == ()
+    assert items[2].notes == ()
+    # Old.start's own twin is used by no call.
+    assert items[1].notes == ()
+
+
+def _scanned_items(root: Path, sources: dict[str, str]) -> tuple[CheckItem, ...]:
+    _write(root, {".tripl/check.yml": TRACK_CONFIG, **sources})
+    return scan(load(root / ".tripl" / "check.yml")).items
+
+
+def test_a_static_run_lints_no_field_key_the_check_config_names(tmp_path: Path) -> None:
+    # `screenName` is written once, in check.yml: no call site can fix it, so
+    # it is not reported on each of them. The code's own keys still are.
+    config = TRACK_CONFIG.replace("lint:\n", 'lint:\n  key_pattern: "[a-z_]+"\n').replace(
+        "positional: [name]}", 'positional: [name, "field:screenName"]}'
+    )
+    sources = {
+        "app/E.kt": (
+            'fun f() { log("open", "home"); log("close", "home") }\n'
+            'fun g() { track("save", mapOf("Bad" to 1)) }\n'
+        )
+    }
+    found = _scan_notes(tmp_path, sources, config)
+    assert found == [
+        ("app/E.kt", []),
+        ("app/E.kt", []),
+        ("app/E.kt", [(CODE_NAME_PATTERN, "Bad")]),
+    ]
 
 
 # --- tripl check ------------------------------------------------------------------------
