@@ -562,10 +562,17 @@ def test_a_dynamic_value_marker_fails_as_unused_only_where_the_finding_can_be_ra
         report = _report(result, strict=strict, markers=(unused,), strict_suppressions=True)
         return report.failing_markers
 
+    # Outside --strict nothing raises the finding, whatever the call sends:
+    # the validator raises it for a property value the scan could not read,
+    # which the item does not list as dynamic.
     assert failing(runtime, strict=False) == ()
-    # Every value of the call is known, so no run raises the finding there.
-    assert failing(known, strict=False) == (unused,)
+    assert failing(known, strict=False) == ()
     assert failing(runtime, strict=True) == (unused,)
+    assert failing(known, strict=True) == (unused,)
+    # Any other code the marker names is still weighed outside --strict.
+    other = MarkerState(replace(unused.marker, targets=(("unknown_event", None),)), False)
+    report = _report(known, markers=(other,), strict_suppressions=True)
+    assert report.failing_markers == (other,)
 
 
 def test_the_json_marks_the_failing_markers_and_keeps_failing_for_results() -> None:

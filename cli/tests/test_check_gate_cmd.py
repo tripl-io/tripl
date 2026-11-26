@@ -612,6 +612,30 @@ def test_an_outage_during_the_main_comparison_is_exit_4(
     assert main(argv) == 4
 
 
+def test_strict_suppressions_weighs_a_marker_against_the_plan_the_run_checks(
+    repo: Path, tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    tripl_api.handler(VALIDATE_URL, _branchy({"trial_started"}), method="POST")
+    (repo / "Sources/Legacy.swift").unlink()  # the fixture's one call that always fails
+    marked = (
+        "func t() {\n"
+        "    // tripl-check-ignore[deprecated_event] -- retired with the old paywall\n"
+        '    Analytics.shared.logEvent("trial_started")\n'
+        "}\n"
+    )
+    _write(repo, {"Sources/Trial.swift": marked})
+    # The plan branch archives the event: the marker waives that, and passes.
+    argv = ["check", "--strict-suppressions", "--json"]
+    assert main([*argv, "--branch", "checkout-redesign"]) == 0
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (True, False)
+    # Main still has the event, so against main the same marker waives nothing.
+    assert main(argv) == 1
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (False, True)
+
+
 # --- no gate, refusals ---------------------------------------------------------------------
 def test_an_empty_rev_gates_nothing_and_says_so(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]

@@ -455,27 +455,19 @@ class CheckReport:
 
         A valid marker is unused only for THIS run, so one the run had no way
         to use is left alone: a marker on a call that was not judged (it got
-        no verdict, or nothing about it could be sent), and one that names
-        ``dynamic_value`` on a call with a runtime-only value when the run is
-        not ``--strict``, the only kind of run that raises that finding.
+        no verdict, or nothing about it could be sent), and, when the run is
+        not ``--strict``, one that names ``dynamic_value``: neither the CLI nor
+        the validator raises that finding outside a ``--strict`` run.
         """
         if not self.strict_suppressions:
             return ()
-        excused: set[tuple[str, int, int]] = set()
-        for result in self.results:
-            if not result.item.suppressions:
-                continue
-            unjudged = not result.item.sendable or any(
-                finding.code == CODE_NO_VERDICT for finding in result.findings
-            )
-            for suppression in result.item.suppressions:
-                unraised = (
-                    not self.strict
-                    and bool(result.item.dynamic)
-                    and any(code == CODE_DYNAMIC_VALUE for code, _ in suppression.targets)
-                )
-                if unjudged or unraised:
-                    excused.add((suppression.path, suppression.line, suppression.column))
+        unjudged = {
+            (suppression.path, suppression.line, suppression.column)
+            for result in self.results
+            if not result.item.sendable
+            or any(finding.code == CODE_NO_VERDICT for finding in result.findings)
+            for suppression in result.item.suppressions
+        }
         failing: list[MarkerState] = []
         for state in self.markers:
             marker = state.marker
@@ -483,9 +475,12 @@ class CheckReport:
                 continue
             if self.gate is not None and marker.path not in self.gate.paths:
                 continue
-            if (
-                state.code == CODE_UNUSED_SUPPRESSION
-                and (marker.path, marker.line, marker.column) in excused
+            if state.code == CODE_UNUSED_SUPPRESSION and (
+                (marker.path, marker.line, marker.column) in unjudged
+                or (
+                    not self.strict
+                    and any(code == CODE_DYNAMIC_VALUE for code, _ in marker.targets)
+                )
             ):
                 continue
             failing.append(state)

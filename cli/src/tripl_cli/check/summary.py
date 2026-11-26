@@ -26,11 +26,14 @@ from dataclasses import dataclass, field
 
 from tripl_cli.check.model import (
     GATE_REV,
+    MARKER_NO_CODES,
+    MARKER_NO_REASON,
+    MARKER_NOT_SUPPRESSIBLE,
     MODE_STATIC,
     CheckReport,
     CheckResult,
 )
-from tripl_cli.check.render import marker_message
+from tripl_cli.check.suppress import label
 from tripl_cli.check.validate import summary as tally
 from tripl_cli.render import plural
 
@@ -44,6 +47,15 @@ MAX_FINDINGS = 20
 MAX_PLACES = 3
 
 TITLE = "### tripl check: analytics changes"
+
+# Why a malformed marker suppresses nothing, as the summary says it after the
+# marker itself (shown as code). The listing's own wording writes placeholders
+# in angle brackets, which Markdown would read as HTML.
+_PROBLEMS: Mapping[str, str] = {
+    MARKER_NO_CODES: "names no code to waive",
+    MARKER_NOT_SUPPRESSIBLE: "names `no_verdict`, which no marker can waive",
+    MARKER_NO_REASON: "gives no reason after `--`",
+}
 
 
 @dataclass(frozen=True)
@@ -247,7 +259,12 @@ def _marker_lines(report: CheckReport) -> list[str]:
     ]
     for state in failing[:MAX_FINDINGS]:
         marker = state.marker
-        lines.append(f"- {_code(f'{marker.path}:{marker.line}')} {marker_message(state)}")
+        where = _code(f"{marker.path}:{marker.line}")
+        if marker.problem is None:
+            lines.append(f"- {where} {_code(label(marker))} matched no finding")
+        else:
+            why = _PROBLEMS.get(marker.problem, _code(marker.problem))
+            lines.append(f"- {where} {_code(marker.text)} {why}, so it suppresses nothing")
     if len(failing) > MAX_FINDINGS:
         lines.append(f"- and {len(failing) - MAX_FINDINGS} more.")
     return lines
