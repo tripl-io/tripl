@@ -10,7 +10,8 @@ from pathlib import Path
 from tripl_cli import __version__
 from tripl_cli.commands import Abandon, Handler, register_all
 from tripl_cli.config import ENV_API_KEY, ENV_BASE_URL, resolve
-from tripl_cli.errors import EXIT_USAGE, TriplError
+from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, EXIT_USAGE, TriplError
+from tripl_cli.streams import finish_stdout
 
 # 128 + SIGINT, the shell convention for "killed by Ctrl-C".
 EXIT_INTERRUPTED = 130
@@ -96,20 +97,58 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse, resolve configuration, dispatch. Returns the process exit code."""
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    # getattr rather than args.handler: the attribute only exists once a
-    # subcommand's set_defaults has run, and it is Any off a Namespace, so the
-    # annotation is what keeps `return handler(...)` honest under mypy strict.
-    handler: Handler | None = getattr(args, "handler", None)
-    if handler is None:
-        # Bare `tripl`. Help to STDERR and a usage exit code, not 0: a script
-        # that invokes the CLI with no subcommand has a bug, and exiting 0 would
-        # let it look successful.
-        parser.print_help(sys.stderr)
-        return EXIT_USAGE
+    """Parse, resolve configuration, dispatch. Returns the process exit code.
+
+    Whatever the command decided, stdout is flushed here before the code is
+    final. Left to the interpreter's exit, a flush that fails prints "Exception
+    ignored" and makes the exit code 120, replacing a 0, a 1 and a 130 alike.
+    A stdout that cannot be written (``> /dev/full``) is one line on stderr,
+    and turns a 0 into 1; a command that already failed keeps its own code. A
+    reader that closed the pipe is not a failure.
+
+    The parser's own exits (``--help``, ``--version``, a usage error) still
+    leave as ``SystemExit``, with the same rule applied on the way out.
+    """
     try:
+        code = _dispatch(argv)
+    except SystemExit as exc:
+        if _stdout_was_lost() and exc.code in (None, EXIT_OK):
+            raise SystemExit(EXIT_FAILURE) from None
+        raise
+    if _stdout_was_lost() and code == EXIT_OK:
+        return EXIT_FAILURE
+    return code
+
+
+def _stdout_was_lost() -> bool:
+    """Flush stdout; say so on stderr, and return True, when it could not be written."""
+    problem = finish_stdout()
+    if problem is None:
+        return False
+    try:
+        if sys.stderr is not None:
+            print(f"tripl: {problem}", file=sys.stderr)
+    except (OSError, ValueError):
+        pass  # stderr is gone as well: the exit code is all that is left to say it
+    return True
+
+
+def _dispatch(argv: Sequence[str] | None) -> int:
+    parser = build_parser()
+    try:
+        # Inside the try, because an option that prints and exits while the
+        # arguments are parsed (`check --print-preset`) can fail to write.
+        args = parser.parse_args(argv)
+        # getattr rather than args.handler: the attribute only exists once a
+        # subcommand's set_defaults has run, and it is Any off a Namespace, so the
+        # annotation is what keeps `return handler(...)` honest under mypy strict.
+        handler: Handler | None = getattr(args, "handler", None)
+        if handler is None:
+            # Bare `tripl`. Help to STDERR and a usage exit code, not 0: a script
+            # that invokes the CLI with no subcommand has a bug, and exiting 0 would
+            # let it look successful.
+            parser.print_help(sys.stderr)
+            return EXIT_USAGE
         # Unconditional, and safe to be: resolution touches the filesystem but
         # never the network, and never fails on merely ABSENT values — only on a
         # malformed file or a --config that does not exist. Each command asks

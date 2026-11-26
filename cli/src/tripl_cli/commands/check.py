@@ -148,6 +148,7 @@ from tripl_cli.model import JsonDict, JsonList, Run, as_list, page_items, page_t
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
+from tripl_cli.streams import silence, write_failure
 
 FORMAT_TEXT = "text"
 FORMAT_JSON = "json"
@@ -178,7 +179,8 @@ class _PrintPreset(argparse.Action):
     it prints its YAML even with ``--json``, and leaves ``--report`` files
     alone. An unknown NAME is argparse's own invalid choice, which lists them.
     It prints the way ``--list`` does, so a reader that left early
-    (``| true``) ends the output, and the exit is still 0.
+    (``| true``) ends the output, and the exit is still 0; a stdout that cannot
+    be written at all is one line and exit 1, raised through the parser.
     """
 
     def __call__(
@@ -588,8 +590,9 @@ def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
 
     The human lines beside the JSON document (``primary`` false: stderr under
     ``--json``) end the same way on any failure to write them, a full disk
-    included, so the document still reaches stdout. On the primary output any
-    other failure is one.
+    included, so the document still reaches stdout. On the primary output,
+    which is always stdout, any other failure (``> /dev/full``) fails the run
+    with one line and exit 1: what was asked for did not get out.
     """
     if stream is None:
         return
@@ -597,23 +600,13 @@ def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
         _say(text, stream)
         stream.flush()
     except BrokenPipeError:
-        _silence(stream)
-    except OSError:
+        silence(stream)
+    except OSError as exc:
+        # Silenced either way, so the text still in the buffer cannot fail
+        # again when the interpreter flushes at exit.
+        silence(stream)
         if primary:
-            raise
-        _silence(stream)
-
-
-def _silence(stream: TextIO) -> None:
-    try:
-        descriptor = stream.fileno()
-    except (OSError, ValueError):
-        return  # not backed by a file (a test's stream), so no flush at exit reaches one
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    try:
-        os.dup2(devnull, descriptor)
-    finally:
-        os.close(devnull)
+            raise TriplError(write_failure(exc)) from exc
 
 
 def _gate_flag(args: argparse.Namespace) -> str | None:
