@@ -503,6 +503,22 @@ async def test_each_check_directory_of_a_repository_keeps_its_own_snapshot(
     only_ios = (await client.get(f"{base}/check-runs?check_root=apps/ios")).json()
     assert only_ios["total"] == 2
     assert [item["is_current"] for item in only_ios["items"]] == [True, False]
+    # The filter names a directory the way an upload does: one directory, however written.
+    for spelling in ("apps/ios/", "./apps/ios", "apps\\ios"):
+        same = await client.get(f"{base}/check-runs", params={"check_root": spelling})
+        assert same.json()["total"] == 2, spelling
+    root_only = await client.get(f"{base}/check-runs", params={"check_root": "./"})
+    assert root_only.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["/abs/path", "..", "../other", "apps/../../x"])
+async def test_a_history_filter_outside_the_repository_is_refused(
+    client: AsyncClient, bad: str
+) -> None:
+    await client.post("/api/v1/projects", json={"name": "Dir", "slug": "cr-badfilter"})
+    resp = await client.get("/api/v1/projects/cr-badfilter/check-runs", params={"check_root": bad})
+    assert resp.status_code == 422, resp.text
 
 
 @pytest.mark.asyncio

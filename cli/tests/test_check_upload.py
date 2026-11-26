@@ -488,6 +488,60 @@ def test_an_app_in_a_subdirectory_is_uploaded_under_its_check_directory(
     assert "shop/ios (apps/ios)" in capsys.readouterr().err
 
 
+def test_a_config_kept_elsewhere_names_its_own_check_directory(tmp_path: Path) -> None:
+    # The directory's own .tripl/check.yml: the directory names the check.
+    own = tmp_path / "apps" / "ios" / ".tripl" / "check.yml"
+    assert check_directory(tmp_path / "apps" / "ios", tmp_path, own) == "apps/ios"
+    # Any other config file names it by its own path, so two configs that
+    # scan one directory keep a snapshot each.
+    assert check_directory(tmp_path, tmp_path, tmp_path / "ci" / "web.yml") == "ci/web.yml"
+    assert check_directory(tmp_path, tmp_path, tmp_path / ".tripl" / "web.yml") == ".tripl/web.yml"
+    # A config outside the repository says nothing about it: the directory does.
+    assert check_directory(tmp_path / "app", tmp_path, tmp_path.parent / "x.yml") == "app"
+
+
+def test_two_configs_that_scan_one_directory_upload_under_their_own_names(
+    repo: Path,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+) -> None:
+    sources = {"ios": '["Sources/**"]', "web": '["Sources/Feed.swift"]'}
+    for name, globs in sources.items():
+        own = CONFIG.replace('sources: ["Sources/**"]', f"root: ..\nsources: {globs}")
+        _write(repo, {f"ci/{name}.yml": own})
+    sent = []
+    for name in sources:
+        assert main(["check", "--upload", "--check-config", str(repo / "ci" / f"{name}.yml")]) == 0
+        sent.append(json.loads(uploads.calls.last.request.content)["check_root"])
+    assert sent == ["ci/ios.yml", "ci/web.yml"]
+    # The repository's own config still names the root.
+    assert main(["check", "--upload"]) == 0
+    assert json.loads(uploads.calls.last.request.content)["check_root"] == "."
+
+
+def test_a_report_that_cannot_be_written_still_says_the_run_was_uploaded(
+    repo: Path,
+    tmp_path: Path,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file, not a directory")
+    code = main(["check", "--upload", "--report", f"json={blocked / 'x' / 'r.json'}"])
+    assert code != 0
+    assert uploads.calls.call_count == 1
+    err = capsys.readouterr().err
+    assert "cannot write the report" in err
+    # tripl has the run: the stderr line says so, before the error that ends it.
+    assert "Uploaded the check run (2 calls)" in err
+    assert err.index("Uploaded the check run") < err.index("cannot write the report")
+
+
 def test_a_run_at_the_repository_root_is_sent_as_one(
     repo: Path, validator: Any, uploads: Any, configured_env: None, gitlab: None
 ) -> None:
@@ -503,12 +557,30 @@ def test_gitlab_sends_when_the_pipeline_and_the_commit_were_made() -> None:
             "CI_COMMIT_TIMESTAMP": "2026-11-20T09:58:12+01:00",
         }
     )
-    assert context.pipeline_created_at == "2026-11-20T10:00:00Z"
-    assert context.committed_at == "2026-11-20T09:58:12+01:00"
+    # Sent in UTC, in the one form tripl reads.
+    assert context.pipeline_created_at == "2026-11-20T10:00:00+00:00"
+    assert context.committed_at == "2026-11-20T08:58:12+00:00"
     # A value that is no timestamp orders nothing, and is not sent.
     unreadable = ci_context({**GITLAB, "CI_PIPELINE_CREATED_AT": "yesterday"})
     assert unreadable.pipeline_created_at is None
     assert ci_context(GITLAB).committed_at is None
+
+
+@pytest.mark.parametrize(
+    ("given", "sent"),
+    [
+        # Python reads these, tripl's API would not: each goes as RFC 3339.
+        ("2026-11-26T10:00:00+05", "2026-11-26T05:00:00+00:00"),
+        ("2026-11-26 10:00:00 +0000", "2026-11-26T10:00:00+00:00"),
+        ("2026-11-26T10", "2026-11-26T10:00:00"),
+        ("20261126T100000Z", "2026-11-26T10:00:00+00:00"),
+        ("2026-11-26", "2026-11-26T00:00:00"),
+        ("2026-11-26T10:00:00.123456-02:30", "2026-11-26T12:30:00.123456+00:00"),
+    ],
+)
+def test_a_timestamp_is_sent_in_the_form_tripl_reads(given: str, sent: str) -> None:
+    context = ci_context({**GITLAB, "CI_COMMIT_TIMESTAMP": given})
+    assert context.committed_at == sent
 
 
 def test_github_sends_the_pushed_commit_s_timestamp(tmp_path: Path) -> None:
@@ -522,7 +594,7 @@ def test_github_sends_the_pushed_commit_s_timestamp(tmp_path: Path) -> None:
         GITHUB_REF_NAME="main",
     )
     context = ci_context(env)
-    assert context.committed_at == "2026-11-20T09:58:12-05:00"
+    assert context.committed_at == "2026-11-20T14:58:12+00:00"
     assert context.pipeline_created_at is None
 
 
@@ -539,8 +611,8 @@ def test_the_times_go_in_the_body(
     assert main(["check", "--upload"]) == 0
     body = json.loads(uploads.calls.last.request.content)
     assert (body["pipeline_created_at"], body["committed_at"]) == (
-        "2026-11-20T10:00:00Z",
-        "2026-11-20T09:58:12Z",
+        "2026-11-20T10:00:00+00:00",
+        "2026-11-20T09:58:12+00:00",
     )
 
 

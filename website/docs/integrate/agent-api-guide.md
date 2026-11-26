@@ -2348,10 +2348,12 @@ curl -s -X POST "$TRIPL_URL/api/v1/projects/demo/check-runs" \
   are in use. A `read` key gets `403`.
 - **One run per request,** at most 5,000 calls. `repository` is what the CI
   calls the repository (`CI_PROJECT_PATH`, `GITHUB_REPOSITORY`); one project
-  can be checked from several. `check_root` (default `.`) is the directory the
-  check scanned, relative to the repository root, so several apps of one
-  repository are told apart; `apps/ios/` and `./apps/ios` are one directory,
-  and an absolute path or one leaving the repository is `422`.
+  can be checked from several. `check_root` (default `.`) names the check
+  within the repository, relative to its root, so several apps of one
+  repository are told apart: `tripl check` sends the directory it scanned, or
+  the check config's own path when the config is not that directory's
+  `.tripl/check.yml`. `apps/ios/` and `./apps/ios` are one directory, and an
+  absolute path or one leaving the repository is `422`.
   `repository_url` and `pipeline_url` must be `http(s)` URLs. `commit_sha` is
   hex.
 - **The default branch decides what the run is for.** A run whose `ref` equals
@@ -2388,7 +2390,9 @@ Two reads, for any project member:
 
 - `GET /projects/{slug}/check-runs?repository=&check_root=&default_branch=&limit=&offset=`:
   the runs, newest first (by upload), as `{items, total}`. `default_branch=true`
-  keeps the default-branch runs only.
+  keeps the default-branch runs only. `check_root` is normalized as an upload's
+  is (`apps/ios/` finds the runs of `apps/ios`), and an absolute path or one
+  leaving the repository is `422`.
 - `GET /projects/{slug}/events/{event_id}/code-usage`: per repository and check
   directory that has a current run, `{repository, check_root, repository_url,
   run, calls}`, where `calls` are that run's calls of the event (`path`,

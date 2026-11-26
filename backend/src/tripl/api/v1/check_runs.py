@@ -22,6 +22,7 @@ from fastapi import APIRouter, Query
 
 from tripl.api.deps import CheckUploadUserDep, SessionDep
 from tripl.schemas.check_run import (
+    CheckRootFilter,
     CheckRunCreate,
     CheckRunListResponse,
     CheckRunResponse,
@@ -64,7 +65,7 @@ async def list_check_runs(
         Query(max_length=255, description="Only the runs of this repository."),
     ] = None,
     check_root: Annotated[
-        FreeTextFilter | None,
+        CheckRootFilter | None,
         Query(
             max_length=1000,
             description="Only the runs of this check directory (`.` for the repository root).",

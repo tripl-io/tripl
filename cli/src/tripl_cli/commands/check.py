@@ -962,17 +962,25 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             project,
             report,
             ci,
-            check_root=upload_mod.check_directory(scan_root, repo_root),
+            check_root=upload_mod.check_directory(
+                scan_root, repo_root, check_config.path if check_config is not None else None
+            ),
             timeout=args.timeout,
         )
         report = replace(report, upload=recorded)
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.
     # The baseline last, so a run that fails writing a report leaves it alone.
-    for report_format, path in targets:
-        _write(path, _render(report_format, report, scan_root))
-    if written is not None:
-        _write(Path(written[0]), written[1], what="baseline")
+    try:
+        for report_format, path in targets:
+            _write(path, _render(report_format, report, scan_root))
+        if written is not None:
+            _write(Path(written[0]), written[1], what="baseline")
+    except TriplError:
+        # tripl has the run already: say so before the error that ends it.
+        if uploaded is not None:
+            _emit(uploaded, sys.stderr, primary=False)
+        raise
     human = sys.stdout if output == FORMAT_TEXT else sys.stderr
     source = config.sources.get("base_url", "unknown")
     lines = [render_header("check", context.base_url, source), ""]

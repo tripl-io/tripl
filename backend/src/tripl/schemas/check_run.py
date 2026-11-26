@@ -13,12 +13,13 @@ from __future__ import annotations
 import posixpath
 import uuid
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator
 
 from tripl.schemas.plan_validation import MAX_VALIDATION_ITEMS
+from tripl.schemas.text_filters import strip_nul_bytes
 
 #: The most calls one upload may carry: one validate request's worth.
 MAX_CHECK_RUN_CALLS = MAX_VALIDATION_ITEMS
@@ -46,7 +47,7 @@ def _http_url(value: str | None) -> str | None:
 
 
 def check_root(value: str | None) -> str:
-    """A directory relative to the repository root, normalized; ``.`` for the root itself.
+    """A path relative to the repository root, normalized; ``.`` for the root itself.
 
     ``apps/ios/`` and ``./apps/ios`` are one directory, so they key one
     snapshot. An absolute path, or one that leaves the repository, is refused.
@@ -60,6 +61,12 @@ def check_root(value: str | None) -> str:
     if normalized == ".." or normalized.startswith("../"):
         raise ValueError("must be inside the repository")
     return normalized
+
+
+#: The history's ``?check_root=`` filter: normalized as an upload's is, so
+#: ``apps/ios/`` finds the runs stored as ``apps/ios``, and a directory no
+#: upload could name is a 422, not an empty page.
+CheckRootFilter = Annotated[str, BeforeValidator(strip_nul_bytes), AfterValidator(check_root)]
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -100,10 +107,12 @@ class CheckRunCreate(BaseModel):
     # What the CI system calls the repository: GitLab's CI_PROJECT_PATH,
     # GitHub's GITHUB_REPOSITORY.
     repository: str = Field(min_length=1, max_length=255)
-    # The directory the check scanned, relative to the repository root (the
-    # check config's ``root``); ``.`` for the root. "Used in code" keeps one run
-    # per repository and check directory, so several apps checked in one
-    # repository keep a snapshot each.
+    # What names the check in the repository, relative to its root: the
+    # directory the check scanned (the check config's ``root``; ``.`` for the
+    # root), or the check config's own path when it is not that directory's
+    # ``.tripl/check.yml``. "Used in code" keeps one run per repository and
+    # check directory, so several apps checked in one repository keep a
+    # snapshot each.
     check_root: str = Field(default=REPOSITORY_ROOT, max_length=CHECK_ROOT_MAX_LENGTH)
     repository_url: str | None = Field(default=None, max_length=URL_MAX_LENGTH)
     commit_sha: str = Field(min_length=4, max_length=64, pattern=r"^[0-9a-fA-F]+$")

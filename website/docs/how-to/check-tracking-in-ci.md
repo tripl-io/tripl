@@ -471,8 +471,11 @@ and every other run goes to the check history. See
    does a retried old pipeline that finishes last: a default-branch run older
    than the current one goes to the history.
 4. **Several apps in one repository.** Give each app its own check config and
-   job. Each keeps its own "used in code", told apart by its check directory
-   (the config's `root` relative to the repository root).
+   job. Each keeps its own "used in code", told apart by its check directory:
+   the directory a config scans (its `root`, relative to the repository root)
+   when the config is that directory's own `.tripl/check.yml`, else the config
+   file's own path (`ci/web.yml`), so two configs that scan one directory with
+   different `sources` keep one each too.
 
 The upload never changes the exit code; with `--json`, the document's `upload`
 key says whether it was recorded (`ok`, `error`). It is refused (exit 2) with `--branch` and with a pinned plan revision:

@@ -1,8 +1,8 @@
 """Uploaded ``tripl check`` runs: record one, list the history, and "used in code" for an event.
 
 The rule the whole module keeps: per project, repository and check directory
-(``check_root``, the directory the check scanned, so several apps in one
-repository keep a snapshot each), at most one run is *current*, the newest run
+(``check_root``, the directory the check scanned or its config's path, so
+several apps in one repository keep a snapshot each), at most one run is *current*, the newest run
 on that repository's default branch, and only a current run keeps its calls.
 Recording a default-branch run makes it the current one and deletes the calls
 of the run it replaces, in the same transaction, so "used in code" is always

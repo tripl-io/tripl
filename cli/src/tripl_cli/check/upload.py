@@ -18,9 +18,11 @@ whose payload names no repository, runs on the default branch by GitHub's own
 rule. ``--default-branch`` overrides either. With none known, the run goes to
 the history only.
 
-tripl keeps one such snapshot per repository and check directory: the check
-config's ``root`` relative to the repository root (``.`` for the root), so
-several apps checked in one repository keep one each. And it keeps the newest:
+tripl keeps one such snapshot per repository and check directory, so several
+apps checked in one repository keep one each: the check config's ``root``
+relative to the repository root (``.`` for the root) when the config is that
+directory's own ``.tripl/check.yml``, else the config file's own path, so two
+configs that scan one directory keep one each too. And it keeps the newest:
 the pipeline's creation time (GitLab's ``CI_PIPELINE_CREATED_AT``) and the
 commit's timestamp (GitLab's ``CI_COMMIT_TIMESTAMP``, the pushed commit's
 ``timestamp`` in a GitHub push payload) go with the run, and a default-branch
@@ -32,11 +34,12 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from tripl_cli.api import check_runs as api
+from tripl_cli.check.config import CONFIG_DIR, CONFIG_NAMES
 from tripl_cli.check.model import CheckReport, CheckResult, UploadOutcome
 from tripl_cli.errors import TriplConfigError
 from tripl_cli.model import JsonDict
@@ -199,26 +202,51 @@ def ci_context(env: Mapping[str, str], *, default_branch: str | None = None) -> 
 
 
 def _timestamp(value: str | None) -> str | None:
-    """An ISO 8601 timestamp as given, or None: one tripl could not read orders nothing."""
+    """An ISO 8601 timestamp as RFC 3339, in UTC when it has an offset; None when unreadable.
+
+    Python reads more ISO 8601 spellings than tripl's API does (``+05``, a
+    basic ``20261126T100000Z``, an hour alone), so the value is rewritten, not
+    passed on: one the API refused would fail the whole upload. One with no
+    offset stays without, and tripl reads it as UTC. One that cannot be read
+    orders nothing, and is not sent.
+    """
     if value is None:
         return None
     try:
-        datetime.fromisoformat(value)
-    except ValueError:
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(UTC)
+    except (ValueError, OverflowError):
         return None
-    return value
+    return parsed.isoformat()
 
 
-def check_directory(scan_root: Path | None, repo_root: Path | None) -> str:
-    """The directory the check scanned, relative to the repository root, POSIX style.
+def check_directory(
+    scan_root: Path | None, repo_root: Path | None, config_path: Path | None = None
+) -> str:
+    """What names this check in its repository, POSIX style, relative to the repository root.
 
-    ``.`` for the repository root itself, and when either is unknown or the
-    scan root is outside the repository: one snapshot for the whole repository.
+    The directory the check scanned (``.`` for the repository root) when the
+    config is that directory's own ``.tripl/check.yml``, or there is no config
+    file. A config kept anywhere else (``ci/web.yml``, ``.tripl/web.yml``) is
+    named by its own path: two configs that scan one directory with different
+    ``sources`` check different code, and each keeps its own snapshot.
+
+    ``.`` when the repository is unknown, and when what names the check is
+    outside it: one snapshot for the whole repository.
     """
     if scan_root is None or repo_root is None:
         return REPOSITORY_ROOT
+    repository = repo_root.resolve()
+    scanned = scan_root.resolve()
+    named = scanned
+    if config_path is not None:
+        config = config_path.resolve()
+        own = config.parent == scanned / CONFIG_DIR and config.name in CONFIG_NAMES
+        if not own and config.is_relative_to(repository):
+            named = config
     try:
-        relative = scan_root.resolve().relative_to(repo_root.resolve())
+        relative = named.relative_to(repository)
     except ValueError:
         return REPOSITORY_ROOT
     directory = relative.as_posix()

@@ -1367,7 +1367,9 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   (`pull_request`, `pull_request_target`, `merge_group`) in GitHub Actions.
   When the run was made comes from `CI_PIPELINE_CREATED_AT` and
   `CI_COMMIT_TIMESTAMP` in GitLab, and from the pushed commit's
-  `head_commit.timestamp` in a GitHub push payload.
+  `head_commit.timestamp` in a GitHub push payload; each is sent in RFC 3339
+  form (in UTC when it has an offset), and one that is not a timestamp is not
+  sent.
   Anywhere else it is refused (exit 2) before anything is scanned or sent.
 - **The default branch decides what the run is for.** A run on the
   repository's default branch becomes its *current* run: each call it found,
@@ -1389,10 +1391,14 @@ tripl check --upload --report codequality=gl-code-quality-report.json
 - **One snapshot per repository and check directory.** A project checked from
   several repositories (iOS, Android, web) keeps one current run for each. In a
   repository holding several apps, each checked with its own check config, the
-  check directory (the config's `root`, by default the directory holding
-  `.tripl/`, relative to the repository root) tells them apart: each keeps its
-  own snapshot, and "used in code" lists them one by one. A check of the whole
-  repository is directory `.`.
+  check directory tells them apart: each keeps its own snapshot, and "used in
+  code" lists them one by one. It is the directory the config scans (its
+  `root`, by default the directory holding `.tripl/`, relative to the
+  repository root) when the config is that directory's own `.tripl/check.yml`;
+  a config kept anywhere else (`ci/web.yml`, `.tripl/web.yml`) is named by its
+  own path instead, so two configs that scan one directory with different
+  `sources` keep a snapshot each. A check of the whole repository is directory
+  `.`.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
   flag or from the check config (`--revision live` is fine), and with
