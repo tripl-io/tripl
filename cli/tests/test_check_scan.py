@@ -2844,6 +2844,246 @@ def test_unmatched_groups_sort_constants_first_then_by_calls(tmp_path: Path) -> 
     ]
 
 
+# App code a TypeScript repository names after its events and trackers, none of
+# it tracking: query keys, hooks, setters, getters, factories, renderers, list
+# keys, testing-library's events and a bare `event(…)` test helper.
+TS_APP_CODE_NAMED_AFTER_EVENTS = """
+    eventTypesKey(slug);
+    projectEventsKey(slug, branch);
+    eventHref(id);
+    useEventRoster({});
+    useProjectEventStream(slug);
+    setEvent(value);
+    setSelectedEventIds(ids);
+    getEventMetrics(slug);
+    isProjectEventType(type);
+    hasEventTarget(row);
+    makeEvent({});
+    renderEventsPage([]);
+    screenEvent(id);
+    events(3);
+    event({ name: "x" });
+    getTrackers(org);
+    updateTrackers(org, trackers);
+    trackerFieldError(field, value);
+    setTrackerOpen(true);
+    withTrackerEdit(state);
+    trackBy(index, item);
+    trackById(index, item);
+    trackByFn(index, item);
+    TrackBy(index, item);
+    useTrackBy(index);
+    pageEvents(slug);
+    useAnalyticsTab(tab);
+    fireEvent(button, click);
+    fireEvent.click(button);
+    calendar.addEvent({ title });
+    bus.emitEvent("saved");
+    pc.addTrack(track, stream);
+"""
+
+
+def test_typescript_name_signal_leaves_out_app_code_named_after_events(tmp_path: Path) -> None:
+    root = _repo(tmp_path, {"web/app.tsx": TS_APP_CODE_NAMED_AFTER_EVENTS})
+    found = inventory(_config(root, "project: demo\n"))
+    assert found.unmatched == ()
+
+
+def test_typescript_name_signal_keeps_tracking_calls(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/track.ts": """
+                track("Signed Up");
+                trackEvent("signup");
+                trackPageView({});
+                trackStructEvent({});
+                trackSelfDescribingEvent({});
+                track_pageview({});
+                trackingPixel("home");
+                TrackEvent("x");
+                logEvent(analytics, "signup");
+                logCustomEvent("x");
+                sendEvent("x");
+                sendEvents([]);
+                recordEvent("x");
+                reportEvent("x");
+                captureEvent({});
+                log_event("x");
+                capture("x");
+                screen("home");
+                logScreenView({});
+                logPurchase({});
+                gtag.event("login", {});
+                ReactGA.event({ category: "x" });
+                event({ name: "fixture" });
+                Countly.add_event({ key: "x" });
+                useTrackEvent("x");
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    assert sorted((group.method, group.signal) for group in found.unmatched) == sorted(
+        (method, "name")
+        for method in (
+            "track",
+            "trackEvent",
+            "trackPageView",
+            "trackStructEvent",
+            "trackSelfDescribingEvent",
+            "track_pageview",
+            "trackingPixel",
+            "TrackEvent",
+            "logEvent",
+            "logCustomEvent",
+            "sendEvent",
+            "sendEvents",
+            "recordEvent",
+            "reportEvent",
+            "captureEvent",
+            "log_event",
+            "capture",
+            "screen",
+            "logScreenView",
+            "logPurchase",
+            "event",
+            "add_event",
+            "useTrackEvent",
+        )
+    )
+    # `gtag.event` and `ReactGA.event` are one group; a bare `event(…)` is not in it.
+    [event] = [group for group in found.unmatched if group.method == "event"]
+    assert dict(event.receivers) == {"gtag": 1, "ReactGA": 1}
+
+
+def test_typescript_tracking_receivers_are_still_listed(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/app.ts": """
+                tracker.sendOpen(screen);
+                analytics.logOpen(screen);
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # Their names say nothing, but a tracking vendor's receiver calls a tracking verb.
+    assert sorted((group.method, group.signal) for group in found.unmatched) == [
+        ("logOpen", "receiver"),
+        ("sendOpen", "receiver"),
+    ]
+
+
+def test_typescript_wrappers_named_after_their_sdk_are_listed(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/wrappers.ts": """
+                amplitudeLogEvent("signup", {});
+                firebaseLogEvent("x", {});
+                gaEvent("cat", "act");
+                gtagEvent("login", {});
+                mixpanelTrack("x", {});
+                segmentTrack("x", {});
+                analyticsTrack("x", {});
+                fbqTrack("Purchase", {});
+                useMixpanelTrack("x");
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # No receiver to name the SDK: the name's first word does, and a later
+    # `track` or `event` word says what it does with it.
+    assert sorted((group.method, group.signal) for group in found.unmatched) == sorted(
+        (method, "name")
+        for method in (
+            "amplitudeLogEvent",
+            "firebaseLogEvent",
+            "gaEvent",
+            "gtagEvent",
+            "mixpanelTrack",
+            "segmentTrack",
+            "analyticsTrack",
+            "fbqTrack",
+            "useMixpanelTrack",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "vue-gtag";',
+        'import { config, event } from "@/lib/gtag";',
+        'import ReactGA, { event } from "react-ga";',
+        'const { event } = require("./analytics");',
+    ],
+)
+def test_a_bare_event_a_tracking_module_exports_is_listed(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert [(group.method, group.signal, group.calls) for group in found.unmatched] == [
+        ("event", "name", 1)
+    ]
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "./factories";',
+        'import { track as event } from "vue-gtag";',
+        "",
+    ],
+)
+def test_a_bare_event_from_elsewhere_is_left_out(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert found.unmatched == ()
+
+
+def test_a_typescript_hook_is_read_without_its_use(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/hooks.ts": """
+                useScreenView("home");
+                useLogScreenView("home");
+                useTrackEvent("x");
+                useTrackBy(index);
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # The five fixed names hold for a hook too, and so does the `trackBy` exclusion.
+    assert sorted(group.method for group in found.unmatched) == [
+        "useLogScreenView",
+        "useScreenView",
+        "useTrackEvent",
+    ]
+
+
+def test_name_signal_is_unchanged_outside_typescript(tmp_path: Path) -> None:
+    # The same names in Kotlin are listed as before: the narrower rule is
+    # TypeScript's and JavaScript's.
+    kotlin = "\n".join(
+        line.rstrip(";") for line in TS_APP_CODE_NAMED_AFTER_EVENTS.splitlines() if line.strip()
+    )
+    root = _repo(tmp_path, {"app/App.kt": f"fun app() {{\n{kotlin}\n}}\n"})
+    found = inventory(_config(root, "project: demo\n"))
+    methods = {group.method for group in found.unmatched if group.signal == "name"}
+    assert {
+        "eventTypesKey",
+        "useEventRoster",
+        "setEvent",
+        "getTrackers",
+        "trackerFieldError",
+        "trackBy",
+        "fireEvent",
+        "addEvent",
+        "event",
+    } <= methods
+
+
 def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Path) -> None:
     root = _repo(
         tmp_path,

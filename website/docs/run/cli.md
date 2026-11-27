@@ -4920,11 +4920,15 @@ The last two are about the target, not a value:
 The signals: `constant` (an argument is an event-name constant, a path through a
 segment named like `Events` that reads as text), `name` (the method's name says
 so: it contains `event`, has a word starting with `track`, or is `capture`,
-`screen`, `screenView`, `logScreenView` or `logPurchase`) and `receiver` (a
-tracking vendor's receiver, such as `analytics` or `firebase`, calls a tracking
-verb such as `log`, `track` or `send`). The guide's
+`screen`, `screenView`, `logScreenView` or `logPurchase`; in TypeScript and
+JavaScript the rule is narrower: besides those five names, the main cases are
+`track` or `tracking` as the first word, an `event` word behind a first word
+such as `log` or `send`, and `event` called on a receiver such as `gtag`) and
+`receiver` (a tracking vendor's receiver, such as `analytics` or `firebase`,
+calls a tracking verb such as `log`, `track` or `send`). The guide's
 [Calls that look like tracking](../integrate/tripl-check.md#list-tracking-like)
-names the methods that never give `constant` and the event plumbing left out.
+has the whole TypeScript and JavaScript `name` rule, the methods that never
+give `constant` and the event plumbing left out.
 
 ### `install` document
 
