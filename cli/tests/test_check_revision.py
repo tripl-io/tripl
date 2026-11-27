@@ -97,6 +97,7 @@ def test_an_instance_that_ignores_the_revision_fails_the_run(
     ("flags", "reason"),
     [
         (["--revision", "latest"], "is not a plan revision id: 'latest'"),
+        (["--revision", "latest"], "`tripl plan revisions` and its History page list them"),
         (
             ["--revision", REVISION, "--branch", "checkout-redesign"],
             "a run checks against one plan",

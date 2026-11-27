@@ -133,6 +133,12 @@ _OPENAPI_TAGS = [
         "description": "Check tracking calls or captured payloads against the plan (tripl check).",
     },
     {
+        "name": "check-runs",
+        "description": (
+            "Uploaded tripl check runs: the history, and where the code sends each event."
+        ),
+    },
+    {
         "name": "plan-export",
         "description": "Export the plan as JSON Schema or as a model for tripl codegen.",
     },

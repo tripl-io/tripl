@@ -122,6 +122,15 @@ keys give those templates what they need::
     value, so there it has no effect. ``tripl check`` ignores it (it is not a
     plan field); ``field:value`` still
     addresses a plan field called ``value``.
+
+An optional top-level ``lint`` block turns on checks of names and keys that
+need no plan (``lint.py``); without it nothing is linted::
+
+    lint:
+      characters: true           # non-ASCII, whitespace or a quote (default true)
+      duplicates: true           # two constants of one object, one value (default true)
+      name_pattern: "[a-z][a-z0-9_]*"   # optional; must match a whole event name
+      key_pattern: "[a-z][a-z0-9_]*"    # optional; must match a whole field or property key
 """
 
 from __future__ import annotations
@@ -186,8 +195,10 @@ _TOP_KEYS = frozenset(
         "enums",
         "event_types",
         "codegen",
+        "lint",
     }
 )
+_LINT_KEYS = frozenset({"characters", "duplicates", "name_pattern", "key_pattern"})
 _TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map", "codegen"})
 _CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package", "vars"})
 _CODEGEN_KEYS = frozenset(
@@ -389,6 +400,22 @@ class EnumSource:
 
 
 @dataclass(frozen=True)
+class LintConfig:
+    """The plan-independent lint of names and keys (``lint.py``).
+
+    On only when the check config has a ``lint:`` section; a bare ``lint:``
+    turns on both rules that need no setting. Each pattern must match a whole
+    event name (``name_pattern``) or a whole field or property key
+    (``key_pattern``).
+    """
+
+    characters: bool = True
+    duplicates: bool = True
+    name_pattern: re.Pattern[str] | None = None
+    key_pattern: re.Pattern[str] | None = None
+
+
+@dataclass(frozen=True)
 class CheckConfig:
     path: Path | None
     root: Path
@@ -402,6 +429,8 @@ class CheckConfig:
     enums: tuple[EnumSource, ...] = ()
     event_types: tuple[EventTypeSpec, ...] = ()
     codegen: CodegenDefaults = field(default_factory=CodegenDefaults)
+    # None when the config has no `lint:` section: the lint is opt-in.
+    lint: LintConfig | None = None
 
 
 def default_target(label: str) -> str:
@@ -568,6 +597,33 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
         enums=tuple(enums),
         event_types=tuple(event_types),
         codegen=parse_codegen_defaults(top.get("codegen"), f"{where}: codegen", base=root),
+        lint=parse_lint(top["lint"], f"{where}: lint") if "lint" in top else None,
+    )
+
+
+def parse_lint(raw: Any, where: str) -> LintConfig:
+    """A ``lint:`` section; bare (``lint:``) or empty, it turns on the two rules with no setting."""
+    body = _mapping(raw if raw is not None else {}, where)
+    _known(body, _LINT_KEYS, where)
+    switches: dict[str, bool] = {}
+    for key in ("characters", "duplicates"):
+        value = body.get(key, True)
+        if not isinstance(value, bool):
+            raise TriplConfigError(f"{where}.{key}: expected true or false, got {value!r}.")
+        switches[key] = value
+    return LintConfig(
+        characters=switches["characters"],
+        duplicates=switches["duplicates"],
+        name_pattern=(
+            None
+            if body.get("name_pattern") is None
+            else _regex(body["name_pattern"], f"{where}.name_pattern")
+        ),
+        key_pattern=(
+            None
+            if body.get("key_pattern") is None
+            else _regex(body["key_pattern"], f"{where}.key_pattern")
+        ),
     )
 
 

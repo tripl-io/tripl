@@ -17,6 +17,10 @@
 - prune scan previews and dry runs (``scan_preview_jobs``,
   ``scan_dry_run_jobs``) after ``SCAN_PREVIEW_RETENTION_DAYS``: each is an
   answer the scan form polls for once, and nothing deleted them before.
+- prune uploaded ``tripl check`` runs (``check_runs``) after
+  ``CHECK_RUN_RETENTION_DAYS``, except the latest default-branch run of each
+  repository, which "used in code" on an event shows until a newer one
+  replaces it.
 - delete photo blobs no ``event_photos`` row references. Inline deletion alone
   leaks them: an event, project or branch delete removes photo rows by FK
   cascade without a storage call, and two concurrent ``delete_photo`` calls can
@@ -47,6 +51,7 @@ from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.scan_preview_job import ScanPreviewJob
 from tripl.models.schema_drift import SchemaDrift
+from tripl.services import check_run_service
 from tripl.services.active_org_scope import in_active_org
 from tripl.services.event_photo_service import PHOTO_KEY_PREFIX
 from tripl.services.photo_storage_service import (
@@ -143,6 +148,22 @@ def cleanup_scan_jobs() -> dict[str, object]:
             "previews_deleted": previews_deleted,
             "dry_runs_deleted": dry_runs_deleted,
         }
+    finally:
+        session.close()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="tripl.worker.tasks.maintenance.cleanup_check_runs",
+)
+def cleanup_check_runs() -> dict[str, object]:
+    """Delete uploaded check runs past retention; a repository's current run stays."""
+    cutoff = datetime.now(UTC) - timedelta(days=settings.check_run_retention_days)
+    session = _get_sync_session()
+    try:
+        deleted = check_run_service.prune_runs(session, cutoff)
+        session.commit()
+        logger.info("Pruned %d check_runs rows older than %s", deleted, cutoff.isoformat())
+        return {"deleted": deleted, "cutoff": cutoff.isoformat()}
     finally:
         session.close()
 

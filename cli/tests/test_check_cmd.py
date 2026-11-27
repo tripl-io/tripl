@@ -740,6 +740,23 @@ def test_an_empty_capture_file_is_fine_with_allow_empty(
     assert not validator.called
 
 
+def test_a_missing_capture_file_is_exit_2_even_with_allow_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A test run that never wrote its file (it crashed, or wrote it elsewhere)
+    # is not a run that sent nothing: --allow-empty passes an empty file only.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    argv = ["check", "--payloads", "events.ndjson", "--project", "demo", "--allow-empty"]
+    assert main(argv) == 2
+    assert "--payloads: events.ndjson does not exist." in capsys.readouterr().err
+    assert not validator.called
+
+
 def test_a_file_the_scan_did_not_read_is_reported(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1096,6 +1113,7 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "truncated": bool,
     "files_scanned": int,
     "skipped": list,
+    "lint": bool,
     "summary": dict,
     "calls": list,
     "forwarders": list,
@@ -1134,9 +1152,20 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         },
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
+        "lint": {},
     }
+    assert document["lint"] is False  # the config has no `lint:` section
     forwarding, formatted, shaped, sent = document["calls"]
-    assert set(forwarding) == {"location", "snippet", "event_type", "read", "dynamic", "items"}
+    assert set(forwarding) == {
+        "location",
+        "snippet",
+        "event_type",
+        "read",
+        "dynamic",
+        "items",
+        "lint",
+    }
+    assert all(call["lint"] == [] for call in document["calls"])
     assert forwarding["location"] == {
         "path": "app/Screen.kt",
         "line": 3,
@@ -1181,8 +1210,20 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "function": "logEvent",
         "location": {"path": "app/Screen.kt", "line": 2},
         "parameters": [
-            {"name": "event", "index": 0, "label": "event", "targets": ["name"]},
-            {"name": "params", "index": 1, "label": "params", "targets": ["properties"]},
+            {
+                "name": "event",
+                "index": 0,
+                "label": "event",
+                "targets": ["name"],
+                "object_argument": False,
+            },
+            {
+                "name": "params",
+                "index": 1,
+                "label": "params",
+                "targets": ["properties"],
+                "object_argument": False,
+            },
         ],
         "calls": 1,
         # By name, its own body left out: the call it forwards to is no caller.
@@ -1566,7 +1607,8 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "app/A.kt:3:5  st  tracker.trackStructured\n"
         "    name: not passed\n"
         "web/t.ts:2:3  se  trackStructEvent\n"
-        "    name: not passed, object argument evt is not a literal\n"
+        "    name: not passed, object argument evt is not a literal: "
+        "parameter evt of send (line 1)\n"
         "web/t.ts:5:3  se  trackStructEvent  category=checkout action=tap\n"
         "web/t.ts:6:3  se  trackStructEvent\n"
         "    name: not passed\n"
@@ -1582,10 +1624,18 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
         "(no argument or object key the spec maps to one, only null ones, or an object "
         "argument that is not a literal)\n"
         "\n"
+        # Both functions pass their own parameter on as the object argument,
+        # the second into a call whose name is read.
+        "Functions that forward their own parameter into a tracking call "
+        "(add a call spec for each, so their calls are read):\n"
+        "  opened  web/t.ts:8  forwards props (#0) as the object argument  no calls found\n"
+        "  send    web/t.ts:1  forwards evt (#0) as the object argument    no calls found\n"
+        "\n"
         "Calls that look like tracking but match no call spec: none.\n"
     )
     assert main(["check", "--list", "--json"]) == 0
-    calls = json.loads(capsys.readouterr().out)["calls"]
+    document = json.loads(capsys.readouterr().out)
+    calls = document["calls"]
     assert [call["dynamic"] for call in calls] == [
         {"name": "not_passed"},
         {"name": "not_passed"},
@@ -1596,22 +1646,42 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     ]
     # The document names the object argument the text does: one the scan could
     # not read. A literal one, or null, is no such argument. It names one on a
-    # call whose name is read too, where the text says nothing of it.
+    # call whose name is read too, where the text has no reason line for it.
+    # Its reason is refined from the function around the call.
     unread = {
         "kind": "dynamic",
         "text": None,
         "choices": [],
         "entries": None,
-        "reason": "variable",
-        "declared": None,
+        "reason": "parameter",
     }
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt"},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
         None,
         None,
-        {**unread, "expression": "props"},
+        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+    ]
+    assert [
+        (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
+    ] == [
+        (
+            "opened",
+            [
+                {
+                    "name": "props",
+                    "index": 0,
+                    "label": None,
+                    "targets": [],
+                    "object_argument": True,
+                }
+            ],
+        ),
+        (
+            "send",
+            [{"name": "evt", "index": 0, "label": None, "targets": [], "object_argument": True}],
+        ),
     ]
 
 
@@ -1880,6 +1950,10 @@ def test_list_json_items_are_within_the_validator_s_limits(
         ([], "--report writes a check's verdicts, and --list checks nothing"),
         (["--branch", "redesign"], "--branch names the plan branch to check against"),
         (["--strict"], "--strict changes what fails a check, and --list checks nothing"),
+        (
+            ["--strict-suppressions"],
+            "--strict-suppressions fails a check on its markers, and --list checks nothing",
+        ),
         (["--allow-empty"], "--list never fails because nothing matched; drop --allow-empty."),
         (["--format", "sarif"], "--list prints text or JSON, not sarif; drop --format sarif."),
         (["--format", "codequality"], "--list prints text or JSON, not codequality"),
@@ -2360,6 +2434,149 @@ def test_an_unused_marker_is_listed_and_never_fails(
             "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
             "matched no finding."
         ) in out
+
+
+# A call the plan has, under a marker that therefore waives nothing.
+STALE = (
+    "func o() {\n"
+    "    // tripl-check-ignore[unknown_event] -- the call below was fixed\n"
+    '    Analytics.shared.logEvent("trial_started")\n'
+    "}\n"
+)
+
+
+def test_strict_suppressions_fails_a_clean_run_on_an_unused_marker(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check"]) == 0
+    assert "fail the run" not in capsys.readouterr().out
+    assert main(["check", "--strict-suppressions"]) == 1
+    out = capsys.readouterr().out
+    assert out.rstrip().endswith(
+        "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
+        "matched no finding.\n"
+        "1 suppression marker fails the run (--strict-suppressions)."
+    )
+
+
+def test_strict_suppressions_fails_on_a_malformed_marker_whatever_it_covers(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Above no call at all, and with no reason: nothing fails but the marker.
+    _write(repo, {"Sources/Note.swift": "// tripl-check-ignore[unknown_event]\nfunc n() {}\n"})
+    assert main(["check"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run (--strict-suppressions)." in capsys.readouterr().out
+
+
+def test_strict_suppressions_passes_a_marker_that_did_its_job(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, _debug("// tripl-check-ignore[unknown_event] -- debug menu only"))
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["summary"]["failing_suppressions"] == 0
+    assert [entry["fails"] for entry in document["suppressions"]] == [False]
+
+
+def test_the_json_names_the_failing_markers_only_with_the_flag(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--json"]) == 0
+    plain = json.loads(capsys.readouterr().out)
+    assert "failing_suppressions" not in plain["summary"]
+    assert all("fails" not in entry for entry in plain["suppressions"])
+    assert main(["check", "--json", "--strict-suppressions"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["exit_code"] == 1
+    # `failing` counts calls, and no call fails: the marker is counted apart.
+    assert document["summary"]["failing"] == 0
+    assert document["summary"]["failing_suppressions"] == 1
+    [entry] = document["suppressions"]
+    assert (entry["used"], entry["fails"]) == (False, True)
+
+
+def test_a_dynamic_value_marker_is_not_unused_in_a_run_that_cannot_raise_it(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    marked = (
+        "func d(l: String) {\n"
+        "    // tripl-check-ignore[dynamic_value] -- the label is the screen name\n"
+        "    Analytics.shared.log(category: .home, action: .open, label: l)\n"
+        "}\n"
+    )
+    _write(repo, {"Sources/Dyn.swift": marked})
+    # --strict raises the finding and the marker waives it; without --strict
+    # the finding is not raised, so the marker is listed and does not fail.
+    assert main(["check", "--strict-suppressions"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Dyn.swift:2" in out
+    assert "fail the run" not in out
+    assert main(["check", "--strict", "--strict-suppressions", "--json"]) == 0
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (True, False)
+
+
+def test_strict_suppressions_does_not_fail_a_run_that_writes_a_baseline(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--strict-suppressions", "--write-baseline", "known.json"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Old.swift:2" in out
+    assert "fail the run (--strict-suppressions)" not in out
+    # The flag is ignored, so its JSON key is not there either.
+    argv = ["check", "--strict-suppressions", "--write-baseline", "known.json", "--json"]
+    assert main(argv) == 0
+    assert "failing_suppressions" not in json.loads(capsys.readouterr().out)["summary"]
+
+
+def test_strict_suppressions_fails_a_doc_comment_line_that_starts_with_the_keyword(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    example = (
+        "/// Waive a finding with a comment like this one:\n"
+        "/// tripl-check-ignore[unknown_event] -- debug menu only\n"
+        "func helper() {}\n"
+    )
+    _write(repo, {"Sources/Help.swift": example})
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "Unused suppression: Sources/Help.swift:2" in capsys.readouterr().out
+    # In backticks the line does not start with the keyword: not a marker.
+    _write(
+        repo,
+        {
+            "Sources/Help.swift": example.replace("/// tripl", "/// `tripl").replace(
+                "only\n", "only`\n"
+            )
+        },
+    )
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out).get("suppressions", []) == []
+
+
+def test_strict_suppressions_fails_an_allow_empty_run_on_a_marker_it_scanned(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources/Feed.swift").unlink()  # the fixture's only calls
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--allow-empty"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--allow-empty", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run" in capsys.readouterr().out
+
+
+def test_strict_suppressions_is_refused_with_payloads_before_any_request(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capture = repo / "capture.ndjson"
+    capture.write_text('{"event_type": "legacy", "name": "trial_started"}\n', encoding="utf-8")
+    assert main(["check", "--payloads", str(capture), "--strict-suppressions"]) == 2
+    assert "a captured event has no source to hold one" in capsys.readouterr().err
+    assert not validator.called
 
 
 def test_every_format_shows_the_suppression_from_one_run(

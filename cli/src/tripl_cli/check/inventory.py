@@ -4,9 +4,10 @@
 check config needs that rest. For every call the config matches: what was read
 for each target and, for a value that was not, why (``model.REASON_CODES``:
 the evaluator's reason, refined here from the function the call sits in). Then
-the functions that forward their own parameter into a tracking call, whose
-callers hold the value and want a call spec of their own; and the calls that
-look like tracking but match no call spec.
+the functions that forward their own parameter into a tracking call, as a
+target's value or as the object argument, whose callers hold the value and
+want a call spec of their own; and the calls that look like tracking but match
+no call spec.
 
 ``inventory()`` runs ``scan``'s own passes, so what it lists is what ``tripl
 check`` reads; and nothing here flows back into ``scan()``, so what ``tripl
@@ -22,7 +23,7 @@ from __future__ import annotations
 import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from tripl_cli.check.calls import Call
@@ -34,12 +35,15 @@ from tripl_cli.check.config import (
     CallSpec,
     CheckConfig,
     EventTypeSpec,
+    LintConfig,
     default_target,
     field_target,
     initialized_type,
     selector_field,
 )
+from tripl_cli.check.lint import lint_items
 from tripl_cli.check.model import (
+    LINT_CODES,
     REASON_LOCAL,
     REASON_NOT_PASSED,
     REASON_PARAMETER,
@@ -51,6 +55,7 @@ from tripl_cli.check.model import (
     SIGNAL_NAME,
     SIGNAL_RECEIVER,
     SIGNALS,
+    CheckFinding,
     CheckItem,
     Origin,
     SkippedFile,
@@ -132,8 +137,9 @@ class Read:
     # The labels, or `#index`, of the arguments the spec maps to no target.
     unmapped: tuple[str, ...] = ()
     # The object argument, when it is no literal the scan reads (a variable, a
-    # call): then none of its keys reached a target.
-    unread_object: Value | None = None
+    # call): then none of its keys reached a target. Its reason is refined
+    # like a target's, so a parameter passed on as the object names its function.
+    unread_object: ReadValue | None = None
 
     def targets(self) -> Iterator[tuple[str, ReadValue]]:
         """``(target, value)`` for the name, each field, then properties.
@@ -164,9 +170,19 @@ class ListedCall:
     # `(field, label)`: a field a labelled argument reached through the default
     # label mapping, because the call spec has no `args:`.
     default_label_fields: tuple[tuple[str, str], ...]
-    # What `tripl check` builds for this call, exactly as `scan()` does. The
-    # validator's size limits are applied later (`payloads.enforce_limits`).
+    # What `tripl check` builds for this call, exactly as `scan()` does, the
+    # lint's findings included. The validator's size limits are applied later
+    # (`payloads.enforce_limits`).
     items: tuple[CheckItem, ...]
+
+    @property
+    def lint(self) -> tuple[CheckFinding, ...]:
+        """The lint's findings on the call's items (``lint.py``), each once, in item order."""
+        return tuple(
+            dict.fromkeys(
+                note for item in self.items for note in item.notes if note.code in LINT_CODES
+            )
+        )
 
     @property
     def fully_read(self) -> bool:
@@ -199,12 +215,21 @@ class UnmatchedGroup:
 
 @dataclass(frozen=True)
 class ForwardedParameter:
-    """A parameter a forwarder passes on, and the targets it reaches there."""
+    """A parameter a forwarder passes on, and where it goes there.
+
+    ``targets`` are the targets it reaches as a value; ``object_argument``
+    says a tracking call takes it whole as its object argument, whose keys
+    are the targets. A parameter forwarded only that way has no ``targets``.
+    ``label`` is what a caller may write before the argument (Swift's
+    external label, the name itself in Kotlin): a call spec's ``object_arg``
+    reads an argument only when it is written without one.
+    """
 
     name: str
     index: int
     label: str | None
     targets: tuple[str, ...]
+    object_argument: bool = False
 
 
 @dataclass(frozen=True)
@@ -241,7 +266,8 @@ class Callers:
 class Forwarder:
     """A function whose own parameter is a value a matched call could not read.
 
-    The value is in its callers, so a call spec for this function reads them.
+    That value is a target's, or the call's whole object argument. It is in
+    the function's callers, so a call spec for this function reads them.
     ``function`` is the name they call it by: a Swift ``init``'s or a
     TypeScript ``constructor``'s is its type's (``ScreenView(screen:)`` or
     ``ScreenView.init(screen:)``, ``new PageView(…)``). ``location`` is its
@@ -273,6 +299,9 @@ class Inventory:
     skipped: tuple[SkippedFile, ...] = ()
     # Discovery stopped at `MAX_DISCOVERY_FILES` with source files left unread.
     truncated: bool = False
+    # The check config has a `lint:` section, so each call's items carry the
+    # lint's findings (`ListedCall.lint`).
+    linted: bool = False
 
 
 # --- the inventory ------------------------------------------------------------------
@@ -302,6 +331,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         # A call `find_calls` reports with a parameter list's end is that
         # declaration, with a body or without one.
         declarations = scopes.bodiless.union(scope.signature_end for scope in scopes.functions)
+        imported_event = found.source.language == "ts" and _ts_imports_tracking_event(found.text)
         offsets: list[int] = []
         matched_spans: list[tuple[int, int]] = []
         # This file's forwarders, by the name their callers write.
@@ -328,7 +358,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
                 if name in named:
                     named[name].add(bisect_left(offsets, call.offset), call, hit is not None)
             if hit is None and _candidate(call, spans, declarations):
-                signal = _signal(call, found.evaluator)
+                signal = _signal(call, found.evaluator, found.source.language, imported_event)
                 if signal is not None:
                     _group(groups, call, signal, found)
         for name, forwardings in here.items():
@@ -336,13 +366,28 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
                 forwarding.own = named[name].outside(forwarding.scopes, found)
     return Inventory(
         root=config.root,
-        calls=tuple(listed),
+        calls=_linted(listed, config.lint),
         unmatched=_unmatched(groups),
         forwarders=_forwarders(forwarders.values(), tallies, languages),
         files=len(tree.parsed),
         skipped=tree.skipped,
         truncated=truncated,
+        linted=config.lint is not None,
     )
+
+
+def _linted(listed: Sequence[ListedCall], lint: LintConfig | None) -> tuple[ListedCall, ...]:
+    """``listed`` with the lint run over every item at once, as ``scan()`` runs it."""
+    if lint is None:
+        return tuple(listed)
+    linted = lint_items([item for call in listed for item in call.items], lint, field_keys=False)
+    calls: list[ListedCall] = []
+    start = 0
+    for call in listed:
+        end = start + len(call.items)
+        calls.append(replace(call, items=tuple(linted[start:end])))
+        start = end
+    return tuple(calls)
 
 
 def _listed(
@@ -362,6 +407,7 @@ def _listed(
     collected = collect_call(call, spec, event_type, found.evaluator)
     items = tuple(call_items(collected, event_type.name, origin))
     fields = collected.fields or {}
+    unread = _unread_object(call, spec, found.evaluator)
     read = Read(
         name=None if collected.name is None else _refine(collected.name, scope, scopes, found, at),
         fields={key: _refine(value, scope, scopes, found, at) for key, value in fields.items()},
@@ -371,7 +417,7 @@ def _listed(
             else _refine(collected.properties, scope, scopes, found, at)
         ),
         unmapped=_unmapped(call, spec),
-        unread_object=_unread_object(call, spec, found.evaluator),
+        unread_object=None if unread is None else _refine(unread, scope, scopes, found, at),
     )
     return ListedCall(
         origin=origin,
@@ -389,17 +435,18 @@ def _refine(
     """``value``, with the scan's own reason when it is a variable its function explains.
 
     The parameter check comes first, so Swift's ``guard let event = event``
-    stays a parameter. A name of one segment that reads as a constant
-    (``kEvent``, ``EVENT``) is the parameter it names, whatever its case: a
-    parameter hides a constant of that name in the whole body. It is never a
-    local: locals are found without regard to blocks, so one of that name may
-    be out of scope at the call, and naming it would hide the advice a
-    constant gets (add its file to ``enums:`` or ``sources:``); a variable has
-    no advice to hide. Lambdas are no scopes: a lambda's own parameter stays a
-    ``variable`` unless the named function around it has one of that name.
+    stays a parameter. A path whose head reads as a constant (``kEvent``,
+    ``EVENT.name``) and names a parameter is that parameter, or a property of
+    it, whatever its case: a parameter hides a constant of that name in the
+    whole body. Such a head is never a local: locals are found without regard
+    to blocks, so one of that name may be out of scope at the call, and naming
+    it would hide the advice a constant gets (add its file to ``enums:`` or
+    ``sources:``); a variable has no advice to hide. Lambdas are no scopes: a
+    lambda's own parameter stays a ``variable`` unless the named function
+    around it has one of that name.
     """
     variable = value.reason == REASON_VARIABLE
-    constant = value.reason == REASON_UNKNOWN_CONSTANT and len(value.path) == 1
+    constant = value.reason == REASON_UNKNOWN_CONSTANT
     if not (variable or constant) or not value.path or scope is None:
         return ReadValue(value, value.reason)
     head = value.path[0]
@@ -576,6 +623,36 @@ _CONSTANT_SINKS = frozenset(
 # `equalTo`) and React's hooks (`useState`). Spelled one way, so matched as written.
 _CONSTANT_CHECKS = re.compile(r"(?:expect|assert|XCTAssert|should|to|is|use|eq|equal)(?:[A-Z]|$)")
 _NAME_METHODS = frozenset({"capture", "screen", "screenview", "logscreenview", "logpurchase"})
+# TypeScript and JavaScript apps name their own code after events and trackers
+# (`eventTypesKey`, `useEventRoster`, `setEvent`, `getTrackers`, Angular's
+# `trackBy`), so there a method's name is narrower evidence of tracking: it has
+# to start with `track` or `tracking`, or put an `event` word behind one of
+# these verbs (`logEvent`, `sendEvent`, `logCustomEvent`).
+_TS_EVENT_VERBS = frozenset({"log", "track", "send", "record", "report", "capture"})
+_TS_EVENT_WORDS = frozenset({"event", "events"})
+# A wrapper named after its SDK (`amplitudeLogEvent`, `mixpanelTrack`,
+# `gaEvent`) says it tracks with one of these words after the SDK's name.
+_TS_VENDOR_WORDS = frozenset({"track", "tracking", "event", "events"})
+# SDK names too short to look for inside a word (`ga` is in `page`), so only
+# a whole word counts: Google Analytics, its `gtag` and Meta's pixel `fbq`.
+_TS_SHORT_VENDORS = frozenset({"ga", "gtag", "fbq"})
+# A React hook is named after what it does: `useTrackEvent` is read as `trackEvent`.
+_TS_HOOK = re.compile(r"use[A-Z]")
+# Angular's `trackBy` functions (`trackBy`, `trackById`, `trackByFn`) key list
+# rows, whatever the case of the first letter (`TrackBy`, `useTrackBy`).
+_TS_TRACK_BY = re.compile(r"[tT]rackBy(?:[A-Z_]|$)")
+# Countly's `add_event`, spelled that way only: a camel-case `addEvent` is a
+# calendar's (FullCalendar's `calendar.addEvent`).
+_TS_ADD_EVENT = "add_event"
+# The names a file imports from a module, ES (`import { event } from "vue-gtag"`)
+# or CommonJS (`const { event } = require("vue-gtag")`). A bare `event(…)` is
+# tracking only when it is a tracking module's: vue-gtag's, or a Next.js app's
+# `lib/gtag` helper.
+_TS_NAMED_IMPORT = re.compile(
+    r"""import\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{(?P<es>[^{}]*)\}\s*from\s*(?P<esq>["'])(?P<esm>[^"'\n]+)(?P=esq)"""
+    r"""|\{(?P<cjs>[^{}]*)\}\s*=\s*require\s*\(\s*(?P<cjq>["'])(?P<cjm>[^"'\n]+)(?P=cjq)\s*\)"""
+)
+_TS_MODULE_WORD = re.compile(r"[a-z0-9]+")
 _VENDORS = (
     "analytic",
     "tracker",
@@ -670,12 +747,18 @@ def _candidate(call: Call, spans: _Spans, declarations: frozenset[int]) -> bool:
     return not (call.selector is None and call.end in declarations)  # a declaration
 
 
-def _signal(call: Call, evaluator: Evaluator) -> str | None:
+def _signal(
+    call: Call, evaluator: Evaluator, language: str, imported_event: bool = False
+) -> str | None:
     """Why an unmatched call looks like tracking (one of ``model.SIGNALS``), or None.
 
     Case-insensitive, except a handler (``on`` and an upper-case letter), an
     input event, a DOM event type, an event holder, and an assertion or a
-    hook a constant is passed to, which are spelled one way.
+    hook a constant is passed to, which are spelled one way. ``language`` is
+    the file's (``lexer.LANGUAGES``): in TypeScript and JavaScript the
+    method's name has to say more (``_ts_name_says_tracking``), and
+    ``imported_event`` is whether the file imports ``event`` from a tracking
+    module (``_ts_imports_tracking_event``).
     """
     receivers, method = _callee_parts(call)
     lowered = method.lower()
@@ -694,16 +777,79 @@ def _signal(call: Call, evaluator: Evaluator) -> str | None:
         and _passes_event_constant(call, evaluator)
     ):
         return SIGNAL_CONSTANT
-    words = [word.lower() for word in _CAMEL_WORD.findall(method)]
-    if (
-        "event" in lowered
-        or any(word.startswith("track") for word in words)
-        or lowered in _NAME_METHODS
-    ):
+    if language == "ts":
+        says_tracking = _ts_name_says_tracking(receivers, method, imported_event)
+    else:
+        words = [word.lower() for word in _CAMEL_WORD.findall(method)]
+        says_tracking = (
+            "event" in lowered
+            or any(word.startswith("track") for word in words)
+            or lowered in _NAME_METHODS
+        )
+    if says_tracking:
         return SIGNAL_NAME
     if lowered.startswith(_TRACKING_VERBS) and any(_is_vendor(part) for part in receivers):
         return SIGNAL_RECEIVER
     return None
+
+
+def _ts_name_says_tracking(receivers: list[str], method: str, imported_event: bool) -> bool:
+    """Whether a TypeScript or JavaScript method's name says it tracks.
+
+    A React hook is read without its ``use`` (``useTrackEvent`` is
+    ``trackEvent``, ``useScreenView`` is ``screenView``). Then the name does
+    when it is one of ``_NAME_METHODS``; when its first word is ``track`` or
+    ``tracking`` (``trackPageView``), but not Angular's ``trackBy``; when its
+    first word is a verb of ``_TS_EVENT_VERBS`` and a later one is ``event``
+    or ``events`` (``logEvent``); when its first word is an SDK's name and a
+    later one is ``track``, ``tracking``, ``event`` or ``events``
+    (``amplitudeLogEvent``, ``mixpanelTrack``, ``gaEvent``); when it is
+    ``event`` called on a receiver (``gtag.event``, ``ReactGA.event``), or a
+    bare ``event(…)`` the file imports from a tracking module
+    (``imported_event``); or when it is Countly's ``add_event``. A word that
+    only starts with ``track`` (``tracker``, ``getTrackers``) or an ``event``
+    word after any other one (``eventTypesKey``, ``setEvent``, ``makeEvent``,
+    testing-library's ``fireEvent``) says nothing.
+    """
+    if _TS_HOOK.match(method):
+        method = method[3:]
+    lowered = method.lower()
+    if lowered in _NAME_METHODS or lowered == _TS_ADD_EVENT:
+        return True
+    if lowered == "event":
+        return bool(receivers) or imported_event
+    if _TS_TRACK_BY.match(method):
+        return False
+    words = [word.lower() for word in _CAMEL_WORD.findall(method)]
+    if not words:
+        return False
+    if words[0] in ("track", "tracking"):
+        return True
+    if words[0] in _TS_EVENT_VERBS and any(word in _TS_EVENT_WORDS for word in words[1:]):
+        return True
+    return _ts_vendor_word(words[0]) and any(word in _TS_VENDOR_WORDS for word in words[1:])
+
+
+def _ts_vendor_word(word: str) -> bool:
+    """Whether one lower-case word of a TypeScript name or module path is an SDK's name."""
+    return word in _TS_SHORT_VENDORS or _is_vendor(word)
+
+
+def _ts_imports_tracking_event(text: str) -> bool:
+    """Whether a TypeScript or JavaScript file imports ``event`` from a tracking module.
+
+    The module is one whose path has an SDK's name for a word: ``vue-gtag``,
+    ``@/lib/gtag``, ``react-ga``, ``./analytics``. Only ``event`` imported
+    under its own name counts: one renamed to ``event`` is another function.
+    """
+    for match in _TS_NAMED_IMPORT.finditer(text):
+        names = match.group("es") if match.group("es") is not None else match.group("cjs")
+        module = match.group("esm") or match.group("cjm")
+        if "event" not in (name.strip() for name in names.split(",")):
+            continue
+        if any(_ts_vendor_word(word) for word in _TS_MODULE_WORD.findall(module.lower())):
+            return True
+    return False
 
 
 def _callee_parts(call: Call) -> tuple[list[str], str]:
@@ -832,6 +978,8 @@ class _Forwarding:
     scopes: list[FunctionScope] = field(default_factory=list)
     calls: int = 0
     parameters: dict[str, tuple[Parameter, list[str]]] = field(default_factory=dict)
+    # The names of the parameters a call takes as its object argument.
+    objects: set[str] = field(default_factory=set)
     # Its calls in its own file, the ones in its own body left out.
     own: _Tally = field(default_factory=_Tally)
 
@@ -916,19 +1064,21 @@ def _forwarding(
 ) -> None:
     """Count ``call`` for ``scope``, the function it sits in, when it forwards a parameter.
 
-    It does when a target's value is a bare parameter (reason ``parameter``),
-    never ``parameter_property``: a property of a parameter is set where its
-    object is built, and a call spec for the function would only add calls
-    whose value is not read either. An initializer of a type the scan cannot
-    name is no forwarder: what its callers write is unknown.
+    It does when a target's value, or the call's object argument, is a bare
+    parameter (reason ``parameter``), never ``parameter_property``: a property
+    of a parameter is set where its object is built, and a call spec for the
+    function would only add calls whose value is not read either. An
+    initializer of a type the scan cannot name is no forwarder: what its
+    callers write is unknown.
     """
     forwarded: list[tuple[str, Parameter]] = []
     for target, read in call.read.targets():
-        declared = read.declared
-        if read.reason != REASON_PARAMETER or declared is None or declared.parameter is None:
-            continue
-        forwarded.append((target, declared.parameter))
-    if not forwarded:
+        parameter = _forwarded_parameter(read)
+        if parameter is not None:
+            forwarded.append((target, parameter))
+    unread = call.read.unread_object
+    as_object = None if unread is None else _forwarded_parameter(unread)
+    if not forwarded and as_object is None:
         return
     initializer = (found.source.language, scope.name) in _INITIALIZERS
     function = _initialized(scope, found.source.language) if initializer else scope.name
@@ -948,6 +1098,16 @@ def _forwarding(
         _, targets = forwarding.parameters.setdefault(parameter.name, (parameter, []))
         if target not in targets:
             targets.append(target)
+    if as_object is not None:
+        forwarding.parameters.setdefault(as_object.name, (as_object, []))
+        forwarding.objects.add(as_object.name)
+
+
+def _forwarded_parameter(read: ReadValue) -> Parameter | None:
+    """The parameter ``read`` is, when it is one passed on bare."""
+    if read.reason != REASON_PARAMETER or read.declared is None:
+        return None
+    return read.declared.parameter
 
 
 def _forwarders(
@@ -967,7 +1127,13 @@ def _forwarders(
             function=forwarding.function,
             location=forwarding.location,
             parameters=tuple(
-                ForwardedParameter(item.name, item.index, item.label, tuple(targets))
+                ForwardedParameter(
+                    item.name,
+                    item.index,
+                    item.label,
+                    tuple(targets),
+                    item.name in forwarding.objects,
+                )
                 for item, targets in sorted(
                     forwarding.parameters.values(), key=lambda entry: entry[0].index
                 )
@@ -1053,6 +1219,8 @@ class Summary:
     targets: Mapping[str, Mapping[str, int]]
     # Per event type: each `(field, label)` a label reached by the default mapping.
     default_label_fields: Mapping[str, tuple[tuple[str, str], ...]]
+    # Per lint code: the calls with a finding of it (empty with no `lint:`).
+    lint: Mapping[str, int] = field(default_factory=dict)
 
 
 def summarize(found: Inventory) -> Summary:
@@ -1061,6 +1229,7 @@ def summarize(found: Inventory) -> Summary:
     reasons: dict[str, dict[str, int]] = {}
     targets: dict[str, dict[str, int]] = {}
     defaults: dict[str, list[tuple[str, str]]] = {}
+    lint: dict[str, int] = {}
     for call in found.calls:
         for target, code in call.dynamic.items():
             dynamic[target] = dynamic.get(target, 0) + 1
@@ -1073,6 +1242,8 @@ def summarize(found: Inventory) -> Summary:
             pairs = defaults.setdefault(call.event_type, [])
             if pair not in pairs:
                 pairs.append(pair)
+        for code in dict.fromkeys(finding.code for finding in call.lint):
+            lint[code] = lint.get(code, 0) + 1
     return Summary(
         calls=len(found.calls),
         items=sum(len(call.items) for call in found.calls),
@@ -1082,4 +1253,5 @@ def summarize(found: Inventory) -> Summary:
         reasons=reasons,
         targets=targets,
         default_label_fields={key: tuple(pairs) for key, pairs in defaults.items()},
+        lint=lint,
     )
