@@ -4897,13 +4897,15 @@ every key present:
 
 The reason codes. The first seven come from reading the argument. The next three
 refine a `variable` from the function the call sits in, a hint read from the
-source and never a verdict; a bare `unknown_constant` such as `kEvent` is
-refined into `parameter` only. The last two are about the target, not a value:
+source and never a verdict; an `unknown_constant` that names a parameter is
+refined too, a bare one such as `kEvent` into `parameter` and a path through
+one such as `kEvent.name` into `parameter_property`, but never into `local`.
+The last two are about the target, not a value:
 
 | Code | Meaning |
 |------|---------|
 | `variable` | A variable the scan does not follow (a property, a lambda parameter, a captured variable), not a constant. |
-| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
+| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead, and a path through such a parameter (`kEvent.name`) is `parameter_property`; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
 | `format` | A printf-style format, which the scan does not fill in yet. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format, and a comparison, a range or a word operator makes an `expression` (`a < y.format(z)`, `a..y.format(z)`, `a to y.format(z)`). A word operator is any name between two operands in Kotlin, where it is an infix call, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript), in a file under `sources` or `enums`. The guide's [Enum sources](../integrate/tripl-check.md#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. |
 | `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. |
