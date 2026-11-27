@@ -65,8 +65,14 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
-    from tripl_cli.check.model import CheckReport, Origin, Suppression
+    from tripl_cli.check.inventory import (
+        Forwarder,
+        Inventory,
+        Location,
+        ReadValue,
+        UnmatchedGroup,
+    )
+    from tripl_cli.check.model import CheckReport, Marker, Origin, Suppression
     from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
     from tripl_cli.install.plan import FileWrite, InstallPlan, UpgradePlan
@@ -596,6 +602,12 @@ def check_document(report: CheckReport) -> JsonDict:
     With ``--upload``, and only then, the top-level ``upload`` says whether
     tripl recorded the run and as what (``check/upload.py``). A failed upload
     is ``ok: false`` with its ``error``; it never changes ``exit_code``.
+
+    ``plan_branch`` says which working plan branch the run asked for and what
+    it read: ``requested`` (its name), ``status`` (its review status, null when
+    no branch has the name) and ``used`` (``branch``, or ``main`` when
+    ``--branch-if-exists`` read main instead). Null when no branch was asked
+    for, or the one asked for is main itself. ``branch`` stays what was read.
     """
     from tripl_cli.check.baseline import baseline_document
     from tripl_cli.check.coverage import coverage_document
@@ -609,6 +621,15 @@ def check_document(report: CheckReport) -> JsonDict:
     document["project"] = report.project
     document["branch"] = (
         None if report.branch_id is None else {"id": report.branch_id, "name": report.branch_name}
+    )
+    document["plan_branch"] = (
+        None
+        if report.branch_requested is None
+        else {
+            "requested": report.branch_requested,
+            "status": report.branch_status,
+            "used": "main" if report.branch_id is None else "branch",
+        }
     )
     document["mode"] = report.mode
     document["strict"] = report.strict
@@ -663,6 +684,7 @@ def check_document(report: CheckReport) -> JsonDict:
                     "code": finding.code,
                     "severity": finding.severity,
                     "field": finding.field,
+                    "rule": finding.rule,
                     "message": finding.message,
                     "fingerprint": fingerprint,
                     **(
@@ -689,7 +711,10 @@ def check_document(report: CheckReport) -> JsonDict:
                     "line": state.marker.line,
                     "column": state.marker.column,
                 },
-                "targets": [{"code": code, "field": field} for code, field in state.marker.targets],
+                "targets": [
+                    {"code": code, "field": field, "rule": rule}
+                    for code, field, rule in state.marker.targets
+                ],
                 "reason": state.marker.reason,
                 "used": state.used,
                 "problem": state.marker.problem,
@@ -744,6 +769,10 @@ def check_list_document(
     as dynamic and sends nothing for. ``lint`` says whether the check config
     has a ``lint:`` section; each call's ``lint`` lists the lint's findings on
     it, and ``summary.lint`` counts the calls with one, per code.
+    ``suppressions`` are the ``tripl-check-ignore`` markers read: under a call
+    the valid ones covering it, at the top level every one with the number of
+    matched ``calls`` it covers (the check document has ``used`` there, which
+    takes verdicts).
     """
     from tripl_cli.check.inventory import summarize
     from tripl_cli.check.payloads import enforce_limits
@@ -772,6 +801,12 @@ def check_list_document(
             for name, pairs in summary.default_label_fields.items()
         },
         "lint": dict(summary.lint),
+        "suppressions": {
+            "markers": summary.markers,
+            "invalid": summary.markers_invalid,
+            "no_call": summary.markers_no_call,
+            "calls_covered": summary.calls_covered,
+        },
     }
     document["calls"] = [
         {
@@ -806,12 +841,39 @@ def check_list_document(
                 }
                 for finding in call.lint
             ],
+            "suppressions": [
+                {
+                    "location": _marker_location(suppression),
+                    "targets": _marker_targets(suppression),
+                    "reason": suppression.reason,
+                }
+                for suppression in call.suppressions
+            ],
         }
         for call in found.calls
+    ]
+    document["suppressions"] = [
+        {
+            "location": _marker_location(entry.marker),
+            "text": entry.marker.text,
+            "targets": _marker_targets(entry.marker),
+            "reason": entry.marker.reason,
+            "problem": entry.marker.problem,
+            "calls": entry.calls,
+        }
+        for entry in found.markers
     ]
     document["forwarders"] = [_forwarder_document(forwarder) for forwarder in found.forwarders]
     document["unmatched"] = [_unmatched_document(group) for group in found.unmatched]
     return document
+
+
+def _marker_location(marker: Marker | Suppression) -> JsonDict:
+    return {"path": marker.path, "line": marker.line, "column": marker.column}
+
+
+def _marker_targets(marker: Marker | Suppression) -> list[JsonDict]:
+    return [{"code": code, "field": field, "rule": rule} for code, field, rule in marker.targets]
 
 
 def _read_document(read: ReadValue | None) -> JsonDict | None:
@@ -819,7 +881,17 @@ def _read_document(read: ReadValue | None) -> JsonDict | None:
     if read is None:
         return None
     declared = read.declared
-    where = None if declared is None else {"function": declared.function, "line": declared.line}
+    where = (
+        None
+        if declared is None
+        else {
+            "function": declared.function,
+            "line": declared.line,
+            # The type a Swift `init` or a TypeScript `constructor` builds, which
+            # is what its callers write; null for any other function.
+            "type": declared.type,
+        }
+    )
     return _value_document(read.value, reason=read.reason, declared=where)
 
 
@@ -864,18 +936,28 @@ def _forwarder_document(forwarder: Forwarder) -> JsonDict:
         "calls": forwarder.calls,
         # By name alone, the forwarder's own body left out: in its file and
         # elsewhere, a call of another function of the same name counts too.
+        # The `*_same_language` keys count the calls elsewhere only in files of
+        # the forwarder's own language.
         "callers": {
             "same_file": callers.same_file,
             "same_file_matched": callers.same_file_matched,
             "other_files": callers.other_files,
             "other_files_matched": callers.other_files_matched,
-            "first_unmatched": (
-                None
-                if first is None
-                else {"path": first.path, "line": first.line, "column": first.column}
+            "first_unmatched": _location_document(first),
+            "other_files_same_language": callers.other_files_same_language,
+            "other_files_same_language_matched": callers.other_files_same_language_matched,
+            "first_unmatched_same_language": _location_document(
+                callers.first_unmatched_same_language
             ),
         },
+        "language": forwarder.language,
     }
+
+
+def _location_document(place: Location | None) -> JsonDict | None:
+    if place is None:
+        return None
+    return {"path": place.path, "line": place.line, "column": place.column}
 
 
 def _unmatched_document(group: UnmatchedGroup) -> JsonDict:
@@ -898,8 +980,12 @@ def codegen_document(
     check: bool,
     files: Sequence[JsonDict],
     exit_code: int,
+    plan_branch: JsonDict | None = None,
 ) -> JsonDict:
     """``tripl codegen --json``: one row per file, with what happened to it.
+
+    ``plan_branch`` is the same object as in ``tripl check --json``: the plan
+    branch asked for, its status, and whether it or main was read.
 
     ``status`` is ``created``, ``changed``, ``unchanged`` or ``stale`` (a file
     this run no longer produces, carrying the generated-file marker). Under
@@ -910,6 +996,7 @@ def codegen_document(
     document = _run_envelope("codegen", run)
     document["project"] = project
     document["branch"] = branch
+    document["plan_branch"] = plan_branch
     document["revision"] = revision
     document["check"] = check
     document["files"] = [dict(item) for item in files]

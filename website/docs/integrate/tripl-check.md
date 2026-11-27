@@ -59,10 +59,13 @@ It supports these languages, chosen by file extension:
 
 A value is **literal** when the scanner can read it from the source: a string
 literal, a number, an enum case or a string constant whose value it can find,
-or a call to a function declared to return a string whose every `return` is a
-string literal (see [Enum sources](#enum-sources)). Anything else is
-**dynamic**: a local variable, a parameter, any other function call, or a value
-computed at run time. A dynamic
+a call to a function declared to return a string whose every `return` is a
+string literal (see [Enum sources](#enum-sources)), constants joined with
+`+` (see [Formats and concatenations](#formats)), an `if`, `when` or ternary
+over constants, or a local set once to a constant (see
+[Conditionals and locals](#conditionals)). Anything else is **dynamic**: a
+parameter, any other local variable or function call, or a value computed at
+run time. A dynamic
 value is sent as `null`, which means "unknown at scan time". A dynamic value is
 never an error. `tripl check --list` shows what the scan reads from each call,
 and why it does not read a value (see [List what the scan reads](#list)).
@@ -162,7 +165,8 @@ event_types:
 | Key | Meaning |
 |-----|---------|
 | `project` | The project slug. **Required** unless you pass `--project`. |
-| `branch` | Optional. A plan branch, by name or id, matched exactly the way [`tripl plan --branch`](../run/cli.md#the---branch-flag) matches it. Omit it to check against the live main plan. `--branch` on the command line overrides it. |
+| `branch` | Optional. A plan branch, by name or id, matched exactly the way [`tripl plan --branch`](../run/cli.md#the---branch-flag) matches it. Omit it to check against the live main plan. `--branch` on the command line overrides it. A branch nobody made fails the run (exit 2). |
+| `branch_if_exists` | Optional. A plan branch to check against while it exists and is open; the run checks against the live main plan when no branch has that name or id, or the branch is merged or closed, and says so. See [Plan branches in CI](#plan-branch-ci). `--branch`, `--branch-if-exists` and the `TRIPL_PLAN_BRANCH` environment variable override it. Not together with `branch` or `revision`. |
 | `revision` | Optional. The id of a stored plan revision to check against instead of the live plan. See [Pin the plan](#pin). `--revision` overrides it. Not together with `branch`. |
 | `root` | Optional. The directory that `sources`, `exclude` and `enums` globs start from, relative to the base directory. The base directory is the one that holds `.tripl/` (for a config file outside a `.tripl/` directory, the file's own directory). Default: the base directory. |
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
@@ -188,8 +192,8 @@ Each item under `calls` describes one way this event type is tracked:
 
 | Key | Meaning |
 |-----|---------|
-| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. |
-| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). |
+| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. In Swift, a type's initializer called by name matches as the type: `ScreenView` also matches `ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)` and `Outer.ScreenView.init(…)`, the same call as `ScreenView(screen: name)`. That takes a type name with a capital first letter, as Swift writes them; `self.init`, `super.init` and `Self.init` are matched only by a spec that names them. |
+| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). In Swift, a type's initializer called by name also matches when the type alone does: a pattern that matches `ScreenView` matches `ScreenView.init(…)` and `ScreenView.self.init(…)` too, as [`function`](#config-keys) does. |
 | `objc_selector` | An Objective-C selector, for example `trackWithCategory:action:label:`. It matches a message send with exactly these selector parts. |
 | `receiver` | Only with `objc_selector`: a regular expression the receiver must contain (`re.search`), for example `(?i)tracker`. |
 | `args` | Maps an **argument label** (Swift label, Kotlin named argument, a key of the `object_arg` object, or the label of an Objective-C selector part) to a **target**. |
@@ -205,8 +209,14 @@ A **target** is one of:
 - a plan field name;
 - `name`: the event's name or identity, for event types identified by a flat name;
 - `name:iglu`: the event name inside an Iglu schema URI (`iglu:com.acme/button_click/jsonschema/1-0-0` gives `button_click`);
-- `properties`: a free-form dictionary. When it is a literal, its keys are
-  checked as field names and its literal values like any other field value;
+- `properties`: a free-form dictionary. When it is a literal (a Swift or
+  Objective-C dictionary, a JavaScript object, Kotlin `mapOf(…)` or
+  `bundleOf(…)`, Java `Map.of(…)`, or Android's `Bundle().apply {
+  putString(K, v) }` written in the call), its keys are checked as field names
+  and its literal values like any other field value. A `Bundle().apply { … }`
+  block is read only when it holds nothing but `putX(key, value)` calls;
+  anything else in it (an `if`, a loop, `putAll`) leaves the properties
+  unread, since it may add keys the scan cannot see;
 - `field:<x>`: the plan field literally called `name` or `properties`;
 - `null`: ignore the argument.
 
@@ -263,7 +273,7 @@ between the receiver and the method are allowed.
 | `segment_track` | `.track(…)` on a receiver whose name contains `analytics` or `segment`: `analytics.track("Name", {…})` (JS/TS, Kotlin, Java), `analytics.track(name: "Name", properties: […])` (Swift); Objective-C `track:properties:` and `track:` sent to such a receiver | the first argument, or the `name` / `event` label, to the event name; the second, or `properties`, to `properties` |
 | `amplitude_log_event` | `.logEvent(…)` or `.track(…)` on a receiver whose name contains `amplitude`: `amplitude.track("Name", {…})`, `Amplitude.instance().logEvent("Name", withEventProperties: […])`, `amplitude.track(eventType: "Name", eventProperties: […])`; Objective-C `logEvent:withEventProperties:` and `logEvent:` | the first argument, or `eventType` / `event_type`, to the event name; the second, or `eventProperties` / `event_properties` / `withEventProperties`, to `properties` |
 | `snowplow_structured` | `Structured(category: "c", action: "a")` (also `SPStructured`, `StructuredEvent`, `Structured.builder()`) with chained `.label(…)` / `.property(…)` / `.value(…)`; JS `trackStructEvent({category, action, label, property, value})`; Objective-C `[[SPStructured alloc] initWithCategory:action:]` | `category`, `action`, `label`, `property` and `value` to the fields of the same names |
-| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
+| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`, and in Swift `ScreenView.init(…)`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
 | `snowplow_self_describing` | `SelfDescribing(schema: "iglu:…", payload: […])` (also `SPSelfDescribing`, `SelfDescribingJson`); JS `trackSelfDescribingEvent({event: {schema, data}})`; Objective-C `initWithSchema:payload:` | the Iglu schema's name segment to the event name; `payload` / `data` / `eventData` to `properties` |
 
 To start a call spec of your own from a preset, print it.
@@ -311,47 +321,167 @@ enum AppEvents {
 - **Qualified cases** (`AppEvents.Category.onboarding`, with or without
   `.rawValue`) resolve through the enum's name.
 - A shorthand case declared in two enums with **different** raw values is
-  ambiguous. The scanner treats it as dynamic rather than guess. Use the
-  qualified form in that call, or rename one of the cases.
+  ambiguous. The scanner treats it as dynamic rather than guess (`--list`
+  gives it the reason `ambiguous_constant`). Use the qualified form in that
+  call, or rename one of the cases.
 - A case the sources do not declare is also dynamic.
 
 **String constants** resolve the same way, by their qualified name:
-`const val X = "y"` (Kotlin, also inside an `object` or an unnamed
-`companion object`; a named one's constants resolve as `Outer.Name.X` or
-`Name.X`, never as `Outer.X`),
-`static final String X = "y"` (Java), `static let x = "y"` inside a type and
-`let x = "y"` at file scope (Swift), `const X = "y"` and one-level
-`const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
+`const val X = "y"` (Kotlin, also inside an `object` or a `companion object`;
+a named companion's constants resolve as `Outer.X`, `Outer.Name.X` and
+`Name.X`), `static final String X = "y"` (Java), `static let x = "y"` inside a
+type, a computed property that returns one string literal inside a type
+(`static var x: String { "y" }`, or `{ return "y" }`), and `let x = "y"` at
+file scope (Swift), `const X = "y"`, `const Events = { X: "y" }` objects and
+the objects inside them (`Events.Screen.Home` for
+`{ Screen: { Home: "home" } }`, up to four levels), and a class's
+`static readonly X = "y"` (TypeScript), `NSString *const X = @"y"` and
 `#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
-as the constant's value. A bare name (`PlayStart`, from inside the class that
-declares it) resolves only for a constant declared at file scope. Only
-declarations that cannot be reassigned are read: a `var` (Swift or Kotlin), a
-TypeScript `let` or `var`, a Java `String` field that is not `final`, and an
-Objective-C pointer without `const` before its name (`static NSString *X`) are
-not, because the code can change them before the call, so a reference to one is
-dynamic rather than checked against its initial value.
+as the constant's value.
+
+A **bare name** resolves to a constant declared at file scope. In Kotlin and
+Java it also resolves inside the type that declares it: `logEvent(PLAY_START)`
+in a method of `Analytics` (or of a class nested in it) reads `Analytics`'s own
+`PLAY_START`, from a `companion object`, an `object` or a `static final` field,
+even when a file-scope constant has the same name, as in the code. Only a name
+written like a constant is looked up that way (`PLAY_START`, `PlayStart`,
+`kPlayStart`), and not when a parameter of the function around the call, or a
+local declared before it in that function, has the same name. In Swift, write `Self.playStart` for a member
+of the type around the call; a bare `playStart` is not read.
+
+Only declarations that cannot be reassigned are read: a stored `var` (Swift or
+Kotlin), a TypeScript `let`, `var` or `static` that is not `readonly`, a Java
+`String` field that is not `final`, and an Objective-C pointer without `const`
+before its name (`static NSString *X`) are not, because the code can change
+them before the call, so a reference to one is dynamic rather than checked
+against its initial value. A Swift computed property at file scope is not read
+either: a bare name is looked up across every scanned file, so any `log(name)`
+would read it.
 
 **Functions** declared to return a string, whose every `return` is a string
 literal, resolve to that set of strings, and the call is checked once for each
 of them: Swift `func f() -> String`, Kotlin `fun f(): String` or an `= "…"`
-expression body, Java `String f()`, and TypeScript `function f(): string`. One
-`return` of anything else makes the function dynamic. These are not read, so a
-call to one is dynamic: a Swift function marked `async` or `throws`, a Kotlin
-extension function (`fun Screen.f()`) or one with type parameters
-(`fun <T> f()`), a Java method with a `throws` clause, Objective-C functions,
-plain JavaScript functions, and TypeScript functions without a `: string` (or
-`: String`) return type, class methods, arrow functions and function expressions.
-A Swift computed property (`var x: String { "y" }`) is not read either: a
-reference to one is dynamic.
+expression body, Java `String f()`, and TypeScript `function f(): string`. A
+Swift function may be `async`, `throws` (`throws(E)` too) or `rethrows` and
+have a `where` clause, and a Java method a `throws` clause. One `return` of
+anything else makes the function dynamic. These are not read, so a call to one
+is dynamic: a Kotlin extension function (`fun Screen.f()`) or one with type
+parameters (`fun <T> f()`), Objective-C functions, plain JavaScript functions,
+and TypeScript functions without a `: string` (or `: String`) return type,
+class methods, arrow functions and function expressions.
 
 Every scanned source file is read for enums, constants and functions too, so
 `enums` is needed only for files outside `sources`. A file listed under `enums`
 that also matches `exclude` is not read.
 
-Still dynamic, though written from constants: `String.format` and `.format(…)`
-templates, two constants joined with `+` (a concatenation is read only when one
-of its parts is a string literal), a name picked by `if` or `when`, and a local
-variable the name was stored in before the call.
+### Conditionals and locals {#conditionals}
+
+A name picked from constants by `if`, `when` or a ternary is read as a choice,
+and the call is checked once for each value, as for a function with several
+`return`s:
+
+```kotlin
+analytics.logEvent(if (premium) Events.PAYWALL_PRO else Events.PAYWALL)
+analytics.logEvent(
+    when (source) {
+        Source.PUSH -> "open_from_push"
+        Source.LINK, Source.SHARE -> { "open_from_link" }
+        else -> "open"
+    }
+)
+```
+
+The forms read are Kotlin `if (…) a else b` (with `else if` chains and
+`{ … }` branches) and `when` (with or without a subject), Swift's
+`if … { a } else { b }` expression, and `c ? a : b` in Swift, Java,
+TypeScript and Objective-C. Every branch must be a constant: a literal, a
+constant the scan resolves, or another such choice. One branch that is
+anything else (a variable, a template with a `${…}` token, `null`), an `if`
+without `else`, a `switch`, or more than 50 values leave the whole value
+dynamic (reason `conditional` in [`--list`](#list-reasons)), and so does a
+lambda whose body is a ternary (`x => x ? "a" : "b"`): the argument is a
+function, not one of its results. Kotlin's `?:` and Swift's `??` fallbacks are
+not read: their left side is a variable.
+
+A **local** set to a constant is read where it is used, in plain `tripl check`
+as in `--list`:
+
+```kotlin
+fun onPaywallShown(premium: Boolean) {
+    val screen = Screens.PAYWALL                  // "paywall"
+    analytics.logEvent("${screen}_shown")         // read as paywall_shown
+    val event = if (premium) Events.PAYWALL_PRO else Events.PAYWALL
+    analytics.logEvent(event)                     // checked as both constants
+}
+```
+
+A local counts when it cannot be reassigned (Kotlin `val`, Swift `let`,
+TypeScript `const`, or a Java typed local such as `String event = …;` that the
+function never assigns again), and the named function around the call declares
+it exactly once, earlier, in a block that is still open at the call, and
+binds the name nowhere else: not as a parameter, another local, a lambda,
+closure, loop or `catch` variable, or a destructured or `case let` pattern
+name. Its initializer must be written with the declaration (`val x: String`
+set on a later line is not read) and be a constant, or a conditional over
+constants as above; a local set from another
+such local is read too. A local wins over a constant of the same name, as it
+does in the code. Anything else stays dynamic, with the reason `local` in
+`--list`: a `var`, a TypeScript `let`, a Swift `if let`, a local declared in a
+block that closed before the call or in a lambda, and a local in Objective-C.
+
+### Formats and concatenations {#formats}
+
+A name built from a template is read too. Each part the scan cannot read
+becomes a `${…}` token named after it, as in an
+[interpolated name](#interpolation):
+
+| In code | Sent for validation as |
+|---------|------------------------|
+| `"promo_%s_shown".format(id)` (Kotlin), `"promo_%s_shown".formatted(id)`, `String.format(Locale.US, "promo_%s_shown", id)` (Java) | `promo_${id}_shown` |
+| `String(format: "promo_%@_%ld", sheet.id, count)` (Swift) | `promo_${id}_${count}` |
+| `[NSString stringWithFormat:@"promo_%@_shown", sheetId]` (Objective-C) | `promo_${sheetId}_shown` |
+| `Events.PROMO.format(Events.HOME)`, with `PROMO = "promo_%s_shown"` and `HOME = "home"` | `promo_home_shown` |
+| `Events.PREFIX + Events.SHOWN`, with `PREFIX = "screen_"` and `SHOWN = "shown"` | `screen_shown` |
+| `"screen_" + name` | `screen_${name}` |
+
+A **format** is filled in when its template reads as text (a literal or a
+constant) and every conversion in it is a plain `%s` or `%d` (Kotlin, Java),
+or `%@`, `%s`, `%d`, `%i` or `%u`, with `l`, `ll` and the other C length
+modifiers on the integer ones (Swift, Objective-C). `%1$s` takes its argument
+by position, and `%%` is a `%`. An argument that reads as text is written in;
+for `%d` that must be a whole number. A number is written in only when it is a
+whole number written as printf prints it: `0x10`, `010` or `1.50` would print
+as `16`, `8` and `1.5`, so they leave the format dynamic. It stays dynamic (reason `format` in
+[`--list`](#list-reasons)) with any other conversion, a flag, a width or a
+precision (`%f`, `%x`, `%05d`, `%-10s`), with more or fewer arguments than the
+conversions use, with `%1$s` and `%s` in one template, with an argument that is
+several values, a dictionary or `null`, and with a spread (`*args`, Swift's
+`arguments:`). A format inside another one is not filled in: as an argument it
+is one `${…}` token of the outer format, and as its template it leaves the
+outer format dynamic. TypeScript has no printf, and Swift's `.format` is not
+one: neither is filled in.
+
+A **concatenation** with a string literal among its parts is read part by
+part. One without a literal is read only when every part reads as text (a
+constant, a filled-in format, a function that returns one string):
+`Events.PREFIX + id` stays dynamic, since `+` over a value the scan cannot read
+may be a sum, and so does one with a number or a boolean among its parts (a
+number literal, or a local set to one). Two numbers before the first string
+literal are a sum too (`1 + 2 + "x"` is `3x` in Java and TypeScript), so that
+concatenation stays dynamic. Objective-C strings have no `+`.
+
+A call the scan reads this way, or through a [conditional or a
+local](#conditionals) or a `Bundle().apply { … }` [properties
+argument](#config-file), for the first time can report findings the same code
+did not report before: an `unknown_event` for a name that is now fully known,
+a warning for a template, an `unknown_field` for a property key. Under the
+[new-findings gate](#new-findings) both sides of the change are scanned by the
+same version, so only what the change brings in fails it. A
+[baseline](#baseline) written by an earlier version does not hold them, since
+an entry is keyed by what the call sends, and its entries for those calls
+(sent with the value unknown) are reported as not seen. After upgrading, write
+the baseline again with `--write-baseline`, or fix the findings and drop the
+stale entries with `--prune-baseline`.
 
 ## Interpolated names become properties {#interpolation}
 
@@ -363,6 +493,7 @@ checked:
 | Swift | `"promo_sheet_\(sheetId)_shown"` | `promo_sheet_${sheetId}_shown` |
 | Kotlin | `"promo_sheet_${sheetId}_shown"`, `"promo_sheet_$sheetId" + "_shown"` | `promo_sheet_${sheetId}_shown` |
 | TypeScript / JavaScript | `` `promo_sheet_${sheetId}_shown` `` | `promo_sheet_${sheetId}_shown` |
+| Kotlin / Java, through a [format](#formats) | `"promo_sheet_%s_shown".format(sheetId)` | `promo_sheet_${sheetId}_shown` |
 
 Each interpolation becomes a `${…}` token, the same placeholder syntax the plan
 uses for [properties](../use/variables-and-templates.md#use-placeholders-in-event-values).
@@ -371,6 +502,12 @@ places. A token matches a token whatever its property is called, so
 `promo_sheet_${sheetId}_shown` in code matches `promo_sheet_${sheet_id}_shown` in
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
+
+An interpolation that reads as one constant is written in instead of a token:
+a constant or enum case, a Kotlin or Java constant named inside its own type,
+or a [local set to a constant](#conditionals). So `"${HOME}_tapped"` inside
+the type that declares `HOME = "home"` is sent as `home_tapped`. A local or a
+conditional with several values stays a token.
 
 A name the scanner cannot read at all (a variable, a parameter, a call of a
 function it does not read) is dynamic. Such a call is counted but cannot be
@@ -392,7 +529,7 @@ message text.
 | `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the property the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
-| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
+| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …), as in the [validate API](./agent-api-guide.md#plan-validation), and every report shows it: the text listing prints `policy_violation@naming.event`, the name a [marker](#suppress) waives that one rule by. Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
 | `name_characters` | warning | An event name, field key or property key has a non-ASCII character, whitespace or a quote. Raised by the CLI, only with a [`lint:` section](#lint). |
@@ -496,12 +633,24 @@ reads the same in Swift, Objective-C, Kotlin, Java and TypeScript or
 JavaScript:
 
 ```
-tripl-check-ignore[<code>(,<code>)*] -- <reason>
+tripl-check-ignore[<target>(,<target>)*] -- <reason>
+<target> is <code>, <code>:<field>, <code>@<rule> or <code>@<rule>:<field>
 ```
 
 - **Codes.** Each is a finding code (`unknown_event`), or a code and a field
   (`value_not_allowed:plan`) to waive it on that field only. Codes are not
   checked against a list: a misspelled one waives nothing and shows as unused.
+- **Rules.** A policy reports every rule it has under the one code
+  `policy_violation`, so `policy_violation` alone waives all of them on the
+  call. Add `@` and the rule to waive one and keep the others failing:
+  `policy_violation@naming.event`, or with a field too,
+  `policy_violation@forbidden_field:email`. The rule is written as the report
+  prints it, right after the code. A rule the call does not break waives
+  nothing and shows as unused. A rule cannot hold a space, `,`, `:`, `@` or
+  `]`: a marker with one of those in its rule, or with nothing after the `@`,
+  suppresses nothing, and the job log says it names a rule it cannot read. A
+  policy rule whose own name holds one of them can only be waived with
+  `policy_violation` alone.
 - **Reason.** Everything after `--` to the end of the comment line (or to
   `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
   JUnit show it with the finding.
@@ -539,7 +688,7 @@ A covered call is waived on every item it expands into (a name function that
 returns several names, for example).
 
 **A marker without a reason suppresses nothing.** Nor does one that names no
-code or names `no_verdict`, which cannot be suppressed because nothing was
+code, has a rule it cannot read after an `@`, or names `no_verdict`, which cannot be suppressed because nothing was
 decided about the call. The finding fails the run as usual, so the required
 reason is enforced by the check itself, and the marker is reported as
 `invalid_suppression`:
@@ -561,7 +710,8 @@ Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched n
 
 A suppression changes only whether the run fails. A result's `status` and the
 summary counts stay the plan's verdict. Payload mode reads no source, so it has
-no markers. One known limitation: in a JSX file, element text that looks like a
+no markers. To review every marker in the code without a run,
+[`tripl check --list`](#list-suppressions) shows each one on the call it covers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
 
 ### Keep markers clean {#strict-suppressions}
@@ -686,7 +836,8 @@ minus `exclude:`), nothing is scanned twice and nothing is new.
 the change left alone, for example an event the branch archives. Those calls
 are validated against main too, in one more batch: a finding main does not
 have, or has at a lower severity, was caused by the branch, and it is new
-(`cause: "plan_branch"` in JSON).
+(`cause: "plan_branch"` in JSON). A `policy_violation` of a rule main's
+policy did not report on the call counts as one main does not have.
 
 **What it changes.** The exit code, the text listing (only what is new or
 fails, with a `Gate:` line counting the rest; a marker problem is listed only
@@ -811,8 +962,11 @@ the variables and their per-event overrides. Two things are not in it and are
 always today's: an event type's naming rule, which belongs to its scan config,
 and the policy rules of an installed extension.
 
-A pinned run is refused with a plan branch (`branch` or `--branch`) and with
-`--coverage`, which reads the live plan. An instance too old to pin fails the
+A pinned run is refused with a plan branch (`branch`, `branch_if_exists`,
+`--branch` or `--branch-if-exists`) and with `--coverage`, which reads the live
+plan. A branch named only by the `TRIPL_PLAN_BRANCH` environment variable is
+ignored instead, with a line on stderr, so a variable exported for a whole
+pipeline does not fail the pinned job. An instance too old to pin fails the
 run instead of answering from the live plan.
 
 ## Summarise a change {#summary}
@@ -906,8 +1060,8 @@ tripl check --baseline .tripl/check-baseline.json         # in CI: fail only on 
 **What it holds.** An entry is a finding without its place: the call it is
 on, by what the call sends, the same key the gate compares (callee, event
 type, name, field values, what was only known at runtime; never the line or
-the file), plus the finding's code and field, the most severe severity seen
-and how many there were. So:
+the file), plus the finding's code and field, the rule of a
+`policy_violation`, the most severe severity seen and how many there were. So:
 
 - a call moved to another line or file, or reformatted, stays in the
   baseline;
@@ -916,6 +1070,14 @@ and how many there were. So:
 - an edited call is new: it sends something else;
 - a finding more severe than its entry (a warning that became an error) is
   new;
+- a `policy_violation` is held only by an entry of its own rule (the entry's
+  `rule` key, written only for a finding that has one): a call baselined for
+  `naming.event` fails once it also breaks `forbidden_field`, and
+  [waiving one rule](#suppress) with a marker does not pass its entry on to
+  another rule. A baseline written by a tripl that did not record the rule
+  has no `rule` keys; such an entry holds a `policy_violation` of any rule on
+  its call, as it did then, until you rewrite the file with
+  `--write-baseline`;
 - a finding a [marker](#suppress) suppresses is not written and takes up no
   count, and `no_verdict` is never baselined: nothing was decided about the
   call.
@@ -1080,6 +1242,9 @@ It prints three things:
 - **The functions that forward their own parameter** into a tracking call.
 - **The calls that look like tracking** but match no call spec.
 
+When the code has `tripl-check-ignore` markers, it also shows
+[which call each one covers](#list-suppressions).
+
 The summary counts the calls: how many are fully read, how many are not sent
 (no name or field read, so `tripl check` counts them as `dynamic`), and how
 many are sent with a value not read. It counts the top-level values only (the
@@ -1091,9 +1256,9 @@ page has [an example](../run/cli.md#tripl-check-list).
 `--list` exits 0 whenever the scan ran, even when the reader closed the pipe
 early (`| head`), and 2 for a config error. A stdout it cannot write at all
 (a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
-the flags it has no use for: `--report`, `--branch`, `--strict`,
-`--strict-suppressions`, `--allow-empty`, and a `--format` other than `text`
-or `json`.
+the flags it has no use for: `--report`, `--branch`, `--branch-if-exists`,
+`--strict`, `--strict-suppressions`, `--allow-empty`, and a `--format` other
+than `text` or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1105,13 +1270,14 @@ that kind of value yet.
 |--------|------------|------------|
 | `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
-| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead, and a path through such a parameter (`kEvent.name`) reads `parameter_property`; a Swift shorthand such as `.home` never does. A local of that name set to a constant is [read](#conditionals); any other local of that name does not make it `local`, because the local may be in a block that closed before the call. | Add its file to `enums:` or `sources:`. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `ambiguous_constant` | A constant or enum case that resolves in several objects to different values, such as `.home` in two enums or `HOME` declared at file scope in two files, and the field the value goes to does not tell them apart. Plain `tripl check` sends it as dynamic and reports nothing new for it. | Name its type more fully (`Screen.HOME`, `AppEvents.Category.home`), or rename one of the constants. |
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), look at what it says the argument is. A parameter of the function around the call (`: parameter evt of send (line 1)`): the object is built by that function's callers, so add a call spec for the function with `object_arg:` (see [Functions that forward their parameter](#list-forwarders)). Anything else: configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
-| `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
-| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. A comparison, a range or a word operator does the same, so `a < y.format(z)`, `a..y.format(z)` and Kotlin's `a to y.format(z)` are an `expression`; type arguments, as in `pick<String>(a).format(z)`, are no comparison. A word operator is any name between two operands in Kotlin, where it is an infix call such as `to` or `zip`, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
-| `concatenation` | Values joined with `+`, with no string literal among them, or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | Nothing to configure: the scan does not join these yet. |
-| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
+| `local` | A local variable of the function, declared before the call, that the scan does not read: see [Conditionals and locals](#conditionals) for the ones it does. | Nothing to configure. A `var` set once can become a `val` (`let`, `const`). |
+| `format` | A printf-style format the scan does not fill in, such as `"promo_%.1f".format(ratio)` (see [Formats and concatenations](#formats) for the ones it does). The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. A comparison, a range or a word operator does the same, so `a < y.format(z)`, `a..y.format(z)` and Kotlin's `a to y.format(z)` are an `expression`; type arguments, as in `pick<String>(a).format(z)`, are no comparison. A word operator is any name between two operands in Kotlin, where it is an infix call such as `to` or `zip`, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure. |
+| `concatenation` | Values joined with `+`, with no string literal among them and a part that is not a constant (`Events.PREFIX + id`, or a number), or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | When a part is a constant in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
+| `conditional` | A choice between values the scan does not read: an `if`, `when` or ternary with a branch that is not a constant (see [Conditionals and locals](#conditionals)), a `switch`, or a `?:` or `??` fallback. | Nothing to configure. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda. | Nothing to configure. |
 | `variable` | A variable the scan does not follow: a property, a lambda parameter, a captured variable. | Nothing to configure. |
@@ -1160,9 +1326,19 @@ event_types:
 
 The calls are counted by name, in the function's own file and elsewhere,
 leaving out those in its own body: a call of that name there is the tracking
-call it forwards to, or the function calling itself. By name alone, so a call
-of another function with the same name counts too, a tracking call named like
-it included.
+call it forwards to, or the function calling itself. By name, so a call of
+another function with the same name counts too, a tracking call named like it
+included. Elsewhere, the line counts only the files in the function's own
+language (`swift`, `objc`, `kotlin`, `java`, or `ts` with JavaScript), since a
+function of the same name in another language is most likely another one; the
+calls of that name in other languages are counted at the end of the line
+(`2 calls named track in other languages, not counted`). Mixed code calls
+across languages too: a Java call of a Kotlin wrapper, or an Objective-C call
+of a Swift one, is among those. The JSON keeps the counts by name in every
+language, and adds the narrowed ones (see the
+[`check --list` document](../run/cli.md#check---list-document)). The
+functions are listed by those the line counts, most unmatched calls first: in
+their own file, then elsewhere in their own language.
 
 A function can also pass its parameter on whole, as the object a tracking call
 reads its name and fields from:
@@ -1217,11 +1393,16 @@ limits: an Objective-C method is not listed, and a parameter is still taken
 for one after the function assigns it a new value, or inside a lambda whose
 own parameter has its name.
 
-A Swift `init` or a TypeScript `constructor` is listed under its
-type's name, which is what its callers write (`ScreenView(screen: name)`,
-`new PageView(path)`), though the reason line under the call, and
-`declared.function` in the JSON, still name it `init` or `constructor`. One in
-an anonymous class is not listed.
+A Swift `init` or a TypeScript `constructor` is listed under its type's name,
+which is what its callers write (`ScreenView(screen: name)`,
+`ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)`,
+`new PageView(path)`), though the reason line
+under the call, and `declared.function` in the JSON, still name it `init` or
+`constructor`; `declared.type` in the JSON names the type. One in an anonymous
+class is not listed. A call spec with `function: "ScreenView"` matches both
+Swift spellings of the call (see [`function`](#config-keys)), so it is the one
+spec to add. `self.init(…)` and `super.init(…)` are no callers, and neither is
+the implicit `.init(screen: name)`, which names no type.
 
 ### Calls that look like tracking {#list-tracking-like}
 
@@ -1232,9 +1413,38 @@ message's selector. Each group has a signal, strongest first:
 - `constant`: an argument is an event-name constant, a constant whose path
   names an event (`wrap(Events.Name.Open)`). These groups come first, and the
   text shows all of them.
-- `name`: the method's name says so. It contains `event`, has a word that
-  starts with `track`, or is `capture`, `screen`, `screenView`,
-  `logScreenView` or `logPurchase`.
+- `name`: the method's name says so. In Swift, Objective-C, Kotlin and Java
+  it contains `event`, has a word that starts with `track`, or is `capture`,
+  `screen`, `screenView`, `logScreenView` or `logPurchase`. TypeScript and
+  JavaScript apps name much of their own code after events and trackers, so
+  there the name has to say more. A React hook is read without its `use`
+  first, for every rule below: `useTrackEvent` is listed as `trackEvent`
+  would be, `useScreenView` as `screenView`, while `useEventRoster` and
+  `useTrackBy` are not. The name is one of those five names, or:
+  - its first word is `track` or `tracking` (`track`, `trackEvent`,
+    `trackPageView`), but it is not Angular's `trackBy` (`trackById`,
+    `TrackBy`);
+  - its first word is `log`, `track`, `send`, `record`, `report` or `capture`,
+    and a later word is `event` or `events` (`logEvent`, `sendEvent`,
+    `logCustomEvent`);
+  - its first word names a tracking SDK, as the `receiver` signal's vendors
+    do, or is `ga`, `gtag` or `fbq`, and a later word is `track`, `tracking`,
+    `event` or `events` (`amplitudeLogEvent`, `mixpanelTrack`, `gaEvent`,
+    `fbqTrack`);
+  - it is `event` called on a receiver (`gtag.event`, `ReactGA.event`), or a
+    bare `event(…)` the file imports by that name from a module whose path
+    has a tracking SDK's name for a word (`import { event } from "vue-gtag"`,
+    `from "@/lib/gtag"`, `require("./analytics")`); any other bare `event(…)`
+    is not listed;
+  - it is Countly's `add_event`, spelled that way.
+
+  So these are left out:
+  query keys and links (`eventTypesKey`, `eventHref`), setters, getters and
+  predicates (`setEvent`, `getTrackers`, `isEventType`), factories and
+  renderers (`makeEvent`, `renderEventsPage`), words that only start with
+  `track` (`trackerFieldError`), testing-library's `fireEvent`, a calendar's
+  `addEvent`, and an event bus's `emitEvent`. A call on a tracking vendor's
+  receiver can still be listed by the `receiver` signal.
 - `receiver`: a tracking vendor's receiver (`analytics`, `tracker`,
   `amplitude`, `firebase` and the like) calls a tracking verb such as `log`,
   `track` or `send`.
@@ -1286,9 +1496,15 @@ left out as well: an interface or abstract method, a protocol requirement, an
 overload, a C prototype in a header. The scan tells one from a call by a
 declaring keyword (`fun`, `func`, `init`, `function`), a return type (the end
 of a preprocessor line, as in `#endif`, is none), a typed parameter or a
-modifier, so a TypeScript member with none of these (`track(name, props);`) is
-still listed. The text shows the 10 largest groups besides the `constant`
-ones; `--json` lists them all.
+modifier. A method in a TypeScript `interface` needs none of these: an
+interface holds no calls, so `track(name, props);` there is left out too, as is
+an untyped construct signature (`new(config);`). Only a declaration counts, so
+the word `interface` in JSX text does not hide a call in the `{…}` after it. In
+an object type (`type Api = { track(name, props); }`, or one nested in an
+interface) or a class, a member with none of these is still listed. The same
+rule keeps plain `tripl check` from sending such a declaration, when a call
+spec names it, as a tracking call. The text shows the 10 largest groups besides
+the `constant` ones; `--json` lists them all.
 
 ### Labels read as fields {#list-default-labels}
 
@@ -1301,6 +1517,33 @@ event: fields key, exclude are read from the labels key and exclude because the 
 ```
 
 List the labels in `args:`, and map the ones that are not fields to `null`.
+
+### Suppression markers {#list-suppressions}
+
+`--list` is also where to audit the [`tripl-check-ignore` markers](#suppress).
+Under each matched call a valid marker covers, a line shows the marker with
+the codes it waives, its reason and its line. After the summary, one line counts
+the markers, and the ones that suppress nothing follow:
+
+```text
+app/src/Cart.kt:12:9  event  analytics.track  name=cart_opened
+    tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (line 11)
+
+Suppression markers: 3 read, covering 1 call site.
+Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
+Suppression on no matched call: app/src/Old.kt:3 tripl-check-ignore[unknown_event].
+```
+
+A marker on no matched call sits where no call spec matches a call: the call
+was removed, or the config does not read it. Move the marker or delete it.
+
+`--list` sends nothing, so it has no verdicts and cannot say whether a marker
+on a call waives a finding. A marker with a misspelled code shows on its call
+here like any other; only `tripl check` reports it, as `Unused suppression:`.
+With no config (below) nothing matches, so the markers are counted and only
+the malformed ones are listed. A repository with no marker prints none of these
+lines. In `--json` they are `calls[].suppressions` and the top-level
+`suppressions`.
 
 ### No config yet {#list-discovery}
 
@@ -1355,6 +1598,8 @@ tripl check --report codequality=gl-code-quality-report.json --report junit=trip
 ```
 
 **SARIF.** Each finding is one result and its code is the rule (`ruleId`).
+A `policy_violation` result keeps that `ruleId` and names the policy's rule in
+`properties.rule` and in its message.
 Errors are `level: "error"`, warnings `level: "warning"` and info findings
 `level: "note"`. A static finding carries a `physicalLocation` with a `region`
 for its line and column. Its path is relative to the scan root, the `root` of
@@ -1377,7 +1622,9 @@ rule `invalid_suppression` at `level: "warning"`, and an unused one rule
 **Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
 (`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
 warning and `info` for an info finding; `location` names the file and the
-call's lines. A [suppressed](#suppress) finding stays in the report with the
+call's lines. The `description` of a `policy_violation` names the policy's
+rule (`(rule naming.event)`); its `check_name` stays `tripl/policy_violation`.
+A [suppressed](#suppress) finding stays in the report with the
 same fingerprint, at `severity: info` and with its description starting
 `Suppressed: <reason> — `, so GitLab shows it as neither new nor resolved. A
 marker that suppresses nothing is a `tripl/invalid_suppression` issue
@@ -1393,6 +1640,7 @@ gate and the [baseline](#baseline), as Code Quality does. A call where nothing w
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
 with its findings as the case's output. A [suppressed](#suppress) finding fails
 no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
+A `policy_violation` is listed as `policy_violation@<rule>`.
 
 **Paths.** In Code Quality and JUnit, paths are relative to the repository root
 (the nearest directory that holds `.git`), the way a CI system resolves them
@@ -1403,7 +1651,9 @@ The text, JSON and SARIF formats keep paths relative to the scan root.
 (`findings[].fingerprint`), SARIF (`partialFingerprints["triplCheck/v2"]`) and
 Code Quality (`fingerprint`). It is built from what the call is (its file,
 callee, event type, name and field values, and the finding's code and field),
-never from its line and never from what the plan says. So a CI system comparing
+never from its line, never from what the plan says and never from the rule of
+a `policy_violation` (the [baseline](#baseline) does tell rules apart; a
+fingerprint does not, so the ones a CI system already stored still match). So a CI system comparing
 two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.
@@ -1449,7 +1699,7 @@ Human text and progress messages go to stderr when stdout carries `json`,
 |------|---------|
 | **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`, and malformed or unused markers unless you pass [`--strict-suppressions`](#strict-suppressions). `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
 | **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker fails the run on its own only with [`--strict-suppressions`](#strict-suppressions). Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, a `--branch` that matches nothing, `--branch` together with `--branch-if-exists`, or `branch` together with `branch_if_exists` in the config. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -1471,7 +1721,19 @@ red.
 
 `--branch` checks against a plan branch instead of main. Use it for a pull
 request that ships code for events that are still on a plan branch under
-review.
+review. The branch has to exist: a name no plan branch has is exit 2. A merged
+or closed branch is still read, from the copy it held when it ended, and the
+run warns about it, because that copy no longer follows main:
+
+```
+Warning: plan branch checkout-v2 is merged, so this run read its frozen copy, not the main plan. Name no branch to read main, or use --branch-if-exists.
+```
+
+The warning does not change the exit code.
+
+`--branch-if-exists` is the same flag for a job that cannot know: it checks
+against the branch while it exists and is open, and against main otherwise.
+See [Plan branches in CI](#plan-branch-ci).
 
 ## In CI {#ci}
 
@@ -1500,14 +1762,8 @@ the check block merges. In short:
 - To keep the results in tripl, where each event's page shows where the code
   sends it, add `--upload` and use a `check_upload` key: see
   [Send results to tripl](#send-results-to-tripl).
-- To check against a plan branch named after the merge request's branch, add
-  `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
-  (GitLab; it adds nothing outside a merge request pipeline), or set
-  `HEAD_REF: ${{ github.head_ref }}` in the step's `env` and add
-  `${HEAD_REF:+--branch "$HEAD_REF"}` (GitHub; never paste `${{ … }}` into the
-  script itself, where a branch name would run as shell). The check exits 2 when
-  no such plan branch exists, so use this only if your team follows that naming
-  convention.
+- To check a merge request against the plan branch named like its git branch,
+  see [Plan branches in CI](#plan-branch-ci) below.
 
 To check captured events instead, for example from a UI test run that writes
 what the app sent to `build/events.ndjson`, give the run a baseline of its own
@@ -1521,6 +1777,85 @@ tripl check --payloads build/events.ndjson --baseline .tripl/check-payloads-base
 The GitLab template and the GitHub action do that when their `payloads` input
 is set; [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md#ci)
 has the recorders and the jobs.
+
+### Plan branches in CI {#plan-branch-ci}
+
+A change that adds an event usually comes in two parts: a plan branch in tripl
+that adds the event to the plan, and a merge request that sends it. Name the
+plan branch like the git branch and let the check find it:
+
+```bash
+tripl check --branch-if-exists "$CI_COMMIT_REF_NAME"
+```
+
+`--branch-if-exists REF` checks against the plan branch `REF` while it exists
+and is open (any status but merged or closed). When no plan branch has that name, or the
+one that has it is merged or closed, the run checks against the live main plan
+and says which in one line after the summary:
+
+```
+Plan branch checkout-v2 not found: used the main plan.
+Plan branch checkout-v2 is merged: used the main plan.
+```
+
+The exit code is the main run's, so most merge requests, which have no plan
+branch, are checked as before. The match is exact, by name first and then by
+id, the way `--branch` matches. A name that is main's own reads main and prints
+nothing.
+
+The same request can come from three places, highest first after `--branch`:
+the flag, the `TRIPL_PLAN_BRANCH` environment variable, and `branch_if_exists`
+in the check config. The [GitLab template and the GitHub
+action](../how-to/check-tracking-in-ci.md#plan-branch) set the variable for you
+with one input. In your own job, pass the branch name as data, never pasted
+into the script: on GitHub set `TRIPL_PLAN_BRANCH: ${{ github.head_ref }}` in
+the step's `env`, because a `${{ … }}` inside `run:` would execute a branch
+name as shell. An empty variable is no request, and neither is an empty
+`--branch-if-exists ""`, which is what the flag gets from a variable the
+pipeline did not set. When the variable replaces another branch named by
+`branch` or `branch_if_exists` in the check config, a line on stderr says so.
+
+`--branch-if-exists` is refused with `--branch`, with `--list` and with a
+[pinned](#pin) run (exit 2). The environment variable is never a refusal: under
+`--list` it is ignored, and a pinned run and an
+[`--upload`](#send-results-to-tripl) run ignore it with a line on stderr. A
+check config that holds both `branch` and `revision` is still exit 2, whatever
+the variable says.
+
+**Plan merge and code merge: which first.** Take a plan branch `checkout-v2`
+that adds the event `checkout:pay:tap`, and a merge request from the git branch
+`checkout-v2` that sends it.
+
+1. *Both open.* The merge request is checked against the plan branch, where the
+   event exists: green. Under a [gate](#new-findings), a finding the plan
+   branch causes at a call the change left alone is new too.
+2. *The plan branch merges first.* This is the order to use. The event is on
+   main now. The next run of the merge request finds the plan branch merged,
+   checks against main, prints `Plan branch checkout-v2 is merged: used the
+   main plan.` and stays green. After the code merges, the default branch is
+   green as well. [`tripl codegen --check`](codegen.md#header) stays green
+   too: files generated from the plan branch differ from main's only by the
+   branch name in their header, which is not compared.
+3. *The code merges first.* The default branch is checked against main, where
+   the event does not exist yet: `unknown_event`, and the default branch stays
+   red until the plan branch merges. If your merge requests must be able to
+   land first, keep the gate on the default branch report-only, or merge the
+   plan before the code.
+4. *The plan branch is closed.* The change to the plan was rejected. The merge
+   request is checked against main and fails on the event the plan does not
+   have, which is the signal that the code should not ship it.
+
+Two things follow from how branches are named. A merged or closed plan branch
+keeps its name, and a project cannot have two plan branches of one name: a git
+branch that reuses the name of a merged plan branch is checked against main,
+and cannot get a new plan branch of that name until the old one is deleted. A
+closed plan branch that is reopened is open again, and is read again. And a run
+that has no branch name of its own is checked against main:
+a GitLab tag pipeline, the default branch, and a GitHub merge queue run, whose
+ref is the queue's. A merge queue therefore checks the group against main even
+though the pull request was checked against its plan branch, so with a merge
+queue the plan branch has to merge before the pull request is queued. A GitLab
+merge train keeps the source branch name and is checked like the merge request.
 
 ## Send results to tripl {#send-results-to-tripl}
 
@@ -1580,8 +1915,10 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   `.`.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
-  flag or from the check config (`--revision live` is fine), and with
-  `--payloads` and `--list`.
+  flag or from the check config (`--revision live` is fine; `--branch-if-exists`
+  and `branch_if_exists` are refused too), and with `--payloads` and `--list`.
+  A `TRIPL_PLAN_BRANCH` exported for the whole pipeline is ignored, with a line
+  on stderr, so the upload job still runs against the live plan.
 - **It never changes the verdict.** The upload is sent once the check has
   finished, before the reports are written, and one line on stderr, after the
   run's own output, says what was recorded, or why not. A failed upload (a

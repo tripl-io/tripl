@@ -8,6 +8,7 @@ flat events through a third::
 
     project: my-app
     branch: null                 # optional; --branch overrides
+    branch_if_exists: null       # optional: like branch, but main when it is missing or ended
     revision: null               # optional: a plan revision id to pin; --revision overrides
     sources: ["Sources/**", "web/src/**"]
     exclude: ["**/Generated/**"]
@@ -26,8 +27,10 @@ flat events through a third::
 
 A call spec names its call ONE way — ``function`` (a dotted callee, matched on
 whole segments from the right, so ``Analytics.shared.log`` also matches
-``self.analytics.shared.log``), ``pattern`` (a regex over the whole normalised
-callee) or ``objc_selector`` — and then says where each plan field comes from:
+``self.analytics.shared.log``, and ``ScreenView`` also matches Swift's
+``ScreenView.init``), ``pattern`` (a regex over the whole normalised
+callee, or over the type of a Swift ``Type.init`` call) or ``objc_selector``
+— and then says where each plan field comes from:
 
 ``args``
     argument label -> target. Swift ``label:`` and Kotlin ``label =`` labels,
@@ -186,6 +189,7 @@ _TOP_KEYS = frozenset(
     {
         "project",
         "branch",
+        "branch_if_exists",
         "revision",
         "root",
         "sources",
@@ -286,10 +290,17 @@ class CallSpec:
         if call.selector is not None:
             return False
         callee = _plain_callee(call.callee)
+        # `ScreenView.init(screen:)` is the call `ScreenView(screen:)` spelled out,
+        # so a spec that matches `ScreenView` matches it too.
+        built = initialized_type(callee, language)
         if self.pattern is not None:
-            return self.pattern.fullmatch(callee) is not None
+            if self.pattern.fullmatch(callee) is not None:
+                return True
+            return built is not None and self.pattern.fullmatch(built) is not None
         wanted = _plain_callee(self.function or "")
-        return callee == wanted or callee.endswith("." + wanted)
+        if callee == wanted or callee.endswith("." + wanted):
+            return True
+        return built is not None and (built == wanted or built.endswith("." + wanted))
 
     def target_for(self, arg: Arg) -> tuple[bool, str | None]:
         """``(mapped, target)`` for one argument; ``mapped`` False means "not configured"."""
@@ -412,6 +423,9 @@ class CheckConfig:
     root: Path
     project: str | None = None
     branch: str | None = None
+    # A plan branch to read only while it exists and is open; the live main
+    # plan otherwise. Never set together with ``branch``.
+    branch_if_exists: str | None = None
     # A stored plan revision the check is pinned to, so its verdicts do not
     # follow the live plan; moving it is a commit of its own.
     revision: str | None = None
@@ -438,6 +452,30 @@ def selector_field(part: str) -> str:
 
 def _plain_callee(callee: str) -> str:
     return re.sub(r"\(\)|\[\]|\s", "", callee)
+
+
+# A Swift initializer called by name: a capitalised segment, then `.init`, or
+# `.self.init` through the type's metatype. Swift types are capitalised by
+# convention, which leaves out `self.init`, `super.init`, a metatype held in a
+# variable and `factory().init`; `Self` names no type, and the implicit
+# `.init(…)` writes none.
+_SWIFT_INIT_CALL = re.compile(r"((?:.*\.)?([A-Z][A-Za-z0-9_]*))(?:\.self)?\.init")
+
+
+def initialized_type(callee: str, language: str) -> str | None:
+    """The type a Swift ``Type.init(…)`` call builds, as written before ``.init``; else None.
+
+    ``ScreenView.init`` and ``ScreenView.self.init`` are ``ScreenView``, and
+    ``Outer.ScreenView.init`` is ``Outer.ScreenView``: the callee of the same
+    call written without ``.init``. Any other call, and any call in another
+    language, is None.
+    """
+    if language != "swift":
+        return None
+    found = _SWIFT_INIT_CALL.fullmatch(_plain_callee(callee))
+    if found is None or found.group(2) == "Self":
+        return None
+    return found.group(1)
 
 
 # --- locating and loading ------------------------------------------------------
@@ -552,12 +590,24 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
     exclude = DEFAULT_EXCLUDES + tuple(_names(top.get("exclude"), f"{where}: exclude"))
     project = top.get("project")
     branch = top.get("branch")
+    branch_if_exists = top.get("branch_if_exists")
+    if branch is not None and branch_if_exists is not None:
+        raise TriplConfigError(
+            f"{where}: `branch` and `branch_if_exists` both name the plan branch; keep one "
+            "(`branch` fails the run when the branch does not exist, `branch_if_exists` "
+            "reads main then)."
+        )
     revision = top.get("revision")
     return CheckConfig(
         path=path,
         root=root,
         project=_text(project, f"{where}: project") if project is not None else None,
         branch=_text(branch, f"{where}: branch") if branch is not None else None,
+        branch_if_exists=(
+            _text(branch_if_exists, f"{where}: branch_if_exists")
+            if branch_if_exists is not None
+            else None
+        ),
         revision=_text(revision, f"{where}: revision") if revision is not None else None,
         sources=sources,
         exclude=exclude,

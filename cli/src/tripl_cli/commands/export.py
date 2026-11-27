@@ -39,7 +39,7 @@ from tripl_cli.commands._check_config import (
     check_config_of,
     project_of,
 )
-from tripl_cli.commands._plan import add_branch
+from tripl_cli.commands._plan import add_branch, branch_request
 from tripl_cli.commands.codegen import branch_document, display_path, fetch_export
 from tripl_cli.config import Config
 from tripl_cli.errors import EXIT_OK, TriplConfigError, TriplError
@@ -134,11 +134,20 @@ def run(args: argparse.Namespace, config: Config) -> int:
         )
     check_config = check_config_of(args)
     project = project_of(args, check_config, "export")
-    selector: str | None = args.branch
-    if selector is None and check_config is not None:
-        selector = check_config.branch
+    # The check config's branch keys mean here what they mean to `tripl check`.
+    # The environment variable is not read: this command has no --branch-if-exists.
+    asked = branch_request(
+        args,
+        config_branch=None if check_config is None else check_config.branch,
+        config_branch_if_exists=None if check_config is None else check_config.branch_if_exists,
+        environment=False,
+    )
     fmt: str = args.export_format
-    payload, branch, run_facts = fetch_export(config, project, selector, fmt, timeout=args.timeout)
+    payload, branch, run_facts = fetch_export(config, project, asked, fmt, timeout=args.timeout)
+    note = branch.describe(fallback_flag=False)
+    if note is not None:
+        # On stderr always: stdout may be carrying the export itself.
+        print(note, file=sys.stderr)
     revision = payload.get("revision")
     revision_text = None if revision is None or isinstance(revision, dict) else str(revision)
     schemas = len(as_dict(payload.get("schemas"))) if fmt == plan_export.FORMAT_JSONSCHEMA else 0

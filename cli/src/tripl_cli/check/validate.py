@@ -207,6 +207,9 @@ def _findings(verdict: JsonDict | None) -> list[CheckFinding]:
                 severity=severity if severity in _SEVERITIES else SEVERITY_ERROR,
                 field=text_of(raw, "field"),
                 message=text_of(raw, "message") or "",
+                # Without the spaces around it: a marker names the rule as
+                # the reports print it, and cannot name a space.
+                rule=(text_of(raw, "rule") or "").strip() or None,
             )
         )
     return found

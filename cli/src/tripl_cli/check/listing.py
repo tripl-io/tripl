@@ -7,13 +7,17 @@ result, and with a ``lint:`` section one line per lint finding (``lint.py``),
 the way ``tripl check`` prints it. Then the summary: the tally (and the lint's
 count), the reasons per target, the functions that forward their own parameter
 into a tracking call, as a value or as its object argument (each wants a call
-spec of its own), and the calls that look like tracking but match no call spec. The
+spec of its own), and the calls that look like tracking but match no call spec.
+When the scan read a ``tripl-check-ignore`` marker: under each call the markers
+covering it, and after the summary how many there are and the ones that
+suppress nothing (malformed, or on no matched call). The
 JSON document is ``tripl_cli.report.check_list_document``; both read their
 counts from ``inventory.summarize``, so the two cannot disagree.
 
 A value the scan did not read is "not read", never "only known at runtime":
-many are knowable at scan time (a format's template, two constants joined), and
-the scan just does not read them yet. ASCII only, like every other listing.
+many are knowable at scan time (a local set from a constant, a choice between
+constants), and the scan just does not read them yet. ASCII only, like every
+other listing.
 """
 
 from __future__ import annotations
@@ -26,12 +30,14 @@ from tripl_cli.check.inventory import (
     Forwarder,
     Inventory,
     ListedCall,
+    ListedMarker,
     Location,
     ReadValue,
     Summary,
     UnmatchedGroup,
 )
 from tripl_cli.check.model import (
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_CODES,
     REASON_CONCATENATION,
     REASON_CONDITIONAL,
@@ -46,8 +52,10 @@ from tripl_cli.check.model import (
     REASON_VARIABLE,
     REASON_WRONG_SHAPE,
     SIGNAL_CONSTANT,
+    MarkerState,
 )
-from tripl_cli.check.render import location, nothing_matched, render_skipped
+from tripl_cli.check.render import location, marker_line, nothing_matched, render_skipped
+from tripl_cli.check.suppress import label
 from tripl_cli.check.values import Value
 from tripl_cli.render import columns, plural
 
@@ -65,10 +73,18 @@ REASON_TEXT: dict[str, str] = {
     ),
     REASON_UNKNOWN_CONSTANT: (
         "a constant or enum case the scan could not resolve: add its file to enums: "
-        "or sources:, or name its type more fully when several share the name; "
-        "an enum case needs a string raw value; a local named like a constant needs nothing"
+        "or sources:; an enum case needs a string raw value; a local named like a "
+        "constant needs nothing"
     ),
-    REASON_FORMAT: "a printf-style format, which the scan does not fill in yet",
+    REASON_AMBIGUOUS_CONSTANT: (
+        "a name that resolves to constants of different values in several objects: "
+        "name its type more fully"
+    ),
+    REASON_FORMAT: (
+        "a printf-style format the scan does not fill in: a template it cannot read, "
+        "a conversion other than a plain %s, %d or %@, arguments the conversions do not "
+        "use up exactly, a spread, or an argument that is several values"
+    ),
     # Examples of the declarations whose returns `symbols` reads, a shape per
     # language; any declared return type String, string or NSString will do.
     REASON_FUNCTION: (
@@ -76,8 +92,14 @@ REASON_TEXT: dict[str, str] = {
         'declared like fun f(): String, fun f() = "...", func f() -> String, String f() '
         "or function f(): string, in a file under sources: or enums:"
     ),
-    REASON_CONDITIONAL: "a choice between values (if / when / a ternary / a fallback)",
-    REASON_CONCATENATION: "a concatenation the scan does not join yet",
+    REASON_CONDITIONAL: (
+        "a choice between values (if / when / a ternary / a fallback); the scan reads "
+        "an if, when or ternary whose every branch is a constant"
+    ),
+    REASON_CONCATENATION: (
+        "a concatenation the scan does not join: no string literal in it and a part "
+        "that is not a constant, or a part that is several values or a dictionary"
+    ),
     REASON_EXPRESSION: "an expression the scan does not evaluate",
     REASON_PARAMETER: (
         "a parameter of the function the call sits in: the value comes from its "
@@ -87,7 +109,10 @@ REASON_TEXT: dict[str, str] = {
         "a property of such a parameter: the value is set where that object is built; "
         "configure that, not the function's callers"
     ),
-    REASON_LOCAL: "a local variable; the scan does not follow locals",
+    REASON_LOCAL: (
+        "a local variable; the scan reads one declared once in its function with val, let, "
+        "const or a Java type, set to a constant"
+    ),
     # Reported on the name: nothing the call passes gives the event a name or a field.
     REASON_NOT_PASSED: (
         "the call passes no name and no field value the scan can read (no argument or "
@@ -112,6 +137,7 @@ def render_listing(found: Inventory, *, config: str | None) -> str:
         lines.append(_call_line(call))
         lines.extend(_reason_lines(call))
         lines.extend(_lint_lines(call))
+        lines.extend(_suppression_lines(call))
     if found.calls:
         lines.append("")
     lines.extend(_tally(summary, found.files))
@@ -121,6 +147,8 @@ def render_listing(found: Inventory, *, config: str | None) -> str:
         lines += ["", *_why(summary)]
     if found.forwarders:
         lines += ["", *_forwarders(found.forwarders)]
+    if found.markers:
+        lines += ["", *_markers(found, summary)]
     if not found.calls:
         lines += ["", _no_call(found, config)]
     lines += ["", *_unmatched(found.unmatched)]
@@ -177,6 +205,18 @@ def _reason_lines(call: ListedCall) -> list[str]:
     if call.read.unmapped:
         lines.append(f"    not mapped: {', '.join(call.read.unmapped)}")
     return lines
+
+
+def _suppression_lines(call: ListedCall) -> list[str]:
+    """Under a call, read or not: one line per valid marker covering it, with its reason.
+
+    The line starts with the marker as written, not with a ``word:`` prefix: a
+    reason line starts with a target's name, and a field can have any name.
+    """
+    return [
+        f"    {label(suppression)} -- {_flat(suppression.reason)} (line {suppression.line})"
+        for suppression in call.suppressions
+    ]
 
 
 def _reason_text(code: str, read: ReadValue | None, unread_object: ReadValue | None = None) -> str:
@@ -302,6 +342,35 @@ def _why(summary: Summary) -> list[str]:
     return ["Why (call sites, per target):", *(f"  {line}" for line in columns(rows))]
 
 
+def _markers(found: Inventory, summary: Summary) -> list[str]:
+    """How many markers the scan read, then each one that suppresses nothing, and why.
+
+    A valid marker on no matched call is only named when the config can match
+    a call: with no event types none does, and every marker would be listed.
+    """
+    count = f"Suppression markers: {summary.markers} read"
+    if found.matching:
+        count += f", covering {plural(summary.calls_covered, 'call site')}"
+    lines = [f"{count}."]
+    lines.extend(
+        marker_line(MarkerState(entry.marker, used=False))
+        for entry in found.markers
+        if entry.marker.problem is not None
+    )
+    if found.matching:
+        lines.extend(_no_call_marker(entry) for entry in found.markers if _on_no_call(entry))
+    return lines
+
+
+def _on_no_call(entry: ListedMarker) -> bool:
+    return entry.marker.problem is None and not entry.calls
+
+
+def _no_call_marker(entry: ListedMarker) -> str:
+    marker = entry.marker
+    return f"Suppression on no matched call: {marker.path}:{marker.line} {label(marker)}."
+
+
 def _forwarders(forwarders: Sequence[Forwarder]) -> list[str]:
     rows = [
         [
@@ -339,32 +408,46 @@ def _forwarded(parameter: ForwardedParameter) -> str:
 
 
 def _callers(forwarder: Forwarder) -> str:
-    """Where a forwarder's own calls are, by name: in its file first, then elsewhere."""
+    """Where a forwarder's own calls are, by name: in its file first, then elsewhere.
+
+    Elsewhere is the files of its own language: a call of the same name in
+    another language is most likely another function's, so it is only
+    counted at the end. The JSON keeps both counts.
+    """
     callers = forwarder.callers
-    total = callers.same_file + callers.other_files
-    if not total:
-        return "no calls found"
-    if callers.same_file_matched + callers.other_files_matched == total:
-        return "its calls are matched"
-    first = callers.first_unmatched
-    here = forwarder.location.path
+    elsewhere = callers.other_files_same_language
+    elsewhere_matched = callers.other_files_same_language_matched
+    other_languages = callers.other_files - elsewhere
+    total = callers.same_file + elsewhere
     parts: list[str] = []
-    if callers.same_file:
-        part = (
-            f"{plural(callers.same_file, 'call')} in this file, "
-            f"{_matched(callers.same_file, callers.same_file_matched)}"
+    if not total:
+        parts.append("no calls found")
+    elif callers.same_file_matched + elsewhere_matched == total:
+        parts.append("its calls are matched")
+    else:
+        first = callers.first_unmatched_same_language
+        here = forwarder.location.path
+        if callers.same_file:
+            part = (
+                f"{plural(callers.same_file, 'call')} in this file, "
+                f"{_matched(callers.same_file, callers.same_file_matched)}"
+            )
+            if first is not None and first.path == here:
+                part += f" (first :{first.line})"
+            parts.append(part)
+        if elsewhere:
+            part = (
+                f"{plural(elsewhere, 'call')} named {forwarder.function} elsewhere, "
+                f"{_matched(elsewhere, elsewhere_matched)}"
+            )
+            if first is not None and first.path != here:
+                part += f" (first {first.path}:{first.line})"
+            parts.append(part)
+    if other_languages:
+        parts.append(
+            f"{plural(other_languages, 'call')} named {forwarder.function} "
+            "in other languages, not counted"
         )
-        if first is not None and first.path == here:
-            part += f" (first :{first.line})"
-        parts.append(part)
-    if callers.other_files:
-        part = (
-            f"{plural(callers.other_files, 'call')} named {forwarder.function} elsewhere, "
-            f"{_matched(callers.other_files, callers.other_files_matched)}"
-        )
-        if first is not None and first.path != here:
-            part += f" (first {first.path}:{first.line})"
-        parts.append(part)
     return "; ".join(parts)
 
 

@@ -68,7 +68,7 @@ from tripl_cli.check.model import (
 from tripl_cli.check.suppress import PROBLEM_TEXT, label
 from tripl_cli.check.validate import summary
 from tripl_cli.model import JsonDict
-from tripl_cli.render import plural
+from tripl_cli.render import plan_branch_note, plural
 
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -133,8 +133,9 @@ def describe(result: CheckResult) -> str:
 def finding_message(result: CheckResult, finding: CheckFinding) -> str:
     """One finding as one line of prose: what is wrong, then which call it is about."""
     field = f" (field {finding.field})" if finding.field else ""
+    rule = f" (rule {finding.rule})" if finding.rule else ""
     text = finding.message or RULE_TEXT.get(finding.code, finding.code)
-    return f"{text}{field} - {describe(result)}"
+    return f"{text}{rule}{field} - {describe(result)}"
 
 
 def location(origin: Origin) -> str:
@@ -183,7 +184,7 @@ def render_text(report: CheckReport) -> str:
         for finding in shown:
             field = f" [{finding.field}]" if finding.field else ""
             mark = " (in the baseline)" if finding.baselined else ""
-            lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}{mark}")
+            lines.append(f"    {finding.severity}  {finding.label}{field}: {finding.message}{mark}")
     counts = summary(report.results)
     what = "call site" if report.mode == MODE_STATIC else "event"
     scope = f" in {plural(report.files_scanned, 'file')}" if report.mode == MODE_STATIC else ""
@@ -202,6 +203,9 @@ def render_text(report: CheckReport) -> str:
     lines.append(tally + ".")
     if report.plan is not None:
         lines.append(plan_line(report.plan))
+    note = branch_note(report)
+    if note is not None:
+        lines.append(note)
     if report.gate is not None:
         lines.extend(gate_lines(report, held))
     if report.baseline is not None:
@@ -219,6 +223,15 @@ def render_text(report: CheckReport) -> str:
     if report.coverage is not None:
         lines.extend(coverage_lines(report.coverage))
     return "\n".join(lines)
+
+
+def branch_note(report: CheckReport) -> str | None:
+    """The line about the plan branch the run asked for: main read instead, or a frozen copy."""
+    if report.branch_requested is None:
+        return None
+    return plan_branch_note(
+        report.branch_requested, report.branch_status, used_main=report.branch_id is None
+    )
 
 
 def plan_line(plan: PlanPin) -> str:
@@ -518,6 +531,10 @@ def _sarif_result(
         "partialFingerprints": {FINGERPRINT_KEY: fingerprint},
         "properties": _properties(result),
     }
+    if finding.rule is not None:
+        # The rule of a policy finding. ruleId stays the code, which is what
+        # the run's rule list and a viewer's filters are keyed by.
+        sarif["properties"]["rule"] = finding.rule
     if report.gate is not None:
         # Whether the change brought the finding in; never SARIF's
         # baselineState, which compares two runs, and this is one.

@@ -35,7 +35,7 @@ from tripl_cli.check.model import (
 )
 from tripl_cli.check.suppress import label
 from tripl_cli.check.validate import summary as tally
-from tripl_cli.render import plural
+from tripl_cli.render import plan_branch_note, plural
 
 ADDED = "added"
 REMOVED = "removed"
@@ -246,7 +246,7 @@ def _finding_lines(report: CheckReport) -> list[str]:
             field = f" [{finding.field}]" if finding.field else ""
             lines.append(
                 f"- {_code(f'{origin.path}:{origin.line}')} {finding.severity} "
-                f"{_code(finding.code)}{field}: {finding.message}"
+                f"{_code(finding.label)}{field}: {finding.message}"
             )
     total = sum(
         1 for result in failing for finding in result.findings if finding.suppression is None
@@ -284,6 +284,13 @@ def markdown_document(report: CheckReport) -> str:
     branch = f", plan branch {_code(report.branch_name)}" if report.branch_name else ""
     if report.plan is not None:
         branch = f", plan revision {_code(report.plan.revision)}"
-    lines = [TITLE, "", f"{project}{branch}.", "", *_change_lines(report), ""]
+    lines = [TITLE, "", f"{project}{branch}.", ""]
+    if report.branch_requested is not None:
+        note = plan_branch_note(
+            report.branch_requested, report.branch_status, used_main=report.branch_id is None
+        )
+        if note is not None:
+            lines += [note, ""]
+    lines += [*_change_lines(report), ""]
     lines += _finding_lines(report)
     return "\n".join(lines) + "\n"
