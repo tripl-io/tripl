@@ -506,7 +506,10 @@ and JSON reports, marked as suppressed with its reason, and the job log counts
 it in the summary (`1 finding suppressed`). The reason after `--` is required: a marker without one suppresses
 nothing, and the job log says so. A marker that no longer matches any finding
 is listed as unused, so you can remove it; add `--strict-suppressions` to the
-job's arguments to fail the job on it instead. Reviewers see the marker in the
+job's arguments to fail the job on it instead. To accept one rule of an
+organization's plan policy and keep the others failing, name the rule after
+the code, as the job log prints it: `tripl-check-ignore[policy_violation@naming.event]`.
+Reviewers see the marker in the
 diff like any other code, which keeps each exception a decision someone made.
 The guide's [Suppress a finding](../integrate/tripl-check.md#suppress) has the
 full grammar and the comment forms for each language.

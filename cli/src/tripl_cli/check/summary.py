@@ -246,7 +246,7 @@ def _finding_lines(report: CheckReport) -> list[str]:
             field = f" [{finding.field}]" if finding.field else ""
             lines.append(
                 f"- {_code(f'{origin.path}:{origin.line}')} {finding.severity} "
-                f"{_code(finding.code)}{field}: {finding.message}"
+                f"{_code(finding.label)}{field}: {finding.message}"
             )
     total = sum(
         1 for result in failing for finding in result.findings if finding.suppression is None

@@ -669,6 +669,7 @@ def check_document(report: CheckReport) -> JsonDict:
                     "code": finding.code,
                     "severity": finding.severity,
                     "field": finding.field,
+                    "rule": finding.rule,
                     "message": finding.message,
                     "fingerprint": fingerprint,
                     **(
@@ -695,7 +696,10 @@ def check_document(report: CheckReport) -> JsonDict:
                     "line": state.marker.line,
                     "column": state.marker.column,
                 },
-                "targets": [{"code": code, "field": field} for code, field in state.marker.targets],
+                "targets": [
+                    {"code": code, "field": field, "rule": rule}
+                    for code, field, rule in state.marker.targets
+                ],
                 "reason": state.marker.reason,
                 "used": state.used,
                 "problem": state.marker.problem,
@@ -854,7 +858,7 @@ def _marker_location(marker: Marker | Suppression) -> JsonDict:
 
 
 def _marker_targets(marker: Marker | Suppression) -> list[JsonDict]:
-    return [{"code": code, "field": field} for code, field in marker.targets]
+    return [{"code": code, "field": field, "rule": rule} for code, field, rule in marker.targets]
 
 
 def _read_document(read: ReadValue | None) -> JsonDict | None:
