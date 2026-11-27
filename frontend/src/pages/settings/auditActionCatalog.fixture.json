@@ -184,6 +184,7 @@
         "project.member_update",
         "project.member_remove",
         "project_tracker_config.update",
+        "check_run_settings.update",
         "project.reset_anomalies",
         "project.reset_drifts",
         "project.retire_unused_variables",

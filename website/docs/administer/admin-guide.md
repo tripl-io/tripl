@@ -20,8 +20,8 @@ contexts:
 - **Platform** — the server's own settings (Runtime, Mail relay, AI & search,
   Security & access, Storage, Observability, System), shown to **platform
   admins only**.
-- **Project** — per-project configuration (General, Plan rules), covered in the
-  user guide rather than here.
+- **Project** — per-project configuration (General, Access, Plan rules, Check
+  runs), covered in the user guide rather than here.
 
 :::note Settings vs. environment variables
 The **Platform** sections in the UI let a platform admin override a subset of

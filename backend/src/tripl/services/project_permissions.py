@@ -102,7 +102,7 @@ _RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
             r"|planned-events|duplicates|reconciliation|revisions|branches|ai|plan)" + _SEGMENT,
             PLAN_EDIT,
         ),
-        (r"^/(?:members|search|reset)" + _SEGMENT, SETTINGS_MANAGE),
+        (r"^/(?:members|search|reset|check-run-settings)" + _SEGMENT, SETTINGS_MANAGE),
         (r"^/?$", SETTINGS_MANAGE),
     )
 )

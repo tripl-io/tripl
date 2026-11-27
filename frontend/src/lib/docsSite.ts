@@ -10,6 +10,9 @@ export const DOCS_SITE_URL = 'https://docs.tripl.io'
 /** What tripl's words mean: plans, scans, metrics, signals. */
 export const CONCEPTS_DOCS_URL = `${DOCS_SITE_URL}/use/concepts`
 
+/** Recording `tripl check` runs in tripl from CI (`tripl check --upload`). */
+export const CHECK_UPLOAD_DOCS_URL = `${DOCS_SITE_URL}/integrate/tripl-check#send-results-to-tripl`
+
 /** Running tripl on one's own warehouse. */
 export const QUICK_START_URL = `${DOCS_SITE_URL}/quick-start`
 

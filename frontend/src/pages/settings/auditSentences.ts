@@ -203,6 +203,7 @@ const ACTION_SENTENCE: Record<string, string> = {
   'project.reset_drifts': 'Reset the drifts of project',
   'project.retire_unused_variables': 'Retired the unused properties of project',
   'project.docs_languages': 'Changed the default docs languages of project',
+  'check_run_settings.update': 'Changed the code link template of project',
   // Workspace.
   'user.invite_revoke': 'Revoked an invitation',
   'user.invite_accept': 'Accepted an invitation',
@@ -296,6 +297,7 @@ export const TARGET_NOUN: Record<string, string> = {
   // anomaly windows "expected windows".
   planned_event: 'expected window',
   project_tracker_config: 'implementation tracker',
+  check_run_settings: 'check run settings',
   scan_config: 'scan',
   scan_job: 'scan run',
   data_source: 'data source',

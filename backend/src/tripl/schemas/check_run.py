@@ -11,6 +11,7 @@ summary only. See :mod:`tripl.services.check_run_service`.
 from __future__ import annotations
 
 import posixpath
+import re
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
@@ -213,3 +214,103 @@ class EventCodeUsageResponse(BaseModel):
 
     event_id: uuid.UUID
     repositories: list[EventCodeUsageRepository]
+    # The project's link template (``CheckRunSettings.code_url_template``), so
+    # the event page links each place without a second request. NULL: plain text.
+    code_url_template: str | None = None
+
+
+class CheckRunDirectory(BaseModel):
+    """One repository and check directory with runs still kept, for the history's filter."""
+
+    repository: str
+    check_root: str
+    runs: int
+    last_run_at: datetime
+
+
+class CheckRunDirectoryListResponse(BaseModel):
+    items: list[CheckRunDirectory]
+
+
+#: What a code link template may name, filled in per place the check found:
+#: the repository's web address and CI name, the run's ref and commit, the
+#: file's path relative to the repository root, and the line.
+CODE_URL_PLACEHOLDERS: tuple[str, ...] = (
+    "repository_url",
+    "repository",
+    "ref",
+    "commit",
+    "path",
+    "line",
+)
+_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+# ``https://host`` followed by the end of the host: the scheme and host are
+# literal text, never a placeholder.
+_LITERAL_ORIGIN = re.compile(r"^https?://[^/?#{}@\\]+[/?#]", re.IGNORECASE)
+# What stands in for each placeholder while a template is checked: filled in,
+# the link must be an http(s) URL with a host.
+_SAMPLE_VALUES = {
+    "repository_url": "https://git.example.com/org/app",
+    "repository": "org/app",
+    "ref": "main",
+    "commit": "0123456789abcdef",
+    "path": "src/app.ts",
+    "line": "1",
+}
+
+
+def code_url_template(value: str | None) -> str | None:
+    """A link template that fills in to an http(s) URL, or None to show plain text.
+
+    It names only :data:`CODE_URL_PLACEHOLDERS`, must name ``{path}``, and has
+    no whitespace or control character. It starts with ``http://`` or
+    ``https://`` and a host written out, or with ``{repository_url}`` (the
+    address a run uploaded, which is http(s) too), and filled in with sample
+    values it reads as an http(s) URL with a host.
+    """
+    if value is None:
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in trimmed):
+        raise ValueError("must not contain spaces or control characters")
+    names = _PLACEHOLDER.findall(trimmed)
+    known = ", ".join(f"{{{name}}}" for name in CODE_URL_PLACEHOLDERS)
+    unknown = [name for name in names if name not in CODE_URL_PLACEHOLDERS]
+    if unknown:
+        raise ValueError(f"unknown placeholder {{{unknown[0]}}}; use {known}")
+    rest = _PLACEHOLDER.sub("", trimmed)
+    if "{" in rest or "}" in rest:
+        raise ValueError(f"has an unmatched brace; the placeholders are {known}")
+    if "path" not in names:
+        raise ValueError("must contain {path}")
+    if "repository_url" in names and not trimmed.startswith("{repository_url}"):
+        raise ValueError("{repository_url} may only start the template")
+    # The host is written out, so no value a run uploads (a path, a ref) can
+    # move the link to another site.
+    if not trimmed.startswith("{repository_url}") and not _LITERAL_ORIGIN.match(trimmed):
+        raise ValueError("must start with http:// or https:// and a host, or with {repository_url}")
+    sample = _PLACEHOLDER.sub(lambda match: _SAMPLE_VALUES[match.group(1)], trimmed)
+    parsed = urlparse(sample)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("must be an http(s) URL, or start with {repository_url}")
+    return trimmed
+
+
+class CheckRunSettings(BaseModel):
+    """How the project shows its check runs: the link from a place to its file."""
+
+    # ``https://github.com/org/app/blob/{commit}/{path}#L{line}``; NULL shows
+    # the places "used in code" lists as plain text.
+    code_url_template: str | None = None
+
+
+class CheckRunSettingsUpdate(BaseModel):
+    # ``null`` or an empty string clears the template.
+    code_url_template: str | None = Field(default=None, max_length=URL_MAX_LENGTH)
+
+    @field_validator("code_url_template")
+    @classmethod
+    def _check_template(cls, value: str | None) -> str | None:
+        return code_url_template(value)

@@ -220,6 +220,8 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "project.member_update",
             "project.member_remove",
             "project_tracker_config.update",
+            # The link template "used in code" turns a file and line into a link with.
+            "check_run_settings.update",
             "project.reset_anomalies",
             "project.reset_drifts",
             "project.retire_unused_variables",

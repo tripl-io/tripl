@@ -39,13 +39,18 @@ from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.check_run import CheckRun, CheckRunCall
 from tripl.models.event import Event
 from tripl.models.plan_branch import BranchKind, PlanBranch
+from tripl.models.project import Project
 from tripl.schemas.check_run import (
     CheckRunCallLocation,
     CheckRunCounts,
     CheckRunCreate,
+    CheckRunDirectory,
+    CheckRunDirectoryListResponse,
     CheckRunFinding,
     CheckRunListResponse,
     CheckRunResponse,
+    CheckRunSettings,
+    CheckRunSettingsUpdate,
     EventCodeUsageRepository,
     EventCodeUsageResponse,
 )
@@ -273,6 +278,55 @@ async def list_runs(
     return CheckRunListResponse(items=[run_response(run) for run in rows.all()], total=total or 0)
 
 
+async def list_directories(
+    session: AsyncSession, project_id: uuid.UUID
+) -> CheckRunDirectoryListResponse:
+    """Every repository and check directory with a run kept, what the history filters by."""
+    rows = await session.execute(
+        select(
+            CheckRun.repository,
+            CheckRun.check_root,
+            func.count(),
+            func.max(CheckRun.created_at),
+        )
+        .where(CheckRun.project_id == project_id)
+        .group_by(CheckRun.repository, CheckRun.check_root)
+        .order_by(CheckRun.repository, CheckRun.check_root)
+    )
+    return CheckRunDirectoryListResponse(
+        items=[
+            CheckRunDirectory(
+                repository=repository,
+                check_root=root,
+                runs=runs,
+                last_run_at=to_utc(last_run_at),
+            )
+            for repository, root, runs, last_run_at in rows.all()
+        ]
+    )
+
+
+async def get_settings(session: AsyncSession, project_id: uuid.UUID) -> CheckRunSettings:
+    template = await session.scalar(
+        select(Project.code_url_template).where(Project.id == project_id)
+    )
+    return CheckRunSettings(code_url_template=template)
+
+
+async def update_settings(
+    session: AsyncSession, project_id: uuid.UUID, data: CheckRunSettingsUpdate
+) -> CheckRunSettings:
+    """Write the fields the request names; an unnamed one keeps its value."""
+    if "code_url_template" in data.model_fields_set:
+        await session.execute(
+            update(Project)
+            .where(Project.id == project_id)
+            .values(code_url_template=data.code_url_template)
+        )
+        await session.commit()
+    return await get_settings(session, project_id)
+
+
 async def event_code_usage(
     session: AsyncSession, project_id: uuid.UUID, event_id: uuid.UUID
 ) -> EventCodeUsageResponse:
@@ -309,8 +363,12 @@ async def event_code_usage(
                     findings=[CheckRunFinding.model_validate(item) for item in call.findings],
                 )
             )
+    template = await session.scalar(
+        select(Project.code_url_template).where(Project.id == project_id)
+    )
     return EventCodeUsageResponse(
         event_id=event_id,
+        code_url_template=template,
         repositories=[
             EventCodeUsageRepository(
                 repository=run.repository,

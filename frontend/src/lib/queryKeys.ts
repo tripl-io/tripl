@@ -95,6 +95,23 @@ export const planBranchTicketsKey = (slug: string, branchId: string) =>
 /** The project's merge policy — `GET /branch-settings`. */
 export const branchSettingsKey = (slug: string) => [...orgRoot(), 'branchSettings', slug] as const
 
+/** Every check-run cache of a project: the history, its filters, the link template. */
+export const checkRunsRootKey = (slug: string) => [...orgRoot(), 'checkRuns', slug] as const
+/** One page of the check history — `GET /check-runs`. */
+export const checkRunsKey = (
+  slug: string,
+  params: { repository?: string; checkRoot?: string; offset: number },
+) => [...checkRunsRootKey(slug), 'list', params] as const
+/** The repositories and check directories the history is filtered by. */
+export const checkRunDirectoriesKey = (slug: string) =>
+  [...checkRunsRootKey(slug), 'directories'] as const
+/** The project's link template — `GET /check-run-settings`. */
+export const checkRunSettingsKey = (slug: string) =>
+  [...checkRunsRootKey(slug), 'settings'] as const
+/** "Used in code" on one event — `GET /events/{id}/code-usage`. */
+export const eventCodeUsageKey = (slug: string, eventId: string) =>
+  [...checkRunsRootKey(slug), 'codeUsage', eventId] as const
+
 /** `GET /tracker-config`, read by the branch tickets panel and TrackerConfigDialog. */
 /** Every project's tracker config: what an organization's tracker-default save invalidates. */
 export const trackerConfigRootKey = () => [...orgRoot(), 'trackerConfig'] as const

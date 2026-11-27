@@ -1497,8 +1497,8 @@ the check block merges. In short:
 - To gate the default branch and a scheduled run too, where there is no diff
   base, commit a [baseline](#baseline) and pass
   `--baseline .tripl/check-baseline.json`.
-- To keep the results in tripl, where the event pages can show where the code
-  sends each event, add `--upload` and use a `check_upload` key: see
+- To keep the results in tripl, where each event's page shows where the code
+  sends it, add `--upload` and use a `check_upload` key: see
   [Send results to tripl](#send-results-to-tripl).
 - To check against a plan branch named after the merge request's branch, add
   `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
@@ -1600,10 +1600,13 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   `CHECK_RUN_RETENTION_DAYS` (default 90; see
   [Configuration](../run/configuration.md#operational-history-retention)).
 
-The runs are read through the API for now
-([Check runs](./agent-api-guide.md#check-runs)): the history, and per event
-where the code sends it. Showing them in the app, on the event page and in the
-project settings, comes next.
+In the app, an event's page lists under **Used in code** the places each
+repository's current run found it at, as `file:line`, with the run's ref,
+commit and age; **Settings → Project → Check runs** lists every run kept, and
+holds the link template that turns each place into a link to the file
+(`https://github.com/org/app/blob/{commit}/{path}#L{line}`, or
+`{repository_url}/-/blob/{commit}/{path}#L{line}` for GitLab). The same reads
+are in the API ([Check runs](./agent-api-guide.md#check-runs)).
 
 ## Related pages {#related}
 

@@ -83,6 +83,7 @@ import {
 import { SuccessorPicker } from './SuccessorPicker'
 import { ownerFieldHint } from './eventOwner'
 import { useEventTypeOwners } from './useEventTypeOwners'
+import { EventCodeUsage } from './EventCodeUsage'
 import { FieldValuesCard, MetaFieldsCard, TagsBreakdownsCard } from './EventFormCards'
 import type { EventDuplicate } from './duplicateEvent'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
@@ -1314,6 +1315,10 @@ export function EventForm({
             variables={projectVariables}
           />
         </fieldset>
+
+        {/* Read-only, outside the fieldset: where CI's check runs find the
+            event, on main's terms (a branch copy asks with its main twin). */}
+        {event && <EventCodeUsage slug={slug} eventId={event.main_event_id ?? event.id} />}
 
         {beforeActions}
 
