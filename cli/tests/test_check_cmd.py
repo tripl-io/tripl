@@ -740,6 +740,23 @@ def test_an_empty_capture_file_is_fine_with_allow_empty(
     assert not validator.called
 
 
+def test_a_missing_capture_file_is_exit_2_even_with_allow_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A test run that never wrote its file (it crashed, or wrote it elsewhere)
+    # is not a run that sent nothing: --allow-empty passes an empty file only.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    argv = ["check", "--payloads", "events.ndjson", "--project", "demo", "--allow-empty"]
+    assert main(argv) == 2
+    assert "--payloads: events.ndjson does not exist." in capsys.readouterr().err
+    assert not validator.called
+
+
 def test_a_file_the_scan_did_not_read_is_reported(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
