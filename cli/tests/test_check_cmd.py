@@ -1181,7 +1181,8 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "entries": None,
         "reason": "parameter",
         "expression": "event",
-        "declared": {"function": "logEvent", "line": 2},
+        # `type` names an initializer's type; `logEvent` is none.
+        "declared": {"function": "logEvent", "line": 2, "type": None},
     }
     assert forwarding["dynamic"] == {"name": "parameter", "properties": "parameter"}
     # Nothing about it is known: `tripl check` reports it as dynamic and sends nothing.
@@ -1232,7 +1233,12 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
             "other_files": 0,
             "other_files_matched": 0,
             "first_unmatched": {"path": "app/Screen.kt", "line": 11, "column": 9},
+            # The calls elsewhere in files of its own language: none here either.
+            "other_files_same_language": 0,
+            "other_files_same_language_matched": 0,
+            "first_unmatched_same_language": {"path": "app/Screen.kt", "line": 11, "column": 9},
         },
+        "language": "kotlin",
     }
     assert document["unmatched"] == [
         {
@@ -1652,10 +1658,14 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1, "type": None}},
         None,
         None,
-        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+        {
+            **unread,
+            "expression": "props",
+            "declared": {"function": "opened", "line": 8, "type": None},
+        },
     ]
     assert [
         (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
@@ -1824,6 +1834,63 @@ def test_list_says_where_a_forwarder_s_calls_are_and_which_files_it_did_not_read
         "\n"
         "Not read: 1 configured file: app/Bundle.kt (too large).\n"
     )
+
+
+def test_list_counts_a_forwarder_s_callers_elsewhere_in_its_own_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    files = {
+        ".tripl/check.yml": LIST_FORWARDERS_CONFIG,
+        **LIST_FORWARDERS_SOURCES,
+        # Java calls the Kotlin wrappers, and Swift has a `report` of its own.
+        "app/Legacy.java": (
+            "class Legacy {\n"
+            '  void a() { WrappersKt.relay("legacy"); WrappersKt.lonely("x"); }\n'
+            "}\n"
+        ),
+        "app/Other.swift": 'func other() {\n    report("swift")\n}\n',
+    }
+    _checkout(tmp_path / "repo", files, monkeypatch)
+    assert main(["check", "--list"]) == 0
+    out = capsys.readouterr().out
+    start = out.index("Functions that forward")
+    section = out[start : out.index("\n\n", start)].splitlines()[1:]
+    assert section == [
+        "  relay   app/Wrappers.kt:4  forwards event (#0) to name  "
+        "1 call named relay elsewhere, none matched (first app/Screen.kt:2); "
+        "1 call named relay in other languages, not counted",
+        "  lonely  app/Wrappers.kt:1  forwards event (#0) to name  "
+        "no calls found; 1 call named lonely in other languages, not counted",
+        "  report  app/Wrappers.kt:7  forwards event (#0) to name  "
+        "its calls are matched; 1 call named report in other languages, not counted",
+    ]
+    # The JSON keeps the counts by name, and adds the ones in Kotlin.
+    assert main(["check", "--list", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+
+    def path(place: dict[str, Any] | None) -> str | None:
+        return None if place is None else place["path"]
+
+    assert [
+        (
+            forwarder["function"],
+            forwarder["language"],
+            forwarder["callers"]["other_files"],
+            forwarder["callers"]["other_files_matched"],
+            forwarder["callers"]["other_files_same_language"],
+            forwarder["callers"]["other_files_same_language_matched"],
+            path(forwarder["callers"]["first_unmatched"]),
+            path(forwarder["callers"]["first_unmatched_same_language"]),
+        )
+        for forwarder in document["forwarders"]
+    ] == [
+        ("relay", "kotlin", 2, 0, 1, 0, "app/Legacy.java", "app/Screen.kt"),
+        ("lonely", "kotlin", 1, 0, 0, 0, "app/Legacy.java", None),
+        ("report", "kotlin", 1, 1, 0, 0, None, None),
+    ]
 
 
 def test_list_names_a_field_two_labels_reach_once(
