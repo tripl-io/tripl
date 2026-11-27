@@ -45,12 +45,12 @@ rather than the machinery:
 - **`tripl events`** — `list` the catalog with the API's own filters, `show` one
   event with its field values resolved to field names.
 - **`tripl plan`** — the shape events are declared to have: `types`, one type's
-  `fields`, the documented `properties`, the plan `branches`, and `search` across
-  all of it.
+  `fields`, the documented `properties`, the plan `branches`, the stored
+  `revisions`, and `search` across all of it.
 
 Both read one project at a time, so both need `--project SLUG` exactly once, and
-every verb but `plan branches` takes `--branch` to read a plan branch instead of
-the live main plan.
+every verb but `plan branches` and `plan revisions` takes `--branch` to read a
+plan branch instead of the live main plan.
 
 One more checks **your code** against the plan, and is one word:
 
@@ -1777,6 +1777,11 @@ said nothing".
 `--offset 200` walks to the next page; `--limit 10000` asks for the lot in one
 request. The JSON carries `total`, `offset`, `limit` and a derived `truncated`
 so a consumer never has to do that arithmetic itself.
+
+The last page says where it started, `12 of 412 events shown, starting after
+the first 400.`, and a page past the end prints `(no events at --offset 500)`
+rather than `(no events)`, which is kept for a catalog that has none. Every
+verb that takes `--offset` does the same.
 :::
 
 :::note `--silent-since-days` is the one filter worth a runbook entry
@@ -1858,9 +1863,10 @@ changes.
 usage: tripl plan [-h] [--url URL] [--api-key KEY] [--config PATH] <verb> ...
 ```
 
-Five verbs: `types`, `fields`, `variables`, `branches` and `search`. A bare
-`tripl plan` prints this group's help on stderr and exits 2. Every verb takes
-exactly one `--project`, and every one except `branches` takes `--branch`.
+Six verbs: `types`, `fields`, `properties`, `branches`, `revisions` and `search`.
+A bare `tripl plan` prints this group's help on stderr and exits 2. Every verb
+takes exactly one `--project`, and every one except `branches` and `revisions`
+takes `--branch`.
 
 :::note Why `plan types` and not `event-types list`
 The grammar everywhere else is *`<plural-noun> <verb>`* — `scans list`,
@@ -2078,7 +2084,7 @@ This command exists mostly to give you the name to pass to `--branch`.
 `tripl plan diff` is **not** shipped, though the route exists and the MCP
 server's `get_branch_diff` tool reads it. The diff answers
 `{behind_base, entries, renames, summary}` — not a list — so it does not fit the
-one document shape the seven read verbs share, and `behind_base` is too
+one document shape the eight read verbs share, and `behind_base` is too
 load-bearing to smuggle into an `items` array. `renames` makes that worse rather
 than better: it is a second top-level key, and one that points *at* `entries` —
 each pair naming the removal and the addition that are really one renamed row,
@@ -2090,6 +2096,67 @@ Merging, reverting and branch transitions are not here either, and never will
 be: both surfaces hand that decision back to a human in the tripl app, which is
 where the conflict resolution and the review state live.
 :::
+
+**Cost:** one request.
+
+### `tripl plan revisions`
+
+```
+usage: tripl plan revisions [-h] [--url URL] [--api-key KEY] [--config PATH]
+                            [--project SLUG] [--offset N] [--limit N] [--json]
+                            [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--project SLUG` | **Required**, exactly once. |
+| `--offset N` | Skip N revisions, to read the next page. Default `0`. |
+| `--limit N` | How many revisions to ask for, `1`–`200`, default `50`. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**No `--branch`.** A revision is a stored copy of the whole plan, and the list
+covers every revision of the project, the ones made for plan branches too.
+
+```text
+tripl plan revisions - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+prod
+  5e6f7a8b-0000-4000-8000-00000000cafe  2026-08-01T09:00:00Z  merge     branch 7c1d2e3f-0000-4000-8000-000000009f21  4 event types, 23 events, 9 fields, 6 properties, 1 relation  Merge checkout-redesign
+  0a1b2c3d-0000-4000-8000-00000000beef  2026-07-30T14:05:11Z  snapshot  -                                            4 event types, 23 events, 9 fields, 6 properties, 1 relation  Before the checkout redesign
+
+2 revisions.
+```
+
+Newest first. The columns are the revision id, when it was stored, its kind,
+the plan branch behind it, what the stored plan holds, and the summary its
+author gave it, on one line (`-` when it is blank). A character in the summary
+that a terminal would act on instead of show, such as an escape, is printed as
+its code (`\x1b`).
+
+The kind says what made the revision: `snapshot` is one a person took,
+`branch_base` is the copy a plan branch started from, and `merge` is the plan
+right after a branch was merged. The last two name their branch by id (`-` once
+that branch is deleted); `tripl plan branches` lists the ids. A `snapshot` row
+shows `-` there.
+
+The counts leave out whatever the plan has none of: event types, events,
+fields, properties, meta fields and relations, in that order. A plan with
+nothing in it prints `empty`, and counts that are not whole numbers of zero or
+more print `-`.
+
+`(no revisions)` means the project has none. A page past the last one prints
+`(no revisions at --offset 50)`, and the footer of any page after the first
+counts it against the total: `2 of 7 revisions shown, starting after the first
+5.`
+
+This command exists mostly to give you the id to pass to
+[`tripl check --revision`](#tripl-check), or to put under `revision:` in the
+check configuration — see [Pin the plan](../integrate/tripl-check.md#pin). Any
+row's id works there, whatever its kind.
+
+Taking a revision and reverting to one are not here: do both on the project's
+History page.
 
 **Cost:** one request.
 
@@ -2292,7 +2359,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--check-config PATH` | The check configuration to read. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) in the current directory or a parent, up to the repository root. (`--config` is the connection config file, as on every other command.) |
 | `--project SLUG` | The project to check against. Overrides `project` in the check configuration. One of the two is required. |
 | `--branch REF` | Check against a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the check configuration. |
-| `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
+| `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. [`tripl plan revisions`](#tripl-plan-revisions) lists the ids. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
 | `--payloads FILE` | Payload mode: validate the events in `FILE` (NDJSON, a JSON array, or one object; `-` reads stdin) instead of scanning source files. A missing required field is an error in this mode. |
 | `--list` | Scan only, to write the check configuration. It lists every call the configuration matches with what the scan read from it and why a value was not read, the functions that pass their own parameter into a tracking call, and the calls that look like tracking but match no call spec. It needs no URL and no key, opens no connection and sends nothing, and it does not read the connection settings, so a malformed `TRIPL_BASE_URL` or config file, or a `--config` path that does not exist, does not stop it. With no check configuration found, it scans the whole git repository it runs in. It refuses `--report`, `--branch`, `--strict`, `--strict-suppressions`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` and a `--format` other than `text` or `json` (exit 2), and the parser refuses it together with `--payloads`. See [the example below](#tripl-check-list) and the guide's [List what the scan reads](../integrate/tripl-check.md#list). |
 | `--print-preset [NAME]` | Print the call specs of the preset `NAME` as YAML to paste under an event type's `calls:`, as the start of your own, and exit 0, even when the reader closes the pipe early. A stdout it cannot write (`> /dev/full`) is exit 1, with one line on stderr. Without `NAME` it prints every preset. Two comment lines head each preset: where to paste it, and, for the event type's first preset, the `style:` to set in a `codegen:` block that has none: the one [`tripl codegen`](../integrate/codegen.md#styles) took from that preset's name. It acts as soon as it is parsed, the way `--help` does: the flags after it are ignored, no command runs, and it prints YAML even with `--json`. An unknown `NAME` is exit 2, and the message lists the presets. |
@@ -3550,7 +3617,7 @@ pipeline gates on, `check`, `codegen` and `export`.
 |------|---------|
 | **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate` / `docs push`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either — that a `tripl-check-ignore` marker does not suppress and that, under `--new-from-rev` or `--new-from-patch`, is new in the change and, with `--baseline`, is not in the baseline, and, with `--strict-suppressions`, no `tripl-check-ignore` marker is malformed or unused; `--write-baseline` once it wrote the file, unless an item got no verdict. `check --list`: the scan ran, whatever it found. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
 | **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. The one exception: when `install`'s `pull` fails on a run that created `.env`, that `.env` is removed again, because nothing has started and nothing read it ([when the pull fails on a first install](#when-the-pull-fails-on-a-first-install)). Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change (a malformed or unused marker decides the code only with `--strict-suppressions`). It also reaches 1 the ordinary way, when the instance refuses a validate request or a `--report` file cannot be written, and then it writes no document and no report, and when its output cannot be written to stdout, and then it leaves no report; with a machine-readable `--format`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the instance refuses the plan read or a file cannot be written. For all three, an instance that is merely *unavailable* is 4, not 1. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. `--help`, `--version` and `check` (`--list` and `--print-preset` included) reach 1 when their output cannot be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`): one line on stderr, `tripl: cannot write to stdout: ...`, in place of a traceback. When stderr cannot be written either (`> /dev/full 2>&1`), that line is dropped and the exit code is still 1. A reader that closed the pipe early (`| head`, `| true`) is not a failure. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--allow-unordered-tag`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, a configuration that matches no call and a `--payloads` file with no events (both unless `--allow-empty`), no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, a `--report` that is not `FORMAT=PATH` with one of the five formats and a file path, that names one file twice, or that names a directory, a link or a special file, and a `--branch` matching nothing; under `--new-from-rev` or `--new-from-patch`, either one with `--payloads`, a `REF` that starts with `-`, no git on `PATH`, a directory that is not a git checkout, a `REF` that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, and a patch that cannot be read, holds no diff or is not in git's format, all before any request; with `--baseline`, a file that is missing, not a baseline, holds an entry tripl did not write, of another `version` or `fingerprint_key`, or another project's or mode's, a baseline file, read or written, that is also a `--report` path, and conflicting baseline flags (`--write-baseline` with `--baseline`, `--prune-baseline` or a gate flag, `--prune-baseline` without `--baseline`, a file to write that is a directory, a link or a special file), all before any request too, and `--strict-suppressions` with `--payloads`. `check --list` adds: `--report`, `--branch`, `--strict`, `--strict-suppressions`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` or a `--format` other than `text` or `json`, `--payloads` with it, and no check configuration outside a git repository (inside one, it scans the repository instead). `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches` or `plan revisions`, which have no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--allow-unordered-tag`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, a configuration that matches no call and a `--payloads` file with no events (both unless `--allow-empty`), no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, a `--report` that is not `FORMAT=PATH` with one of the five formats and a file path, that names one file twice, or that names a directory, a link or a special file, and a `--branch` matching nothing; under `--new-from-rev` or `--new-from-patch`, either one with `--payloads`, a `REF` that starts with `-`, no git on `PATH`, a directory that is not a git checkout, a `REF` that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, and a patch that cannot be read, holds no diff or is not in git's format, all before any request; with `--baseline`, a file that is missing, not a baseline, holds an entry tripl did not write, of another `version` or `fingerprint_key`, or another project's or mode's, a baseline file, read or written, that is also a `--report` path, and conflicting baseline flags (`--write-baseline` with `--baseline`, `--prune-baseline` or a gate flag, `--prune-baseline` without `--baseline`, a file to write that is a directory, a link or a special file), all before any request too, and `--strict-suppressions` with `--payloads`. `check --list` adds: `--report`, `--branch`, `--strict`, `--strict-suppressions`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` or a `--format` other than `text` or `json`, `--payloads` with it, and no check configuration outside a git repository (inside one, it scans the repository instead). `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **4** | `check`, `codegen` and `export` only: the instance was unavailable — it could not be reached, the request timed out, or it answered `429` or a `5xx` — so nothing was decided and nothing was written. `check` also removes what an earlier run left at its `--report` paths, so an old report cannot pass for this run's. A refused key, an unknown project and a redirect stay **1**: a retry does not fix them. It exists so a CI pipeline can let an outage of tripl pass while findings and drift still block (GitLab: `allow_failure: exit_codes: [4]`). Every other command exits 1 on an unavailable instance, except `doctor`, which reports it as a failed check (exit 3). |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
@@ -4352,7 +4419,7 @@ reason.
 
 ### `events` and `plan` documents
 
-The seven read verbs share **one document shape**. `items` holds the rows
+The eight read verbs share **one document shape**. `items` holds the rows
 whichever verb produced them — including `events show`, which puts its single
 event there rather than inventing a second shape for the one command that
 returns exactly one thing. `jq '.items[]'` therefore works across the whole
@@ -4399,18 +4466,18 @@ group.
 }
 ```
 
-Every key above is present on all seven, so a consumer never tests for one
+Every key above is present on all eight, so a consumer never tests for one
 before reading it.
 
 | Key | Meaning |
 |-----|---------|
 | `project` | The slug that was read. Always exactly one. |
-| `branch` | `{id, name}` when `--branch` was passed, `null` when it was not. `null` means "no branch was named", not "this is main": `--branch main` reads the live plan and still carries main's own id and name, so branch on whether the flag was given rather than on `null` — see [`--branch`](#the---branch-flag). |
-| `kind` | What one member of `items` **is**: `event`, `event_type`, `field`, `variable`, `branch` or `search_result`. Branch on this, never on `command`'s wording. |
+| `branch` | `{id, name}` when `--branch` was passed, `null` when it was not. `null` means "no branch was named", not "this is main" (and on `plan revisions`, which lists the whole project, not "these rows are main's": each row carries its own `branch_id`): `--branch main` reads the live plan and still carries main's own id and name, so branch on whether the flag was given rather than on `null` — see [`--branch`](#the---branch-flag). |
+| `kind` | What one member of `items` **is**: `event`, `event_type`, `field`, `property`, `branch`, `revision` or `search_result`. Branch on this, never on `command`'s wording. |
 | `total` | The count the API reported **before** paging, or `null` where the route reports none. |
 | `offset` / `limit` | What was requested, or `null` where the route takes no such parameter. `plan search` has no offset; `plan types`, `plan fields` and `plan branches` page nothing at all. |
 | `truncated` | Whether rows were left behind. The route's own answer where it reports one — `plan search` does, and it is exact; otherwise whether `total` exceeds `offset` plus the rows returned; and where a route reports neither, whether the page filled. Derived here so nobody has to do that arithmetic twice. |
-| `meta` | Facts the **route** reported about the answer rather than about a row. `{}` on six of the seven; `{"semantic_used": bool}` on `plan search`. |
+| `meta` | Facts the **route** reported about the answer rather than about a row. `{}` on seven of the eight; `{"semantic_used": bool}` on `plan search`. |
 | `items` | The API's own objects, **verbatim**. |
 
 :::warning `"truncated": true` is not an error, and `"items": []` is not "none exist"
@@ -5051,6 +5118,10 @@ tripl plan properties --project prod --json \
 # Working branches whose base has moved under them - rebase before review.
 tripl plan branches --project prod --json \
   | jq -r '.items[] | select(.behind_base) | .name'
+
+# The newest revision a person took, to pin a check to.
+tripl plan revisions --project prod --json \
+  | jq -r '[.items[] | select(.kind=="snapshot")][0].id'
 
 # Did the semantic index answer, or did you get substring matches?
 tripl plan search 'checkout funnel' --project prod --json | jq '.meta.semantic_used'

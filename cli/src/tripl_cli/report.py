@@ -320,11 +320,11 @@ def drifts_document(snapshot: DriftsSnapshot) -> JsonDict:
 
 
 def plan_read_document(read: PlanRead) -> JsonDict:
-    """``tripl events <verb>`` and ``tripl plan <verb>`` — ONE shape for all seven.
+    """``tripl events <verb>`` and ``tripl plan <verb>`` — ONE shape for all eight.
 
     The rows land under ``items`` whichever verb produced them, including the
     single-row detail reads, so ``.items[]`` is one selector for the whole family
-    rather than seven key names to look up. ``kind`` says what one item is;
+    rather than eight key names to look up. ``kind`` says what one item is;
     branch on that, never on ``command``'s wording.
 
     Rows are the API's own objects VERBATIM — no projection. A CLI writes to a
@@ -354,8 +354,8 @@ def plan_read_document(read: PlanRead) -> JsonDict:
     # "the resource ended" look identical from `items | length` alone, and the
     # second reading is the one that loses rows silently.
     document["truncated"] = read.truncated
-    # Route-level facts, `{}` on the six verbs whose route reports none. Present
-    # on all seven so a consumer never tests for the key.
+    # Route-level facts, `{}` on the seven verbs whose route reports none. Present
+    # on all eight so a consumer never tests for the key.
     document["meta"] = dict(read.meta)
     document["items"] = [dict(item) for item in read.items]
     return document
