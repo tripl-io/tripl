@@ -48,6 +48,9 @@ every guide ends with a link to the reference page for it.
 - [Check tracking code in CI](./check-tracking-in-ci.md): find unknown events
   and values the plan does not allow in every merge request, in GitLab, GitHub
   or any other CI.
+- [Check the events your UI tests send](./record-events-in-ui-tests.md): record
+  what the app sends during its UI tests and check it against the plan, a
+  required field that was never set included.
 
 :::tip Not sure what a word means?
 [Concepts](../use/concepts.md) explains every idea in tripl in plain language:

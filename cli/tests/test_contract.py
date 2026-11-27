@@ -112,7 +112,7 @@ DECLARED = {
 PATH_LITERAL = re.compile(r'f?"(/(?:projects|auth|data-sources)[^"]*)"')
 
 # Wire keys whose MEANING the shared layer owns, not just their spelling.
-# `items`/`total` are the paged envelope seven routes answer; `semantic_used`
+# `items`/`total` are the paged envelope eight routes answer; `semantic_used`
 # says whether search's scores are semantic or substring; `truncated` says
 # whether search dropped ranked hits, which `total` cannot answer because it is
 # `len(items)`; `field_definitions` is the array `field_count`
@@ -562,7 +562,7 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
     me". Both are silent, so the numbers are read out of the document rather
     than trusted.
     """
-    from tripl_cli.api import docs, events, search, variables
+    from tripl_cli.api import docs, events, plan_revisions, search, variables
 
     expected = {
         (events.LIST, "limit", "maximum"): events.LIMIT_MAX,
@@ -575,6 +575,8 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
         (events.LIST, "order_by", "default"): events.ORDER_BY_DEFAULT,
         (variables.LIST, "limit", "maximum"): variables.LIMIT_MAX,
         (variables.LIST, "limit", "default"): variables.LIMIT_DEFAULT,
+        (plan_revisions.LIST, "limit", "maximum"): plan_revisions.LIMIT_MAX,
+        (plan_revisions.LIST, "limit", "default"): plan_revisions.LIMIT_DEFAULT,
         (search.SEARCH, "limit", "maximum"): search.LIMIT_MAX,
         (search.SEARCH, "limit", "default"): search.LIMIT_DEFAULT,
         (search.SEARCH, "q", "maxLength"): search.QUERY_MAX_LENGTH,
@@ -1090,7 +1092,7 @@ def test_the_documented_status_choices_are_exactly_the_ones_the_parser_accepts()
 
 
 def test_the_documented_read_limits_are_the_ones_in_the_code() -> None:
-    """The 40-vs-200 trap, on the four ceilings the read verbs publish.
+    """The 40-vs-200 trap, on the five ceilings the read verbs publish.
 
     Each is a promise an operator plans a paging loop around. A page that states
     a ceiling the parser refuses is an exit 2 somebody debugs against the docs;
@@ -1099,7 +1101,7 @@ def test_the_documented_read_limits_are_the_ones_in_the_code() -> None:
     ``test_the_declared_query_bounds_are_the_ones_the_routes_enforce``), so this
     completes the chain: route -> tripl_cli.api -> argparse -> page.
     """
-    from tripl_cli.api import events, search, variables
+    from tripl_cli.api import events, plan_revisions, search, variables
 
     text = DOCS_PATH.read_text(encoding="utf-8")
     missing = [
@@ -1110,6 +1112,8 @@ def test_the_documented_read_limits_are_the_ones_in_the_code() -> None:
             f"`0`–`{events.SILENT_SINCE_DAYS_MAX}`",
             f"How many properties to ask for, `1`–`{variables.LIMIT_MAX}`, "
             f"default `{variables.LIMIT_DEFAULT}`.",
+            f"How many revisions to ask for, `1`–`{plan_revisions.LIMIT_MAX}`, "
+            f"default `{plan_revisions.LIMIT_DEFAULT}`.",
             f"How many hits to ask for, `1`–`{search.LIMIT_MAX}`, "
             f"default `{search.LIMIT_DEFAULT}`.",
             f"1–{search.QUERY_MAX_LENGTH} characters",

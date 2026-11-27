@@ -99,6 +99,7 @@ tripl plan types --project SLUG             # event types, with a field count ea
 tripl plan fields <event-type> --project SLUG   # one event type's field definitions
 tripl plan properties --project SLUG        # properties, and how many events use each
 tripl plan branches --project SLUG          # plan branches and how far ahead each is
+tripl plan revisions --project SLUG         # stored plan revisions; the id check --revision takes
 tripl plan search <query> --project SLUG    # search the whole plan, ids to read next
 tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy marker on monitoring charts (WRITE)
 tripl check               # validate the tracking calls in this checkout against the plan
@@ -391,7 +392,8 @@ not moved).
 | 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 `check` uses 0, 1, 2 and 4: 1 when any call site or event has an error (or,
-with `--strict`, a warning), 2 for a bad check config or payload file, or a
+with `--strict`, a warning) or, with `--strict-suppressions`, a
+`tripl-check-ignore` marker is malformed or unused, 2 for a bad check config or payload file, or a
 config that matches no call (unless `--allow-empty`), and 4 for an unavailable
 instance. `codegen` uses them too: 1 for drift under `--check` (or a plan
 without a configured event type), 2 for a bad check config or template, 4 for
