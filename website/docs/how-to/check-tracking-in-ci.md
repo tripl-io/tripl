@@ -138,6 +138,7 @@ input is optional:
 | `when` | `on_success` | `on_success` runs the job only when every job in `needs` passed; `always` runs it after a failed one too, to check the events of a failed UI-test job. |
 | `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. Not applied with `payloads`. |
 | `pipelines` | `branches` | Where the job runs: `branches`, in branch pipelines on every branch; `merge_requests`, in merge request pipelines and on the default branch. See below. |
+| `plan_branch` | `none` | `git_branch` checks against the plan branch named like the git branch (the merge request's source branch, or the branch of a branch pipeline) while it exists and is open, and against main otherwise. See [below](#plan-branch). |
 | `strict` | `false` | Fail on warnings too. |
 | `args` | `""` | More `tripl check` arguments, separated by spaces. |
 | `allow_failure_exit_codes` | `[4]` | Exit codes that pass with a warning: `4` is an outage of tripl; add `1` to report findings without failing. |
@@ -296,7 +297,7 @@ fetches the commits the gate needs into the shallow checkout; with
 out with `fetch-depth: 0` there. Its inputs
 match the GitLab template's: `version`, `base-url`, `api-key`, `project`,
 `check-config`, `directory`, `baseline`, `payloads`, `payloads-baseline`,
-`gate`, `strict` and `args` (see
+`gate`, `plan-branch`, `strict` and `args` (see
 [Check the events your UI tests send](./record-events-in-ui-tests.md#github-actions)
 for `payloads`), plus
 `pass-on-outage` (default `true`), `sarif` (default `true`; `false` skips
@@ -342,6 +343,50 @@ junit=tripl-check.xml` for a test-report action. To run it on a schedule as
 well, where the plan may have changed with no push, add
 `schedule: [{cron: "0 4 * * *"}]` under `on:`: the baseline gates that run
 like any other.
+
+### The plan branch named like the git branch {#plan-branch}
+
+When a change adds an event, the event is usually still on a plan branch while
+the merge request that sends it is open. Name the plan branch like the git
+branch, and turn on one input so the check reads it:
+
+```yaml
+# GitLab
+include:
+  - remote: https://raw.githubusercontent.com/tripl-io/tripl/cli-vX.Y.Z/ci/gitlab/tripl-check.yml
+    inputs:
+      base_url: https://tripl.example.com
+      plan_branch: git_branch
+```
+
+```yaml
+# GitHub
+      - uses: tripl-io/tripl-check-action@vX.Y.Z
+        with:
+          base-url: https://tripl.example.com
+          api-key: ${{ secrets.TRIPL_READ_ONLY_KEY }}
+          plan-branch: git_branch
+```
+
+With `git_branch` the job exports the git branch name as `TRIPL_PLAN_BRANCH`,
+which the CLI reads as
+[`--branch-if-exists`](../integrate/tripl-check.md#plan-branch-ci): the check
+runs against the plan branch of that name while it exists and is open, and
+against the main plan when there is none, or it is merged or closed. The job
+log says which (`Plan branch checkout-v2 not found: used the main plan.`). The
+name is the merge request's source branch or the branch of a branch pipeline on
+GitLab, and the pull request's head branch or the pushed branch on GitHub. The
+default branch, a tag and a GitHub merge queue run are checked against main.
+It costs one more request per run. The variable wins over `branch` and
+`branch_if_exists` in the check config (the job log says so when it replaces
+one), and loses to a `--branch` in `args`. The default, `none`, leaves the
+variable alone.
+
+Merge the plan branch before the code: the
+[worked sequence](../integrate/tripl-check.md#plan-branch-ci) shows what each
+order does to the merge request and to the default branch. In another CI,
+export `TRIPL_PLAN_BRANCH` yourself, or pass `--branch-if-exists` with the
+branch name.
 
 ### Any other CI {#other-ci}
 

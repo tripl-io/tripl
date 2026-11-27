@@ -442,6 +442,11 @@ class CheckReport:
     results: tuple[CheckResult, ...]
     branch_id: str | None = None
     branch_name: str | None = None
+    # The working plan branch the run asked for and that branch's review status
+    # (None when no branch has the name). Both None when none was asked for.
+    # ``branch_id`` None with ``branch_requested`` set: the run fell back to main.
+    branch_requested: str | None = None
+    branch_status: str | None = None
     config_path: str | None = None
     files_scanned: int = 0
     meta: Mapping[str, Any] = field(default_factory=dict)

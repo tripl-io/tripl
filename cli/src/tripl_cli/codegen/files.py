@@ -10,6 +10,12 @@ told to skip (``--lang swift`` never touches ``.kt``) — is never touched.
 
 Bytes are compared and written exactly: UTF-8, ``\\n`` line endings on every
 platform, so a Windows checkout and a Linux CI runner agree on "unchanged".
+
+One part of a file is left out of the comparison: the branch name in its
+header. The plan hash beside it says what the file was generated from; the
+branch name only says where that plan was read. A plan branch that merges
+leaves the content as it was and changes the name to ``main``, and that alone
+is not drift.
 """
 
 from __future__ import annotations
@@ -22,6 +28,9 @@ from tripl_cli.codegen.context import MARKER, plan_line_prefix
 from tripl_cli.codegen.generate import GeneratedFile
 from tripl_cli.codegen.languages import DIALECTS
 from tripl_cli.errors import TriplError
+
+# What follows the branch name on a header's plan line.
+PLAN_SEPARATOR = b", plan "
 
 
 @dataclass
@@ -43,6 +52,23 @@ def _read(path: Path) -> bytes | None:
         return None
     except OSError as exc:
         raise TriplError(f"cannot read {path}: {exc}") from None
+
+
+def _without_branch(content: bytes, project: str) -> bytes:
+    """``content`` with the branch name taken out of its header's plan line.
+
+    Returned as it came when the second line is not the plan line of ``project``.
+    """
+    lines = content.split(b"\n", 2)
+    prefix = (plan_line_prefix(project) + "branch ").encode("utf-8")
+    if len(lines) < 3 or not lines[1].startswith(prefix):
+        return content
+    # The branch name is everything up to the last ", plan ": a name may hold
+    # those words itself, the hash after them cannot.
+    head, separator, plan = lines[1].rpartition(PLAN_SEPARATOR)
+    if not separator or len(head) < len(prefix):
+        return content
+    return b"\n".join((lines[0], prefix + separator + plan, lines[2]))
 
 
 def is_generated(path: Path, project: str | None = None) -> bool:
@@ -83,7 +109,10 @@ def sync(files: Sequence[GeneratedFile], *, check: bool, project: str) -> SyncRe
     for item in files:
         wanted = item.content.encode("utf-8")
         current = _read(item.path)
-        if current == wanted:
+        if current is not None and (
+            current == wanted
+            or _without_branch(current, project) == _without_branch(wanted, project)
+        ):
             result.unchanged.append(item.path)
             continue
         (result.created if current is None else result.changed).append(item.path)

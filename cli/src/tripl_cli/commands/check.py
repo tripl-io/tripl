@@ -73,8 +73,9 @@ at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
 unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
 refuses the key is exit 1, with the reason on stderr. ``--list`` exits 0
 whenever the scan ran, a reader that closed the pipe early included, and 2 for
-a bad config or a flag it refuses (``--report``, ``--branch``, ``--strict``,
-``--strict-suppressions``, ``--allow-empty``, and a ``--format`` other than text or JSON).
+a bad config or a flag it refuses (``--report``, ``--branch``,
+``--branch-if-exists``, ``--strict``, ``--strict-suppressions``,
+``--allow-empty``, and a ``--format`` other than text or JSON).
 
 ``--check-config`` rather than ``--config``: ``--config`` is already the global
 flag naming the CLI's own connection settings file, on every command.
@@ -146,7 +147,16 @@ from tripl_cli.commands._check_config import (
     project_flag,
     project_of,
 )
-from tripl_cli.commands._plan import Branch, add_branch, begin, resolve_branch
+from tripl_cli.commands._plan import (
+    ENV_PLAN_BRANCH,
+    Branch,
+    BranchRequest,
+    add_branch,
+    add_branch_if_exists,
+    begin,
+    branch_request,
+    resolve_request,
+)
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import Reader, instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
@@ -317,6 +327,7 @@ def register(
     )
     add_project_flag(parser)
     add_branch(parser)
+    add_branch_if_exists(parser)
     parser.add_argument(
         "--revision",
         dest="revision",
@@ -571,6 +582,11 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         return (
             "--branch names the plan branch to check against, and --list sends nothing; "
             "drop --branch."
+        )
+    if args.branch_if_exists is not None:
+        return (
+            "--branch-if-exists names the plan branch to check against, and --list sends "
+            "nothing; drop --branch-if-exists."
         )
     if args.strict:
         return (
@@ -850,17 +866,49 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         if args.baseline is None
         else baseline_mod.load(args.baseline, project=project, mode=mode)
     )
-    selector: str | None = args.branch
-    if selector is None and check_config is not None:
-        selector = check_config.branch
-    pin = _pinned_revision(args, check_config, selector)
+    config_branch = None if check_config is None else check_config.branch
+    config_branch_if_exists = None if check_config is None else check_config.branch_if_exists
+    # The pin is weighed against the flags and the check config alone, so a
+    # config that names both a branch and a revision is refused whatever the
+    # environment holds.
+    configured = branch_request(
+        args,
+        config_branch=config_branch,
+        config_branch_if_exists=config_branch_if_exists,
+        environment=False,
+    )
+    pin = _pinned_revision(args, check_config, configured)
+    asked = branch_request(
+        args, config_branch=config_branch, config_branch_if_exists=config_branch_if_exists
+    )
+    if args.upload and asked is not None and asked.source == ENV_PLAN_BRANCH:
+        # As beside a pin: a variable exported for the whole pipeline must not
+        # turn an upload into exit 2. The flags and the check config still
+        # decide, and a branch named there refuses the upload below.
+        _emit(
+            f"{ENV_PLAN_BRANCH} is ignored: --upload records the run against the live plan.",
+            sys.stderr,
+            primary=False,
+        )
+        asked = configured
+    if pin is not None and asked is not None:
+        # Only the environment's request gets this far beside a pin: a variable
+        # exported for the whole pipeline must not turn a pinned run into exit 2.
+        _emit(
+            f"{ENV_PLAN_BRANCH} is ignored: this run is pinned to plan revision {pin}.",
+            sys.stderr,
+            primary=False,
+        )
+        asked = None
+    if asked is not None and asked.replaced is not None:
+        _emit(asked.replaced, sys.stderr, primary=False)
     if pin is not None and args.coverage:
         raise TriplConfigError(
             "--coverage reads the events of the live plan, and this run is pinned to plan "
             f"revision {pin}; run it with --revision {REVISION_LIVE}."
         )
     # Before the scan and any request: an upload that cannot happen stops the run.
-    ci = _upload_context(args, selector, pin)
+    ci = _upload_context(args, asked, pin)
     answered: list[JsonDict] = []
     files = 0
     skipped: tuple[SkippedFile, ...] = ()
@@ -894,7 +942,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     async def body(client: httpx.AsyncClient) -> tuple[Branch, tuple[CheckResult, ...], int]:
         nonlocal gated, covered, compared
         reader = context.reader(client)
-        branch = await resolve_branch(reader, project, selector)
+        branch = await resolve_request(reader, project, asked)
         results: tuple[CheckResult, ...] = ()
         if items:
             results = await validate(
@@ -960,6 +1008,8 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         results=results,
         branch_id=branch.id,
         branch_name=branch.name,
+        branch_requested=branch.requested,
+        branch_status=branch.status,
         config_path=(
             str(check_config.path) if check_config is not None and check_config.path else None
         ),
@@ -1058,21 +1108,22 @@ def _upload_refusal(args: argparse.Namespace) -> str | None:
 
 
 def _upload_context(
-    args: argparse.Namespace, branch: str | None, pin: str | None
+    args: argparse.Namespace, branch: BranchRequest | None, pin: str | None
 ) -> upload_mod.CiContext | None:
     """The CI's account of this run when it is to be uploaded; None without ``--upload``.
 
     Refused for a run against anything but the live plan: a plan branch or a
-    pinned revision, from a flag or from the committed check config. What the
-    run records is where the code sends each event of the plan analysts see,
-    and the event ids of another plan are not that.
+    pinned revision, from a flag or from the committed check config, and a
+    ``--branch-if-exists`` too, since the branch may exist. What the run
+    records is where the code sends each event of the plan analysts see, and
+    the event ids of another plan are not that.
     """
     if not args.upload:
         return None
     if branch is not None:
         _refuse_upload(
-            f"this run checks plan branch {branch!r} (--branch, or `branch` in the check "
-            "config); drop the branch for the run you upload"
+            f"this run checks plan branch {branch.selector!r} ({branch.source}); "
+            "drop the branch for the run you upload"
         )
     if pin is not None:
         _refuse_upload(
@@ -1135,13 +1186,15 @@ def _not_uploaded(
 
 
 def _pinned_revision(
-    args: argparse.Namespace, check_config: CheckConfig | None, branch: str | None
+    args: argparse.Namespace, check_config: CheckConfig | None, branch: BranchRequest | None
 ) -> str | None:
     """The plan revision this run is pinned to, or None for the live plan.
 
     ``--revision`` wins over ``revision:`` in the check config, and
-    ``--revision live`` unpins. Refused with a plan branch, from either place:
-    a revision is one fixed plan, a branch a plan that moves.
+    ``--revision live`` unpins. Refused with a plan branch named by a flag or
+    the check config: a revision is one fixed plan, a branch a plan that moves.
+    ``branch`` is that request, without the environment's: a branch named only
+    by ``TRIPL_PLAN_BRANCH`` is not a refusal, and the caller drops it.
     """
     flag: str | None = args.revision
     if flag is not None and flag.strip() == REVISION_LIVE:
@@ -1162,8 +1215,9 @@ def _pinned_revision(
         ) from None
     if branch is not None:
         raise TriplConfigError(
-            f"{source} pins plan revision {pin}, and plan branch {branch!r} is asked for too; "
-            f"a run checks against one plan. Drop the branch, or pass --revision {REVISION_LIVE}."
+            f"{source} pins plan revision {pin}, and plan branch {branch.selector!r} is asked "
+            f"for too; a run checks against one plan. Drop the branch, or pass --revision "
+            f"{REVISION_LIVE}."
         )
     return pin
 

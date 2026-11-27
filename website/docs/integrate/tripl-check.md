@@ -162,7 +162,8 @@ event_types:
 | Key | Meaning |
 |-----|---------|
 | `project` | The project slug. **Required** unless you pass `--project`. |
-| `branch` | Optional. A plan branch, by name or id, matched exactly the way [`tripl plan --branch`](../run/cli.md#the---branch-flag) matches it. Omit it to check against the live main plan. `--branch` on the command line overrides it. |
+| `branch` | Optional. A plan branch, by name or id, matched exactly the way [`tripl plan --branch`](../run/cli.md#the---branch-flag) matches it. Omit it to check against the live main plan. `--branch` on the command line overrides it. A branch nobody made fails the run (exit 2). |
+| `branch_if_exists` | Optional. A plan branch to check against while it exists and is open; the run checks against the live main plan when no branch has that name or id, or the branch is merged or closed, and says so. See [Plan branches in CI](#plan-branch-ci). `--branch`, `--branch-if-exists` and the `TRIPL_PLAN_BRANCH` environment variable override it. Not together with `branch` or `revision`. |
 | `revision` | Optional. The id of a stored plan revision to check against instead of the live plan. See [Pin the plan](#pin). `--revision` overrides it. Not together with `branch`. |
 | `root` | Optional. The directory that `sources`, `exclude` and `enums` globs start from, relative to the base directory. The base directory is the one that holds `.tripl/` (for a config file outside a `.tripl/` directory, the file's own directory). Default: the base directory. |
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
@@ -825,8 +826,11 @@ the variables and their per-event overrides. Two things are not in it and are
 always today's: an event type's naming rule, which belongs to its scan config,
 and the policy rules of an installed extension.
 
-A pinned run is refused with a plan branch (`branch` or `--branch`) and with
-`--coverage`, which reads the live plan. An instance too old to pin fails the
+A pinned run is refused with a plan branch (`branch`, `branch_if_exists`,
+`--branch` or `--branch-if-exists`) and with `--coverage`, which reads the live
+plan. A branch named only by the `TRIPL_PLAN_BRANCH` environment variable is
+ignored instead, with a line on stderr, so a variable exported for a whole
+pipeline does not fail the pinned job. An instance too old to pin fails the
 run instead of answering from the live plan.
 
 ## Summarise a change {#summary}
@@ -1116,9 +1120,9 @@ page has [an example](../run/cli.md#tripl-check-list).
 `--list` exits 0 whenever the scan ran, even when the reader closed the pipe
 early (`| head`), and 2 for a config error. A stdout it cannot write at all
 (a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
-the flags it has no use for: `--report`, `--branch`, `--strict`,
-`--strict-suppressions`, `--allow-empty`, and a `--format` other than `text`
-or `json`.
+the flags it has no use for: `--report`, `--branch`, `--branch-if-exists`,
+`--strict`, `--strict-suppressions`, `--allow-empty`, and a `--format` other
+than `text` or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1558,7 +1562,7 @@ Human text and progress messages go to stderr when stdout carries `json`,
 |------|---------|
 | **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`, and malformed or unused markers unless you pass [`--strict-suppressions`](#strict-suppressions). `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
 | **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker fails the run on its own only with [`--strict-suppressions`](#strict-suppressions). Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, a `--branch` that matches nothing, `--branch` together with `--branch-if-exists`, or `branch` together with `branch_if_exists` in the config. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -1580,7 +1584,19 @@ red.
 
 `--branch` checks against a plan branch instead of main. Use it for a pull
 request that ships code for events that are still on a plan branch under
-review.
+review. The branch has to exist: a name no plan branch has is exit 2. A merged
+or closed branch is still read, from the copy it held when it ended, and the
+run warns about it, because that copy no longer follows main:
+
+```
+Warning: plan branch checkout-v2 is merged, so this run read its frozen copy, not the main plan. Name no branch to read main, or use --branch-if-exists.
+```
+
+The warning does not change the exit code.
+
+`--branch-if-exists` is the same flag for a job that cannot know: it checks
+against the branch while it exists and is open, and against main otherwise.
+See [Plan branches in CI](#plan-branch-ci).
 
 ## In CI {#ci}
 
@@ -1609,14 +1625,8 @@ the check block merges. In short:
 - To keep the results in tripl, where the event pages can show where the code
   sends each event, add `--upload` and use a `check_upload` key: see
   [Send results to tripl](#send-results-to-tripl).
-- To check against a plan branch named after the merge request's branch, add
-  `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
-  (GitLab; it adds nothing outside a merge request pipeline), or set
-  `HEAD_REF: ${{ github.head_ref }}` in the step's `env` and add
-  `${HEAD_REF:+--branch "$HEAD_REF"}` (GitHub; never paste `${{ … }}` into the
-  script itself, where a branch name would run as shell). The check exits 2 when
-  no such plan branch exists, so use this only if your team follows that naming
-  convention.
+- To check a merge request against the plan branch named like its git branch,
+  see [Plan branches in CI](#plan-branch-ci) below.
 
 To check captured events instead, for example from a UI test run that writes
 what the app sent to `build/events.ndjson`, give the run a baseline of its own
@@ -1630,6 +1640,85 @@ tripl check --payloads build/events.ndjson --baseline .tripl/check-payloads-base
 The GitLab template and the GitHub action do that when their `payloads` input
 is set; [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md#ci)
 has the recorders and the jobs.
+
+### Plan branches in CI {#plan-branch-ci}
+
+A change that adds an event usually comes in two parts: a plan branch in tripl
+that adds the event to the plan, and a merge request that sends it. Name the
+plan branch like the git branch and let the check find it:
+
+```bash
+tripl check --branch-if-exists "$CI_COMMIT_REF_NAME"
+```
+
+`--branch-if-exists REF` checks against the plan branch `REF` while it exists
+and is open (any status but merged or closed). When no plan branch has that name, or the
+one that has it is merged or closed, the run checks against the live main plan
+and says which in one line after the summary:
+
+```
+Plan branch checkout-v2 not found: used the main plan.
+Plan branch checkout-v2 is merged: used the main plan.
+```
+
+The exit code is the main run's, so most merge requests, which have no plan
+branch, are checked as before. The match is exact, by name first and then by
+id, the way `--branch` matches. A name that is main's own reads main and prints
+nothing.
+
+The same request can come from three places, highest first after `--branch`:
+the flag, the `TRIPL_PLAN_BRANCH` environment variable, and `branch_if_exists`
+in the check config. The [GitLab template and the GitHub
+action](../how-to/check-tracking-in-ci.md#plan-branch) set the variable for you
+with one input. In your own job, pass the branch name as data, never pasted
+into the script: on GitHub set `TRIPL_PLAN_BRANCH: ${{ github.head_ref }}` in
+the step's `env`, because a `${{ … }}` inside `run:` would execute a branch
+name as shell. An empty variable is no request, and neither is an empty
+`--branch-if-exists ""`, which is what the flag gets from a variable the
+pipeline did not set. When the variable replaces another branch named by
+`branch` or `branch_if_exists` in the check config, a line on stderr says so.
+
+`--branch-if-exists` is refused with `--branch`, with `--list` and with a
+[pinned](#pin) run (exit 2). The environment variable is never a refusal: under
+`--list` it is ignored, and a pinned run and an
+[`--upload`](#send-results-to-tripl) run ignore it with a line on stderr. A
+check config that holds both `branch` and `revision` is still exit 2, whatever
+the variable says.
+
+**Plan merge and code merge: which first.** Take a plan branch `checkout-v2`
+that adds the event `checkout:pay:tap`, and a merge request from the git branch
+`checkout-v2` that sends it.
+
+1. *Both open.* The merge request is checked against the plan branch, where the
+   event exists: green. Under a [gate](#new-findings), a finding the plan
+   branch causes at a call the change left alone is new too.
+2. *The plan branch merges first.* This is the order to use. The event is on
+   main now. The next run of the merge request finds the plan branch merged,
+   checks against main, prints `Plan branch checkout-v2 is merged: used the
+   main plan.` and stays green. After the code merges, the default branch is
+   green as well. [`tripl codegen --check`](codegen.md#header) stays green
+   too: files generated from the plan branch differ from main's only by the
+   branch name in their header, which is not compared.
+3. *The code merges first.* The default branch is checked against main, where
+   the event does not exist yet: `unknown_event`, and the default branch stays
+   red until the plan branch merges. If your merge requests must be able to
+   land first, keep the gate on the default branch report-only, or merge the
+   plan before the code.
+4. *The plan branch is closed.* The change to the plan was rejected. The merge
+   request is checked against main and fails on the event the plan does not
+   have, which is the signal that the code should not ship it.
+
+Two things follow from how branches are named. A merged or closed plan branch
+keeps its name, and a project cannot have two plan branches of one name: a git
+branch that reuses the name of a merged plan branch is checked against main,
+and cannot get a new plan branch of that name until the old one is deleted. A
+closed plan branch that is reopened is open again, and is read again. And a run
+that has no branch name of its own is checked against main:
+a GitLab tag pipeline, the default branch, and a GitHub merge queue run, whose
+ref is the queue's. A merge queue therefore checks the group against main even
+though the pull request was checked against its plan branch, so with a merge
+queue the plan branch has to merge before the pull request is queued. A GitLab
+merge train keeps the source branch name and is checked like the merge request.
 
 ## Send results to tripl {#send-results-to-tripl}
 
@@ -1689,8 +1778,10 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   `.`.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
-  flag or from the check config (`--revision live` is fine), and with
-  `--payloads` and `--list`.
+  flag or from the check config (`--revision live` is fine; `--branch-if-exists`
+  and `branch_if_exists` are refused too), and with `--payloads` and `--list`.
+  A `TRIPL_PLAN_BRANCH` exported for the whole pipeline is ignored, with a line
+  on stderr, so the upload job still runs against the live plan.
 - **It never changes the verdict.** The upload is sent once the check has
   finished, before the reports are written, and one line on stderr, after the
   run's own output, says what was recorded, or why not. A failed upload (a

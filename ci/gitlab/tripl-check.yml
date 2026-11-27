@@ -89,6 +89,16 @@ spec:
         only that one before a merge.
       options: [branches, merge_requests]
       default: branches
+    plan_branch:
+      description: >-
+        git_branch checks against the plan branch named like the git branch (the
+        merge request's source branch, or the branch of a branch pipeline) while
+        that plan branch exists and is open, and against the main plan otherwise.
+        It replaces a branch named in the check config; a --branch in args
+        still wins. none always checks against the main plan, unless the check
+        config or args name a branch.
+      options: [none, git_branch]
+      default: none
     strict:
       description: Fail on warnings too (--strict).
       type: boolean
@@ -125,7 +135,7 @@ spec:
     TRIPL_CHECK_PAYLOADS: $[[ inputs.payloads ]]
     TRIPL_CHECK_PAYLOADS_BASELINE: $[[ inputs.payloads_baseline ]]
     TRIPL_CHECK_ARGS: $[[ inputs.args ]]
-    TRIPL_CHECK_MODE: "pipelines=$[[ inputs.pipelines ]] gate=$[[ inputs.gate ]] strict=$[[ inputs.strict ]]"
+    TRIPL_CHECK_MODE: "pipelines=$[[ inputs.pipelines ]] gate=$[[ inputs.gate ]] strict=$[[ inputs.strict ]] plan_branch=$[[ inputs.plan_branch ]]"
   rules:
     - if: $TRIPL_API_KEY == null || $TRIPL_API_KEY == ""
       when: never # a merge request from a fork has no key
@@ -143,6 +153,16 @@ spec:
       mode=" $TRIPL_CHECK_MODE "
       root="$CI_PROJECT_DIR"
       [ -z "$TRIPL_CHECK_BASE_URL" ] || export TRIPL_BASE_URL="$TRIPL_CHECK_BASE_URL"
+      # The CLI reads TRIPL_PLAN_BRANCH as --branch-if-exists.
+      case "$mode" in
+        *" plan_branch=git_branch "*)
+          git_branch="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_BRANCH:-}}"
+          # The default branch is checked against the main plan.
+          if [ -n "$git_branch" ] && [ "$git_branch" != "$CI_DEFAULT_BRANCH" ]; then
+            export TRIPL_PLAN_BRANCH="$git_branch"
+          fi
+          ;;
+      esac
       set -- check --report "codequality=$root/gl-code-quality-report.json" --report "junit=$root/tripl-check.xml"
       [ -z "$TRIPL_CHECK_PROJECT" ] || set -- "$@" --project "$TRIPL_CHECK_PROJECT"
       [ -z "$TRIPL_CHECK_CONFIG" ] || set -- "$@" --check-config "$root/$TRIPL_CHECK_CONFIG"

@@ -68,7 +68,7 @@ from tripl_cli.check.model import (
 from tripl_cli.check.suppress import PROBLEM_TEXT, label
 from tripl_cli.check.validate import summary
 from tripl_cli.model import JsonDict
-from tripl_cli.render import plural
+from tripl_cli.render import plan_branch_note, plural
 
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -203,6 +203,9 @@ def render_text(report: CheckReport) -> str:
     lines.append(tally + ".")
     if report.plan is not None:
         lines.append(plan_line(report.plan))
+    note = branch_note(report)
+    if note is not None:
+        lines.append(note)
     if report.gate is not None:
         lines.extend(gate_lines(report, held))
     if report.baseline is not None:
@@ -220,6 +223,15 @@ def render_text(report: CheckReport) -> str:
     if report.coverage is not None:
         lines.extend(coverage_lines(report.coverage))
     return "\n".join(lines)
+
+
+def branch_note(report: CheckReport) -> str | None:
+    """The line about the plan branch the run asked for: main read instead, or a frozen copy."""
+    if report.branch_requested is None:
+        return None
+    return plan_branch_note(
+        report.branch_requested, report.branch_status, used_main=report.branch_id is None
+    )
 
 
 def plan_line(plan: PlanPin) -> str:

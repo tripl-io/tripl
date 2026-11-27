@@ -56,6 +56,14 @@ inputs:
       In a pull request or a merge queue, fail only on findings it brings in
       (--new-from-rev). Not applied with payloads: a captured event has no source to diff.
     default: "true"
+  plan-branch:
+    description: >-
+      git_branch checks against the plan branch named like the git branch (the pull
+      request's head branch, or the pushed branch) while that plan branch exists and is
+      open, and against the main plan otherwise. It replaces a branch named in the
+      check config; a --branch in args still wins. none always checks against the main
+      plan, unless the check config or args name a branch.
+    default: none
   strict:
     description: Fail on warnings too (--strict).
     default: "false"
@@ -104,11 +112,16 @@ runs:
         INPUT_PAYLOADS_BASELINE: ${{ inputs.payloads-baseline }}
         INPUT_GATE: ${{ inputs.gate }}
         INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_PLAN_BRANCH: ${{ inputs.plan-branch }}
         INPUT_PASS_ON_OUTAGE: ${{ inputs.pass-on-outage }}
         INPUT_SARIF: ${{ inputs.sarif }}
         INPUT_CATEGORY: ${{ inputs.category }}
         INPUT_ARGS: ${{ inputs.args }}
         EVENT_NAME: ${{ github.event_name }}
+        HEAD_REF: ${{ github.head_ref }}
+        REF_NAME: ${{ github.ref_name }}
+        REF_TYPE: ${{ github.ref_type }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
       run: |
@@ -120,6 +133,25 @@ runs:
         }
         [[ -z "$INPUT_BASE_URL" ]] || export TRIPL_BASE_URL="$INPUT_BASE_URL"
         [[ -z "$INPUT_API_KEY" ]] || export TRIPL_API_KEY="$INPUT_API_KEY"
+        # The CLI reads TRIPL_PLAN_BRANCH as --branch-if-exists.
+        case "$INPUT_PLAN_BRANCH" in
+          none) ;;
+          git_branch)
+            # A pull request's head branch, or the branch a push went to. A merge
+            # queue run has neither, and the default branch is the main plan's.
+            git_branch="$HEAD_REF"
+            if [[ -z "$git_branch" && "$EVENT_NAME" == push && "$REF_TYPE" == branch ]]; then
+              git_branch="$REF_NAME"
+            fi
+            if [[ -n "$git_branch" && "$git_branch" != "$DEFAULT_BRANCH" ]]; then
+              export TRIPL_PLAN_BRANCH="$git_branch"
+            fi
+            ;;
+          *)
+            echo "::error::plan-branch: '$INPUT_PLAN_BRANCH' is not none or git_branch."
+            exit 2
+            ;;
+        esac
         if [[ -z "${TRIPL_API_KEY:-}" && ( "$EVENT_NAME" == pull_request || "$EVENT_NAME" == pull_request_target ) ]]; then
           # A fork's pull request, or Dependabot's, gets no secrets.
           echo "::notice title=tripl check::No API key in this pull request (a fork's, or Dependabot's): not checked."

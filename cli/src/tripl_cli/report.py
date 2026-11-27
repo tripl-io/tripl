@@ -602,6 +602,12 @@ def check_document(report: CheckReport) -> JsonDict:
     With ``--upload``, and only then, the top-level ``upload`` says whether
     tripl recorded the run and as what (``check/upload.py``). A failed upload
     is ``ok: false`` with its ``error``; it never changes ``exit_code``.
+
+    ``plan_branch`` says which working plan branch the run asked for and what
+    it read: ``requested`` (its name), ``status`` (its review status, null when
+    no branch has the name) and ``used`` (``branch``, or ``main`` when
+    ``--branch-if-exists`` read main instead). Null when no branch was asked
+    for, or the one asked for is main itself. ``branch`` stays what was read.
     """
     from tripl_cli.check.baseline import baseline_document
     from tripl_cli.check.coverage import coverage_document
@@ -615,6 +621,15 @@ def check_document(report: CheckReport) -> JsonDict:
     document["project"] = report.project
     document["branch"] = (
         None if report.branch_id is None else {"id": report.branch_id, "name": report.branch_name}
+    )
+    document["plan_branch"] = (
+        None
+        if report.branch_requested is None
+        else {
+            "requested": report.branch_requested,
+            "status": report.branch_status,
+            "used": "main" if report.branch_id is None else "branch",
+        }
     )
     document["mode"] = report.mode
     document["strict"] = report.strict
@@ -965,8 +980,12 @@ def codegen_document(
     check: bool,
     files: Sequence[JsonDict],
     exit_code: int,
+    plan_branch: JsonDict | None = None,
 ) -> JsonDict:
     """``tripl codegen --json``: one row per file, with what happened to it.
+
+    ``plan_branch`` is the same object as in ``tripl check --json``: the plan
+    branch asked for, its status, and whether it or main was read.
 
     ``status`` is ``created``, ``changed``, ``unchanged`` or ``stale`` (a file
     this run no longer produces, carrying the generated-file marker). Under
@@ -977,6 +996,7 @@ def codegen_document(
     document = _run_envelope("codegen", run)
     document["project"] = project
     document["branch"] = branch
+    document["plan_branch"] = plan_branch
     document["revision"] = revision
     document["check"] = check
     document["files"] = [dict(item) for item in files]

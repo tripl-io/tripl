@@ -8,6 +8,7 @@ flat events through a third::
 
     project: my-app
     branch: null                 # optional; --branch overrides
+    branch_if_exists: null       # optional: like branch, but main when it is missing or ended
     revision: null               # optional: a plan revision id to pin; --revision overrides
     sources: ["Sources/**", "web/src/**"]
     exclude: ["**/Generated/**"]
@@ -188,6 +189,7 @@ _TOP_KEYS = frozenset(
     {
         "project",
         "branch",
+        "branch_if_exists",
         "revision",
         "root",
         "sources",
@@ -421,6 +423,9 @@ class CheckConfig:
     root: Path
     project: str | None = None
     branch: str | None = None
+    # A plan branch to read only while it exists and is open; the live main
+    # plan otherwise. Never set together with ``branch``.
+    branch_if_exists: str | None = None
     # A stored plan revision the check is pinned to, so its verdicts do not
     # follow the live plan; moving it is a commit of its own.
     revision: str | None = None
@@ -585,12 +590,24 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
     exclude = DEFAULT_EXCLUDES + tuple(_names(top.get("exclude"), f"{where}: exclude"))
     project = top.get("project")
     branch = top.get("branch")
+    branch_if_exists = top.get("branch_if_exists")
+    if branch is not None and branch_if_exists is not None:
+        raise TriplConfigError(
+            f"{where}: `branch` and `branch_if_exists` both name the plan branch; keep one "
+            "(`branch` fails the run when the branch does not exist, `branch_if_exists` "
+            "reads main then)."
+        )
     revision = top.get("revision")
     return CheckConfig(
         path=path,
         root=root,
         project=_text(project, f"{where}: project") if project is not None else None,
         branch=_text(branch, f"{where}: branch") if branch is not None else None,
+        branch_if_exists=(
+            _text(branch_if_exists, f"{where}: branch_if_exists")
+            if branch_if_exists is not None
+            else None
+        ),
         revision=_text(revision, f"{where}: revision") if revision is not None else None,
         sources=sources,
         exclude=exclude,

@@ -50,7 +50,14 @@ def isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     TRIPL_API_KEY exported gets results CI does not, and a test that resolves
     config could read their real credentials out of ~/.config/tripl/config.toml.
     """
-    for name in ("TRIPL_BASE_URL", "TRIPL_API_KEY", "TRIPL_URL", "XDG_CONFIG_HOME", "APPDATA"):
+    for name in (
+        "TRIPL_BASE_URL",
+        "TRIPL_API_KEY",
+        "TRIPL_URL",
+        "TRIPL_PLAN_BRANCH",
+        "XDG_CONFIG_HOME",
+        "APPDATA",
+    ):
         monkeypatch.delenv(name, raising=False)
     home = tmp_path / "home"
     home.mkdir()
