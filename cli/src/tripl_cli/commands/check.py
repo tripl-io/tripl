@@ -109,6 +109,7 @@ from tripl_cli.check import scan as scan_mod
 from tripl_cli.check import summary as summary_mod
 from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
 from tripl_cli.check.inventory import inventory
+from tripl_cli.check.lint import lint_items
 from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import (
     BASELINE_CHECK,
@@ -839,6 +840,9 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     items: tuple[CheckItem, ...]
     if args.payloads is not None:
         items = tuple(payloads_mod.load(args.payloads, allow_empty=args.allow_empty))
+        if check_config is not None:
+            # The captured names and keys get the same lint as a static scan's.
+            items = tuple(lint_items(items, check_config.lint))
     else:
         assert check_config is not None  # raised above when missing
         outcome = scan_mod.scan(check_config)

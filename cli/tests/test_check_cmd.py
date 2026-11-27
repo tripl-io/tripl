@@ -1096,6 +1096,7 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "truncated": bool,
     "files_scanned": int,
     "skipped": list,
+    "lint": bool,
     "summary": dict,
     "calls": list,
     "forwarders": list,
@@ -1134,9 +1135,20 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         },
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
+        "lint": {},
     }
+    assert document["lint"] is False  # the config has no `lint:` section
     forwarding, formatted, shaped, sent = document["calls"]
-    assert set(forwarding) == {"location", "snippet", "event_type", "read", "dynamic", "items"}
+    assert set(forwarding) == {
+        "location",
+        "snippet",
+        "event_type",
+        "read",
+        "dynamic",
+        "items",
+        "lint",
+    }
+    assert all(call["lint"] == [] for call in document["calls"])
     assert forwarding["location"] == {
         "path": "app/Screen.kt",
         "line": 3,

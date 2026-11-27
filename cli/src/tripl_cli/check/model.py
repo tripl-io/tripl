@@ -36,6 +36,15 @@ CODE_OVERSIZE_VALUE = "oversize_value"
 # Raised locally: the route answered nothing for an item that was sent. Never
 # suppressible, because nothing was decided about the call.
 CODE_NO_VERDICT = "no_verdict"
+# Raised locally by the plan-independent lint (``lint.py``), only when the check
+# config has a ``lint:`` section: a name or key with a non-ASCII character,
+# whitespace or a quote; a name or key that does not match the configured
+# pattern; a name or key read from a constant that holds the same value as
+# another constant of the same object.
+CODE_NAME_CHARACTERS = "name_characters"
+CODE_NAME_PATTERN = "name_pattern"
+CODE_DUPLICATE_CONSTANT = "duplicate_constant"
+LINT_CODES: tuple[str, ...] = (CODE_NAME_CHARACTERS, CODE_NAME_PATTERN, CODE_DUPLICATE_CONSTANT)
 
 # Why a ``tripl-check-ignore`` marker suppresses nothing (``check/suppress.py``):
 # it names no code, names ``no_verdict``, or gives no reason.
@@ -172,6 +181,22 @@ class MarkerState:
 
 
 @dataclass(frozen=True)
+class ConstantUse:
+    """A named constant a call read its event name or a dictionary key from.
+
+    ``path`` is the constant's qualified name (``Events.BUTTON_A``) and
+    ``value`` the string it holds; ``key`` is the key it gave, None for the
+    event name; ``source`` is the file that declares it. The lint (``lint.py``)
+    reads these; nothing else does.
+    """
+
+    path: tuple[str, ...]
+    value: str
+    key: str | None = None
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class CheckItem:
     """One thing to validate. ``wire`` is the request item, minus its ``ref``."""
 
@@ -192,6 +217,9 @@ class CheckItem:
     # never on the wire, so identical items are still sent once and keep their
     # fingerprints.
     suppressions: tuple[Suppression, ...] = field(default=(), compare=False)
+    # The constants the call read its name and its dictionary keys from (a
+    # call site only). Outside equality and never on the wire, like the markers.
+    constants: tuple[ConstantUse, ...] = field(default=(), compare=False)
 
     def wire(self) -> JsonDict:
         return {

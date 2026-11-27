@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from tripl_cli.check.calls import Call
@@ -35,11 +35,14 @@ from tripl_cli.check.config import (
     CallSpec,
     CheckConfig,
     EventTypeSpec,
+    LintConfig,
     default_target,
     field_target,
     selector_field,
 )
+from tripl_cli.check.lint import lint_items
 from tripl_cli.check.model import (
+    LINT_CODES,
     REASON_LOCAL,
     REASON_NOT_PASSED,
     REASON_PARAMETER,
@@ -51,6 +54,7 @@ from tripl_cli.check.model import (
     SIGNAL_NAME,
     SIGNAL_RECEIVER,
     SIGNALS,
+    CheckFinding,
     CheckItem,
     Origin,
     SkippedFile,
@@ -160,9 +164,19 @@ class ListedCall:
     # `(field, label)`: a field a labelled argument reached through the default
     # label mapping, because the call spec has no `args:`.
     default_label_fields: tuple[tuple[str, str], ...]
-    # What `tripl check` builds for this call, exactly as `scan()` does. The
-    # validator's size limits are applied later (`payloads.enforce_limits`).
+    # What `tripl check` builds for this call, exactly as `scan()` does, the
+    # lint's findings included. The validator's size limits are applied later
+    # (`payloads.enforce_limits`).
     items: tuple[CheckItem, ...]
+
+    @property
+    def lint(self) -> tuple[CheckFinding, ...]:
+        """The lint's findings on the call's items (``lint.py``), each once, in item order."""
+        return tuple(
+            dict.fromkeys(
+                note for item in self.items for note in item.notes if note.code in LINT_CODES
+            )
+        )
 
     @property
     def fully_read(self) -> bool:
@@ -265,6 +279,9 @@ class Inventory:
     skipped: tuple[SkippedFile, ...] = ()
     # Discovery stopped at `MAX_DISCOVERY_FILES` with source files left unread.
     truncated: bool = False
+    # The check config has a `lint:` section, so each call's items carry the
+    # lint's findings (`ListedCall.lint`).
+    linted: bool = False
 
 
 # --- the inventory ------------------------------------------------------------------
@@ -325,13 +342,28 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
                 forwarding.own = named[name].outside(forwarding.scopes, found)
     return Inventory(
         root=config.root,
-        calls=tuple(listed),
+        calls=_linted(listed, config.lint),
         unmatched=_unmatched(groups),
         forwarders=_forwarders(forwarders.values(), tallies),
         files=len(tree.parsed),
         skipped=tree.skipped,
         truncated=truncated,
+        linted=config.lint is not None,
     )
+
+
+def _linted(listed: Sequence[ListedCall], lint: LintConfig | None) -> tuple[ListedCall, ...]:
+    """``listed`` with the lint run over every item at once, as ``scan()`` runs it."""
+    if lint is None:
+        return tuple(listed)
+    linted = lint_items([item for call in listed for item in call.items], lint, field_keys=False)
+    calls: list[ListedCall] = []
+    start = 0
+    for call in listed:
+        end = start + len(call.items)
+        calls.append(replace(call, items=tuple(linted[start:end])))
+        start = end
+    return tuple(calls)
 
 
 def _listed(
@@ -1006,6 +1038,8 @@ class Summary:
     targets: Mapping[str, Mapping[str, int]]
     # Per event type: each `(field, label)` a label reached by the default mapping.
     default_label_fields: Mapping[str, tuple[tuple[str, str], ...]]
+    # Per lint code: the calls with a finding of it (empty with no `lint:`).
+    lint: Mapping[str, int] = field(default_factory=dict)
 
 
 def summarize(found: Inventory) -> Summary:
@@ -1014,6 +1048,7 @@ def summarize(found: Inventory) -> Summary:
     reasons: dict[str, dict[str, int]] = {}
     targets: dict[str, dict[str, int]] = {}
     defaults: dict[str, list[tuple[str, str]]] = {}
+    lint: dict[str, int] = {}
     for call in found.calls:
         for target, code in call.dynamic.items():
             dynamic[target] = dynamic.get(target, 0) + 1
@@ -1026,6 +1061,8 @@ def summarize(found: Inventory) -> Summary:
             pairs = defaults.setdefault(call.event_type, [])
             if pair not in pairs:
                 pairs.append(pair)
+        for code in dict.fromkeys(finding.code for finding in call.lint):
+            lint[code] = lint.get(code, 0) + 1
     return Summary(
         calls=len(found.calls),
         items=sum(len(call.items) for call in found.calls),
@@ -1035,4 +1072,5 @@ def summarize(found: Inventory) -> Summary:
         reasons=reasons,
         targets=targets,
         default_label_fields={key: tuple(pairs) for key, pairs in defaults.items()},
+        lint=lint,
     )

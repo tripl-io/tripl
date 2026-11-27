@@ -2410,7 +2410,9 @@ Findings use the codes in the guide's
 [findings table](../integrate/tripl-check.md#findings): `unknown_event_type`,
 `unknown_event`, `deprecated_event`, `unknown_field`, `missing_required_field`,
 `value_not_allowed`, `dynamic_value`, `too_dynamic`, `policy_violation`,
-`oversize_value` and `no_verdict`.
+`oversize_value` and `no_verdict`, and, with a
+[`lint:` section](../integrate/tripl-check.md#lint) in the check config,
+`name_characters`, `name_pattern` and `duplicate_constant`.
 
 A comment at the call, `// tripl-check-ignore[unknown_event] -- <reason>`,
 suppresses one finding: it no longer fails the run. The text listing counts it
@@ -2561,6 +2563,36 @@ hidden directories (`.venv`, `.gradle`, `.next`), and lists the calls that
 look like tracking: a place to start the configuration. It reads at most 20000 source
 files (`MAX_DISCOVERY_FILES`) and says so when it stops there. Outside a git
 repository it is exit 2.
+
+When the check configuration has a [`lint:` section](../integrate/tripl-check.md#lint),
+each lint finding gets an indented line under its call, written the way
+`tripl check` writes a finding, and the tally gets a `Lint` line. Here two
+buttons log one event through two constants, and a third name has a Cyrillic
+`е` (shown as `\u0435`) and its properties a typographic apostrophe:
+
+```text
+tripl check --list - /home/me/shop/.tripl/check.yml, root /home/me/shop (nothing is sent)
+
+app/Settings.kt:10:9  event  analytics.logEvent  name=save_tap
+    warning  duplicate_constant: the event name is read from Events.SAVE_TAP = 'save_tap', the same value as Events.SHARE_TAP of Events; one of them probably names the wrong event
+app/Settings.kt:14:9  event  analytics.logEvent  name=save_tap
+    warning  duplicate_constant: the event name is read from Events.SHARE_TAP = 'save_tap', the same value as Events.SAVE_TAP of Events; one of them probably names the wrong event
+app/Settings.kt:18:9  event  analytics.logEvent  name=sеttings_opened properties={from=Menu, it’s=x}
+    warning  name_characters: the event name 's\u0435ttings_opened' has a non-ASCII character U+0435 CYRILLIC SMALL LETTER IE
+    warning  name_pattern: the event name 's\u0435ttings_opened' does not match name_pattern '[a-z][a-z0-9_]*'
+    warning  name_characters [it’s]: the property key 'it\u2019s' has a non-ASCII character U+2019 RIGHT SINGLE QUOTATION MARK
+
+3 call sites in 1 file: 3 fully read; 0 not sent (no name or field read); 0 sent with a value not read.
+Read per event type: event: name 3, properties 1.
+Lint, call sites per code: duplicate_constant 2, name_characters 1, name_pattern 1.
+
+Calls that look like tracking but match no call spec: none.
+```
+
+With no finding the line reads `Lint: no findings.` `--list` still exits 0
+with lint findings, and it reads no `tripl-check-ignore` marker, so it shows a
+finding a marker suppresses too. Without a `lint:` section there is no `Lint`
+line; discovery mode (no check configuration) never lints.
 
 ### Plan coverage {#tripl-check-coverage}
 
@@ -4657,7 +4689,7 @@ by status the way the exit code does.
 | `results[].complete` | `true` for a payload (a whole event, so a missing required field is an error), `false` for a call site. |
 | `results[].dynamic` | The targets whose value was only known at runtime: `name`, `properties`, or field names. A field named like a reserved target is `field:<name>` (`field:name`, `field:properties`), as in a call spec and in `check --list`, so it is never read as the event's name or its properties. |
 | `results[].event_id` / `identity` | The plan event the item resolved to, and the identity it was matched by, with `${…}` holes for parts only known at runtime. `event_id` is `null` when nothing matched; both are `null` for a row that was never sent. |
-| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
+| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`), `no_verdict`, and the lint's `name_characters`, `name_pattern` and `duplicate_constant` (only with a [`lint:` section](../integrate/tripl-check.md#lint) in the check config). |
 
 **Suppression keys.** When the static scan read at least one
 [`tripl-check-ignore` marker](../integrate/tripl-check.md#suppress), the
@@ -4751,6 +4783,7 @@ with the type shown. Trimmed to one call of each list:
   "truncated": false,
   "files_scanned": 2,
   "skipped": [],
+  "lint": false,
   "summary": {
     "calls": 4, "items": 4, "fully_read": 1, "not_sent": 3,
     "dynamic": { "name": 3, "properties": 1 },
@@ -4759,7 +4792,8 @@ with the type shown. Trimmed to one call of each list:
       "properties": { "parameter": 1 }
     },
     "targets": { "event": { "name": 4, "properties": 2 } },
-    "default_label_fields": {}
+    "default_label_fields": {},
+    "lint": {}
   },
   "calls": [
     {
@@ -4778,7 +4812,8 @@ with the type shown. Trimmed to one call of each list:
         "object_argument": null
       },
       "dynamic": { "name": "parameter", "properties": "parameter" },
-      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ]
+      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ],
+      "lint": []
     }
   ],
   "forwarders": [
@@ -4813,8 +4848,9 @@ with the type shown. Trimmed to one call of each list:
 | `root` | The absolute directory the scan read: the configuration's `root`, or the repository root in discovery mode. Every `path` below is relative to it. |
 | `truncated` | `true` when discovery mode stopped at 20000 source files with files left unread. Always `false` with a check configuration. |
 | `files_scanned` / `skipped` | As in the [`check` document](#check-document). |
-| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. |
-| `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. |
+| `lint` | `true` when the check configuration has a [`lint:` section](../integrate/tripl-check.md#lint), so each call's `lint` holds the lint's findings; else `false`. |
+| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. `lint` counts per lint code the calls with a finding of it (`{}` without a `lint:` section). |
+| `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. `lint` lists the [lint](../integrate/tripl-check.md#lint)'s findings on the call, each `{code, severity, field, message}` as in the [`check` document](#check-document), whether or not a marker suppresses one (`--list` reads no markers); `[]` without a `lint:` section. |
 | `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value. Its `reason` is refined from the function the call sits in, the way a target's is: `parameter`, `parameter_property` or `local` with `declared` set to that function and line, else the argument's own reason with `declared` `null`. `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read; the text names it on a `not passed` line and, when it is a parameter, in the function's `forwarders` row. |
 | `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`), as a target's value or as the call's `object_arg` argument: add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets, object_argument}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`), `targets` are the targets the parameter reaches as a value, and `object_argument` is `true` when a tracking call takes it whole as its `object_arg` argument (`calls[].read.object_argument`); `targets` is `[]` for a parameter forwarded only that way. When `object_argument` is `true` and `label` is not `null`, a call spec for the function reads the object only from the callers that write no label: `object_arg:` does not read a labelled argument. `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
 | `unmatched[]` | The calls that look like tracking but match no call spec, grouped by method (the callee's last segment, or an Objective-C selector). `receivers` counts what came before the method (`""` for a bare call), `signal` says why the calls look like tracking, `calls` counts them, `first` locates the first one, and `example` is its source on one line, at most 80 characters. Groups with signal `constant` come first, then the rest by `calls`. |

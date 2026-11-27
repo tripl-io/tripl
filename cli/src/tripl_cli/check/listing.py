@@ -3,10 +3,11 @@
 One line per call site the check config matches, in scan order, with what the
 scan read for each target; under a call with a value it did not read, one
 indented line per reason, the way ``tripl check`` prints findings under a
-result. Then the summary: the tally and the reasons per target, the functions
-that forward their own parameter into a tracking call, as a value or as its
-object argument (each wants a call spec of its own), and the calls that look
-like tracking but match no call spec. The
+result, and with a ``lint:`` section one line per lint finding (``lint.py``),
+the way ``tripl check`` prints it. Then the summary: the tally (and the lint's
+count), the reasons per target, the functions that forward their own parameter
+into a tracking call, as a value or as its object argument (each wants a call
+spec of its own), and the calls that look like tracking but match no call spec. The
 JSON document is ``tripl_cli.report.check_list_document``; both read their
 counts from ``inventory.summarize``, so the two cannot disagree.
 
@@ -110,9 +111,12 @@ def render_listing(found: Inventory, *, config: str | None) -> str:
     for call in found.calls:
         lines.append(_call_line(call))
         lines.extend(_reason_lines(call))
+        lines.extend(_lint_lines(call))
     if found.calls:
         lines.append("")
     lines.extend(_tally(summary, found.files))
+    if found.linted:
+        lines.append(_lint_tally(summary))
     if summary.dynamic:
         lines += ["", *_why(summary)]
     if found.forwarders:
@@ -205,6 +209,15 @@ def _reason_text(code: str, read: ReadValue | None, unread_object: ReadValue | N
     return f"{code.replace('_', ' ')} {expression}".rstrip()
 
 
+def _lint_lines(call: ListedCall) -> list[str]:
+    """Under a call: one line per lint finding, as ``tripl check`` prints a finding."""
+    lines: list[str] = []
+    for finding in call.lint:
+        field = f" [{finding.field}]" if finding.field else ""
+        lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}")
+    return lines
+
+
 def _declared_text(read: ReadValue, expression: str) -> str | None:
     """Where a value refined from its function comes from, None for any other value.
 
@@ -228,6 +241,13 @@ def _declared_text(read: ReadValue, expression: str) -> str | None:
 
 
 # --- the summary ---------------------------------------------------------------------
+def _lint_tally(summary: Summary) -> str:
+    """The lint's line under the tally: the call sites with a finding, per code."""
+    if not summary.lint:
+        return "Lint: no findings."
+    return f"Lint, call sites per code: {_counts(_by_count(summary.lint))}."
+
+
 def _tally(summary: Summary, files: int) -> list[str]:
     where = f"{plural(summary.calls, 'call site')} in {plural(files, 'file')}"
     if not summary.calls:
