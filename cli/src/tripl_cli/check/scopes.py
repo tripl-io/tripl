@@ -52,12 +52,24 @@ it from a call. An object type, in an interface or not, is not read that way. A
 Swift ``init`` and a TypeScript ``constructor`` also name the type whose body
 they sit in (``FunctionScope.owner``), which is what their callers write.
 
-``ScopeIndex`` keeps a file's scopes for the lookups made per call, by
-bisection, so a file with many calls costs about its own size.
+Where each bracket closes is found once per file (``calls.closers``) and
+looked up from there. A parameter list is read at its top level only, and an
+expression body steps over its bracketed groups rather than reading them, so
+declarations and calls nested in each other's brackets (a parameter list, a
+default value, a body in braces, a call inside an expression body) cost about
+the file's size, not the square of how deeply they nest. Two shapes still do
+cost that square, neither of them valid code: expression bodies nested with no
+bracket between them (``fun f() = fun f() = …``), whose ends are each found
+by reading on to the end of the nest; and, in Java and Objective-C, a body
+nested inside a parameter, since each parameter is read whole up to its
+default value. ``ScopeIndex`` keeps a file's
+scopes for the lookups made per call, by bisection, so a file with many calls
+costs about its own size too.
 
-A hint, never a verdict, but for ``ScopeIndex.bodiless``: plain ``tripl
-check`` reads it too, so a declaration a call spec matched is not sent as a
-call.
+For ``tripl check --list`` these scopes are hints. Plain ``tripl check`` reads
+one thing from them: a call that is really a function's own declaration
+(``FunctionScope.signature_end``, ``ScopeIndex.bodiless``) is not sent as a
+tracking call.
 """
 
 from __future__ import annotations
@@ -67,7 +79,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from tripl_cli.check.calls import matching
+from tripl_cli.check.calls import closers
 from tripl_cli.check.lexer import IDENT, PUNCT, Token
 from tripl_cli.check.signatures import Parameter, declares, member_start, parameters
 
@@ -289,6 +301,10 @@ def _declarations(
     interfaces: list[bool] = []
     interface_bodies: set[int] = set()
     type_keywords = _TYPE_KEYWORDS.get(language, frozenset())
+    # Where each bracket closes, found once: the readers below ask it at every
+    # level of a nest, where scanning for the closer each time would cost the
+    # square of the nest's depth.
+    closes = closers(tokens)
     for index, token in enumerate(tokens):
         if token.kind == PUNCT:
             if token.text == "{":
@@ -301,14 +317,14 @@ def _declarations(
         if token.kind != IDENT:
             continue
         if token.text in type_keywords:
-            header = _type_body(tokens, index, language)
+            header = _type_body(tokens, closes, index, language)
             if header is not None:
                 headers[header[0]] = header[1]
         elif language == "ts" and token.text == "interface":
-            body = _interface_body(tokens, source, index)
+            body = _interface_body(tokens, closes, source, index)
             if body is not None:
                 interface_bodies.add(body)
-        declared = _declared(tokens, source, language, index)
+        declared = _declared(tokens, closes, source, language, index)
         if isinstance(declared, FunctionScope):
             if (language, declared.name) in _OWNED:
                 declared = replace(declared, owner=types[-1] if types else None)
@@ -316,7 +332,7 @@ def _declarations(
         elif declared is not None:
             bodiless.append(declared)
         elif interfaces and interfaces[-1]:
-            member = _interface_member(tokens, source, index)
+            member = _interface_member(tokens, closes, source, index)
             if member is not None:
                 bodiless.append(member)
     claims = Counter(scope.body for scope in found)
@@ -324,21 +340,22 @@ def _declarations(
 
 
 def _declared(
-    tokens: list[Token], source: str, language: str, index: int
+    tokens: list[Token], closes: list[int], source: str, language: str, index: int
 ) -> FunctionScope | int | None:
     """The declaration at ``tokens[index]``: its scope, or its signature end when it has no body.
 
-    None when no declaration starts there.
+    None when no declaration starts there. ``closes`` is ``calls.closers(tokens)``,
+    which every reader below takes for where a bracket closes.
     """
     text = tokens[index].text
     if language == "kotlin" and text == "fun":
-        return _kotlin(tokens, source, index)
+        return _kotlin(tokens, closes, source, index)
     if language == "swift" and text in ("func", "init"):
-        return _swift(tokens, source, index)
+        return _swift(tokens, closes, source, index)
     if language in ("java", "objc"):
-        return _c_family(tokens, source, language, index)
+        return _c_family(tokens, closes, source, language, index)
     if language == "ts":
-        return _typescript(tokens, source, index)
+        return _typescript(tokens, closes, source, index)
     return None
 
 
@@ -370,7 +387,9 @@ def _local_names(tokens: list[Token]) -> dict[str, list[int]]:
 
 
 # --- per language -----------------------------------------------------------------
-def _kotlin(tokens: list[Token], source: str, keyword: int) -> FunctionScope | int | None:
+def _kotlin(
+    tokens: list[Token], closes: list[int], source: str, keyword: int
+) -> FunctionScope | int | None:
     """``fun [<T>] [Recv.]name(``: the name is the identifier before the first ``(`` past ``<>``."""
     angles = 0
     for index in range(keyword + 1, min(len(tokens), keyword + 1 + _MAX_HEAD)):
@@ -384,12 +403,14 @@ def _kotlin(tokens: list[Token], source: str, keyword: int) -> FunctionScope | i
         elif token.is_punct("(") and angles == 0:
             name = index - 1
             if name > keyword and _is_name(tokens[name]):
-                return _scope(tokens, source, "kotlin", name, index, declaring=True)
+                return _scope(tokens, closes, source, "kotlin", name, index, declaring=True)
             return None  # an anonymous `fun(…)`
     return None
 
 
-def _swift(tokens: list[Token], source: str, keyword: int) -> FunctionScope | int | None:
+def _swift(
+    tokens: list[Token], closes: list[int], source: str, keyword: int
+) -> FunctionScope | int | None:
     if tokens[keyword].text == "func":
         name = keyword + 1
         if name >= len(tokens) or not _is_name(tokens[name]):
@@ -405,11 +426,11 @@ def _swift(tokens: list[Token], source: str, keyword: int) -> FunctionScope | in
         opening = _after_angles(tokens, opening)
     if opening >= len(tokens) or not tokens[opening].is_punct("("):
         return None
-    return _scope(tokens, source, "swift", name, opening, declaring=True)
+    return _scope(tokens, closes, source, "swift", name, opening, declaring=True)
 
 
 def _c_family(
-    tokens: list[Token], source: str, language: str, name: int
+    tokens: list[Token], closes: list[int], source: str, language: str, name: int
 ) -> FunctionScope | int | None:
     """``Ret name(``: a type, a generic's ``>`` or an array's ``]`` before the name.
 
@@ -428,10 +449,12 @@ def _c_family(
         typed = before.is_punct(">", "]", "{", "}", ";") or (
             language == "objc" and before.is_punct("*")
         )
-    return _scope(tokens, source, language, name, name + 1) if typed else None
+    return _scope(tokens, closes, source, language, name, name + 1) if typed else None
 
 
-def _typescript(tokens: list[Token], source: str, index: int) -> FunctionScope | int | None:
+def _typescript(
+    tokens: list[Token], closes: list[int], source: str, index: int
+) -> FunctionScope | int | None:
     token = tokens[index]
     if token.text == "function":
         name = index + 1
@@ -442,13 +465,15 @@ def _typescript(tokens: list[Token], source: str, index: int) -> FunctionScope |
         opening = _after_angles(tokens, name + 1)
         if opening >= len(tokens) or not tokens[opening].is_punct("("):
             return None
-        return _scope(tokens, source, "ts", name, opening, declaring=True)
+        return _scope(tokens, closes, source, "ts", name, opening, declaring=True)
     if token.text in _LOCAL_KEYWORDS:
-        return _arrow(tokens, source, index)
-    return _method(tokens, source, index)
+        return _arrow(tokens, closes, source, index)
+    return _method(tokens, closes, source, index)
 
 
-def _method(tokens: list[Token], source: str, name: int) -> FunctionScope | int | None:
+def _method(
+    tokens: list[Token], closes: list[int], source: str, name: int
+) -> FunctionScope | int | None:
     """``name(params)[: Ret] {``: a class or object-literal method.
 
     Outside a class body that shape does not compile except as a control
@@ -475,13 +500,13 @@ def _method(tokens: list[Token], source: str, name: int) -> FunctionScope | int 
     if opening >= len(tokens) or not tokens[opening].is_punct("("):
         return None
     if tokens[name].text == "async":
-        close = matching(tokens, opening)
-        if close < len(tokens) and _arrow_after(tokens, close + 1) is not None:
+        close = closes[opening]
+        if close < len(tokens) and _arrow_after(tokens, closes, close + 1) is not None:
             return None
-    return _scope(tokens, source, "ts", name, opening)
+    return _scope(tokens, closes, source, "ts", name, opening)
 
 
-def _interface_member(tokens: list[Token], source: str, name: int) -> int | None:
+def _interface_member(tokens: list[Token], closes: list[int], source: str, name: int) -> int | None:
     """The signature end of the method ``tokens[name]`` names in a TypeScript interface body.
 
     An interface holds no statements, so ``name[?][<T>](params)`` at the start
@@ -501,11 +526,13 @@ def _interface_member(tokens: list[Token], source: str, name: int) -> int | None
         opening = _after_angles(tokens, opening, allowed=_TYPE_PARAMETER_PUNCT)
     if opening >= len(tokens) or not tokens[opening].is_punct("("):
         return None
-    close = matching(tokens, opening)
+    close = closes[opening]
     return tokens[close].end if close < len(tokens) else None
 
 
-def _interface_body(tokens: list[Token], source: str, keyword: int) -> int | None:
+def _interface_body(
+    tokens: list[Token], closes: list[int], source: str, keyword: int
+) -> int | None:
     """The ``{`` of the body of the TypeScript interface ``tokens[keyword]`` declares.
 
     Only a declaration counts: ``interface`` starts a statement (after
@@ -528,10 +555,10 @@ def _interface_body(tokens: list[Token], source: str, keyword: int) -> int | Non
     position = keyword + 1
     if position >= len(tokens) or not _is_type_name(tokens[position]):
         return None
-    position = _past_type_arguments(tokens, position + 1)
+    position = _past_type_arguments(tokens, closes, position + 1)
     if position < len(tokens) and tokens[position].is_ident("extends"):
         while True:
-            position = _past_heritage(tokens, position + 1)
+            position = _past_heritage(tokens, closes, position + 1)
             if position >= len(tokens) or not tokens[position].is_punct(","):
                 break
     if position < len(tokens) and tokens[position].is_punct("{"):
@@ -539,7 +566,7 @@ def _interface_body(tokens: list[Token], source: str, keyword: int) -> int | Non
     return None
 
 
-def _past_heritage(tokens: list[Token], position: int) -> int:
+def _past_heritage(tokens: list[Token], closes: list[int], position: int) -> int:
     """The index past one type an interface extends (``A.B<T>``, ``import('x').C``).
 
     ``len(tokens)`` when no such type starts at ``position``.
@@ -549,7 +576,7 @@ def _past_heritage(tokens: list[Token], position: int) -> int:
     if tokens[position].text == "import":
         if position + 1 >= len(tokens) or not tokens[position + 1].is_punct("("):
             return len(tokens)
-        position = matching(tokens, position + 1)
+        position = closes[position + 1]
     position += 1
     while (
         position + 1 < len(tokens)
@@ -557,7 +584,7 @@ def _past_heritage(tokens: list[Token], position: int) -> int:
         and tokens[position + 1].kind == IDENT
     ):
         position += 2
-    return _past_type_arguments(tokens, position)
+    return _past_type_arguments(tokens, closes, position)
 
 
 # In a `<…>` type argument list none of these appear: they start a declaration
@@ -574,7 +601,7 @@ _NOT_IN_TYPE_ARGUMENTS = (_STATEMENTS - {"new"}) | {
 }
 
 
-def _past_type_arguments(tokens: list[Token], position: int) -> int:
+def _past_type_arguments(tokens: list[Token], closes: list[int], position: int) -> int:
     """The index past a balanced ``<…>`` at ``position``; ``position`` when none is there.
 
     Brackets inside are passed over whole, an object type included. ``len(tokens)``
@@ -594,7 +621,7 @@ def _past_type_arguments(tokens: list[Token], position: int) -> int:
             if not depth:
                 return position + 1
         elif token.is_punct(*_OPENERS):
-            position = matching(tokens, position)
+            position = closes[position]
         elif token.is_punct(";", *_CLOSERS) or (
             token.kind == IDENT and token.text in _NOT_IN_TYPE_ARGUMENTS
         ):
@@ -607,7 +634,9 @@ def _is_type_name(token: Token) -> bool:
     return token.kind == IDENT and token.text not in _NOT_TYPE_NAMES and _is_name(token)
 
 
-def _arrow(tokens: list[Token], source: str, keyword: int) -> FunctionScope | None:
+def _arrow(
+    tokens: list[Token], closes: list[int], source: str, keyword: int
+) -> FunctionScope | None:
     """``const name = [async] (params)[: Ret] => …`` or ``const name = x => …``."""
     name = keyword + 1
     if name + 2 >= len(tokens) or not _is_name(tokens[name]):
@@ -623,23 +652,25 @@ def _arrow(tokens: list[Token], source: str, keyword: int) -> FunctionScope | No
         arrow = start + 1
         signature_end = first.end
     elif first.is_punct("("):
-        close = matching(tokens, start)
-        after = _arrow_after(tokens, close + 1) if close < len(tokens) else None
+        close = closes[start]
+        after = _arrow_after(tokens, closes, close + 1) if close < len(tokens) else None
         if after is None:
             return None
-        found = parameters(tokens, start, close, "ts")
+        found = parameters(tokens, start, close, "ts", closes)
         arrow = after
         signature_end = tokens[close].end
     else:
         return None
     if arrow + 1 < len(tokens) and tokens[arrow + 1].is_punct("{"):
-        body = (arrow + 1, matching(tokens, arrow + 1))
+        body = (arrow + 1, closes[arrow + 1])
     else:
-        body = (arrow, _expression_end(tokens, source, arrow, "ts"))
+        body = (arrow, _expression_end(tokens, closes, source, arrow, "ts"))
     return FunctionScope(tokens[name].text, tokens[name].offset, found, body, signature_end)
 
 
-def _type_body(tokens: list[Token], keyword: int, language: str) -> tuple[int, str | None] | None:
+def _type_body(
+    tokens: list[Token], closes: list[int], keyword: int, language: str
+) -> tuple[int, str | None] | None:
     """The ``{`` of the body of the type whose header starts at ``keyword``, and its name.
 
     The name is the last part of a dotted one (``extension A.B``), None for an
@@ -678,10 +709,10 @@ def _type_body(tokens: list[Token], keyword: int, language: str) -> tuple[int, s
         if token.is_punct("{"):
             if not angles:
                 return position, name
-            position = matching(tokens, position) + 1
+            position = closes[position] + 1
             continue
         if token.is_punct("(", "["):
-            position = matching(tokens, position) + 1
+            position = closes[position] + 1
             continue
         if token.is_punct("<"):
             angles += 1
@@ -728,6 +759,7 @@ def _after_angles(tokens: list[Token], index: int, *, allowed: Sequence[str] = (
 
 def _scope(
     tokens: list[Token],
+    closes: list[int],
     source: str,
     language: str,
     name: int,
@@ -742,25 +774,25 @@ def _scope(
     ``func``, ``init``, ``function``), else as ``signatures.declares`` says.
     None otherwise.
     """
-    close = matching(tokens, opening)
+    close = closes[opening]
     if close >= len(tokens):
         return None
-    body = _body_after(tokens, source, language, close + 1)
+    body = _body_after(tokens, closes, source, language, close + 1)
     if body is None:
-        if declaring or declares(tokens, source, language, name, opening, close):
+        if declaring or declares(tokens, source, language, name, opening, close, closes):
             return tokens[close].end
         return None
     return FunctionScope(
         tokens[name].text,
         tokens[name].offset,
-        parameters(tokens, opening, close, language),
+        parameters(tokens, opening, close, language, closes),
         body,
         tokens[close].end,
     )
 
 
 def _body_after(
-    tokens: list[Token], source: str, language: str, position: int
+    tokens: list[Token], closes: list[int], source: str, language: str, position: int
 ) -> tuple[int, int] | None:
     """The body after a signature tail starting at ``position``, or None (no body here).
 
@@ -784,14 +816,14 @@ def _body_after(
         held += 1
         if token.is_punct("{"):
             if not (typescript and _object_type(tokens, position, angles)):
-                return position, matching(tokens, position)
-            position = matching(tokens, position) + 1
+                return position, closes[position]
+            position = closes[position] + 1
             continue
         if token.is_punct("=") and language == "kotlin":
-            return position, _expression_end(tokens, source, position, language)
+            return position, _expression_end(tokens, closes, source, position, language)
         if token.is_punct("(", "["):
             # A function or tuple type in the return type: `(Int) -> Unit`, `-> (A, B)`.
-            position = matching(tokens, position) + 1
+            position = closes[position] + 1
             continue
         if typescript:
             if token.is_punct("<"):
@@ -837,7 +869,7 @@ def _void_return(tokens: list[Token], source: str, name: int) -> bool:
     )
 
 
-def _arrow_after(tokens: list[Token], position: int) -> int | None:
+def _arrow_after(tokens: list[Token], closes: list[int], position: int) -> int | None:
     """The index of the ``=>`` after an arrow's parameter list (past a return type)."""
     if position >= len(tokens) or not tokens[position].is_punct("=>", ":"):
         return None
@@ -851,7 +883,7 @@ def _arrow_after(tokens: list[Token], position: int) -> int | None:
         if token.is_punct("(", "[") or (
             token.is_punct("{") and _object_type(tokens, position, angles)
         ):
-            position = matching(tokens, position) + 1
+            position = closes[position] + 1
             continue
         if token.is_punct("<"):
             angles += 1
@@ -863,7 +895,9 @@ def _arrow_after(tokens: list[Token], position: int) -> int | None:
     return None
 
 
-def _expression_end(tokens: list[Token], source: str, marker: int, language: str) -> int:
+def _expression_end(
+    tokens: list[Token], closes: list[int], source: str, marker: int, language: str
+) -> int:
     """The first token past the expression body after ``tokens[marker]`` (``=`` or ``=>``).
 
     The body's first token belongs to it wherever it is, the next line too. It
@@ -874,23 +908,21 @@ def _expression_end(tokens: list[Token], source: str, marker: int, language: str
     also a ternary's ``?`` or ``:`` and any binary operator). It also ends at a
     bracket closing the enclosing block or call, at ``;`` (and, for an arrow,
     at a ``,`` separating it from what follows), or at the end.
+
+    Nothing inside brackets can end the body, so each bracketed group is
+    stepped over through ``closes`` (``calls.closers(tokens)``) rather than
+    read: a body that holds further declarations in its brackets is then not
+    read again for each of them.
     """
-    depth = 0
     first = marker + 1
-    openers: list[int] = []
     # The `)` of a Kotlin `if (…)` outside brackets: its branch may start on the next line.
     condition = -1
-    for position in range(first, len(tokens)):
+    position = first
+    while position < len(tokens):
         token = tokens[position]
         if token.kind == PUNCT and token.text in _CLOSERS:
-            if depth == 0:
-                return position
-            depth -= 1
-            opener = openers.pop()
-            if not depth and language == "kotlin" and tokens[opener - 1].is_ident("if"):
-                condition = position
-            continue
-        if depth == 0 and position > first:
+            return position
+        if position > first:
             if token.is_punct(";") or (language == "ts" and token.is_punct(",")):
                 return position
             previous = position - 1
@@ -902,8 +934,14 @@ def _expression_end(tokens: list[Token], source: str, marker: int, language: str
             ):
                 return position
         if token.kind == PUNCT and token.text in _OPENERS:
-            depth += 1
-            openers.append(position)
+            close = closes[position]
+            if close >= len(tokens):
+                return len(tokens)  # a bracket left open runs to the end
+            if language == "kotlin" and tokens[position - 1].is_ident("if"):
+                condition = close
+            position = close + 1
+            continue
+        position += 1
     return len(tokens)
 
 

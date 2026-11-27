@@ -140,6 +140,29 @@ def matching(tokens: list[Token], open_index: int) -> int:
     return len(tokens)
 
 
+def closers(tokens: list[Token]) -> list[int]:
+    """Per token index: what ``matching`` returns for the bracket that opens there.
+
+    One pass over ``tokens`` instead of one scan per bracket, for a reader that
+    asks about many nested brackets: asking ``matching`` at every level of
+    ``f(f(f(…)))`` reads the rest of the nest again each time. As ``matching``
+    does, it counts brackets without checking their kind, so a mismatched pair
+    (``( ]``) still closes, a closer with nothing open is passed over, and a
+    bracket that never closes gets ``len(tokens)``. The value at a token that
+    opens nothing is ``len(tokens)`` too, and means nothing.
+    """
+    table = [len(tokens)] * len(tokens)
+    open_at: list[int] = []
+    for index, token in enumerate(tokens):
+        if token.kind != PUNCT:
+            continue
+        if token.text in _OPENERS:
+            open_at.append(index)
+        elif token.text in _CLOSERS and open_at:
+            table[open_at.pop()] = index
+    return table
+
+
 def _matching_back(tokens: list[Token], close_index: int) -> int:
     depth = 0
     for index in range(close_index, -1, -1):
