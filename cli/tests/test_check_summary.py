@@ -167,6 +167,54 @@ def test_a_name_cannot_break_out_of_its_table_cell() -> None:
     assert summary._code("a|b`c\nd") == "`a\\|b'c d`"
 
 
+def test_the_summary_names_the_markers_that_fail_the_run(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stale = "// tripl-check-ignore[unknown_field] -- stale\nfunc o() {}\n"
+    (repo / "Sources/Old.swift").write_text(stale, encoding="utf-8")
+    (repo / "Sources/Legacy.swift").unlink()  # the one call of the fixture that fails
+    assert main(["check", "--format", "markdown"]) == 0
+    assert "suppression marker" not in capsys.readouterr().out
+    assert main(["check", "--format", "markdown", "--strict-suppressions"]) == 1
+    out = capsys.readouterr().out
+    assert "**Check failed:**" in out
+    assert out.endswith(
+        "\n"
+        "**1 suppression marker fails the run** (`--strict-suppressions`):\n"
+        "- `Sources/Old.swift:1` `tripl-check-ignore[unknown_field]` matched no finding\n"
+    )
+
+
+def test_the_summary_shows_a_malformed_marker_as_code(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # No reason, and a field name a Markdown renderer would read as HTML.
+    broken = "// tripl-check-ignore[unknown_field:<b>`x`</b>]\nfunc o() {}\n"
+    (repo / "Sources/Old.swift").write_text(broken, encoding="utf-8")
+    (repo / "Sources/Legacy.swift").unlink()
+    assert main(["check", "--format", "markdown", "--strict-suppressions"]) == 1
+    assert capsys.readouterr().out.endswith(
+        "\n"
+        "**1 suppression marker fails the run** (`--strict-suppressions`):\n"
+        "- `Sources/Old.swift:1` `tripl-check-ignore[unknown_field:<b>'x'</b>]` gives no "
+        "reason after `--`, so it suppresses nothing\n"
+    )
+
+
+def test_a_marker_line_keeps_a_pipe_as_written(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A list item, not a table cell: an escaped pipe would show its backslash.
+    broken = "// tripl-check-ignore[unknown_field] a | b\nfunc o() {}\n"
+    (repo / "Sources/Old.swift").write_text(broken, encoding="utf-8")
+    (repo / "Sources/Legacy.swift").unlink()
+    assert main(["check", "--format", "markdown", "--strict-suppressions"]) == 1
+    assert capsys.readouterr().out.endswith(
+        "- `Sources/Old.swift:1` `tripl-check-ignore[unknown_field] a | b` gives no "
+        "reason after `--`, so it suppresses nothing\n"
+    )
+
+
 def test_the_summary_sample_in_the_guide_is_real_output(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -531,7 +531,8 @@ message text.
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
 
 Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
-call. The CLI raises them and they never fail the run. They are the rule
+call. The CLI raises them and they do not fail the run, unless
+[`--strict-suppressions`](#strict-suppressions) asks them to. They are the rule
 (`ruleId`) of a SARIF result and the `check_name` of a Code Quality issue
 (`tripl/invalid_suppression`). The text listing has a line for each instead
 (`Suppression ignored:` and `Unused suppression:`), and the JSON document's
@@ -632,7 +633,7 @@ A malformed marker is never a usage error (exit 2) and never removes a report.
 **An unused marker** covers no finding with a code it lists in this run. Two
 markers on one call (one above it, one trailing) that list the same code are
 both used. An unused marker is listed as
-`unused_suppression` and never fails the run, with `--strict` either:
+`unused_suppression` and does not fail the run, with `--strict` either:
 
 ```
 Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
@@ -642,6 +643,50 @@ A suppression changes only whether the run fails. A result's `status` and the
 summary counts stay the plan's verdict. Payload mode reads no source, so it has
 no markers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
+
+### Keep markers clean {#strict-suppressions}
+
+For a team that wants its markers kept clean: with `--strict-suppressions`, a
+malformed marker and an unused one fail the run (exit 1), and a last line says
+so:
+
+```
+Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
+1 suppression marker fails the run (--strict-suppressions).
+```
+
+Unused is decided by this run alone, so give the flag to the run whose other
+flags are the ones your merge check uses:
+
+- **The plan.** A marker is weighed against the plan the run checks:
+  `--branch` and `--revision` can give a call another verdict, so a marker
+  used against one plan can be unused against another.
+- **`dynamic_value`.** Only `--strict` raises that finding, so without
+  `--strict` a marker that names it is never counted unused.
+- **A call nothing was decided about.** A marker on a call that got no verdict,
+  or that the scan could read nothing of, is not counted unused: the run had
+  no way to use it.
+- **The gate.** With `--new-from-rev` or `--new-from-patch`, only a marker in a
+  file the change touches fails the run, the same files the listing names
+  marker problems in. When the gate counts every call as changed (a diff that
+  names a file this checkout does not have, a check root inside a moved
+  submodule or one git does not track, a file it cannot rebuild), every file
+  is in the change, and so is every marker.
+- **No call at all.** With `--allow-empty`, a run that matched no call still
+  reads the markers in the files it scanned, and each one is unused: the flag
+  turns that run's exit 0 into exit 1 until they are removed.
+- **A marker shown as an example.** A comment line that starts with the
+  keyword is a marker, a doc comment that teaches the grammar included
+  (`/// tripl-check-ignore[unknown_event] -- debug menu only`), and an unused
+  or malformed marker cannot itself be waived. Put the example mid-sentence
+  or in backticks, so the line does not start with the keyword.
+
+The JSON document gains `summary.failing_suppressions` and a `fails` on each
+`suppressions` entry, and the [Markdown summary](#summary) names the markers
+that fail. SARIF, Code Quality and JUnit are the same with and without the
+flag. `--write-baseline` ignores it: that run records findings and exits 0,
+a baseline holds no marker, and its JSON has no `failing_suppressions`.
+`--payloads` and `--list` refuse it (exit 2): neither reads a marker to judge.
 
 ## Gate on the change {#new-findings}
 
@@ -822,6 +867,13 @@ revision: 0a1b2c3d-0000-4000-8000-00000000beef
 
 A revision is a stored copy of the whole plan. Take one on the project's
 History page (or with `POST /projects/{slug}/revisions`) and copy its id.
+[`tripl plan revisions`](../run/cli.md#tripl-plan-revisions) lists the ones a
+project already has, id first:
+
+```bash
+tripl plan revisions --project my-app
+```
+
 Every run then validates against that copy, and says so:
 
 ```text
@@ -1113,9 +1165,11 @@ the [`check --list` document](../run/cli.md#check---list-document). The CLI
 page has [an example](../run/cli.md#tripl-check-list).
 
 `--list` exits 0 whenever the scan ran, even when the reader closed the pipe
-early (`| head`), and 2 for a config error. It refuses the flags it has no use
-for: `--report`, `--branch`, `--strict`, `--allow-empty`, and a `--format`
-other than `text` or `json`.
+early (`| head`), and 2 for a config error. A stdout it cannot write at all
+(a full disk, `> /dev/full`) is exit 1, with one line on stderr. It refuses
+the flags it has no use for: `--report`, `--branch`, `--strict`,
+`--strict-suppressions`, `--allow-empty`, and a `--format` other than `text`
+or `json`.
 
 ### Why a value is not read {#list-reasons}
 
@@ -1129,10 +1183,10 @@ that kind of value yet.
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
 | `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name set to a constant is [read](#conditionals); any other local of that name does not make it `local`, because the local may be in a block that closed before the call. | Add its file to `enums:` or `sources:`. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
 | `ambiguous_constant` | A constant or enum case that resolves in several objects to different values, such as `.home` in two enums or `HOME` declared at file scope in two files, and the field the value goes to does not tell them apart. Plain `tripl check` sends it as dynamic and reports nothing new for it. | Name its type more fully (`Screen.HOME`, `AppEvents.Category.home`), or rename one of the constants. |
-| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), look at what it says the argument is. A parameter of the function around the call (`: parameter evt of send (line 1)`): the object is built by that function's callers, so add a call spec for the function with `object_arg:` (see [Functions that forward their parameter](#list-forwarders)). Anything else: configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
 | `local` | A local variable of the function, declared before the call, that the scan does not read: see [Conditionals and locals](#conditionals) for the ones it does. | Nothing to configure. A `var` set once can become a `val` (`let`, `const`). |
-| `format` | A printf-style format the scan does not fill in, such as `"promo_%.1f".format(ratio)` (see [Formats and concatenations](#formats) for the ones it does). The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure. |
+| `format` | A printf-style format the scan does not fill in, such as `"promo_%.1f".format(ratio)` (see [Formats and concatenations](#formats) for the ones it does). The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. A comparison, a range or a word operator does the same, so `a < y.format(z)`, `a..y.format(z)` and Kotlin's `a to y.format(z)` are an `expression`; type arguments, as in `pick<String>(a).format(z)`, are no comparison. A word operator is any name between two operands in Kotlin, where it is an infix call such as `to` or `zip`, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure. |
 | `concatenation` | Values joined with `+`, with no string literal among them and a part that is not a constant (`Events.PREFIX + id`, or a number), or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | When a part is a constant in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
 | `conditional` | A choice between values the scan does not read: an `if`, `when` or ternary with a branch that is not a constant (see [Conditionals and locals](#conditionals)), a `switch`, or a `?:` or `??` fallback. | Nothing to configure. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
@@ -1185,7 +1239,62 @@ The calls are counted by name, in the function's own file and elsewhere,
 leaving out those in its own body: a call of that name there is the tracking
 call it forwards to, or the function calling itself. By name alone, so a call
 of another function with the same name counts too, a tracking call named like
-it included. A Swift `init` or a TypeScript `constructor` is listed under its
+it included.
+
+A function can also pass its parameter on whole, as the object a tracking call
+reads its name and fields from:
+
+```ts
+export function send(evt: StructuredEvent) {
+  trackStructEvent(evt);
+}
+```
+
+The call in it reads nothing (`name: not passed, object argument evt is not a
+literal: parameter evt of send (line 1)`), and `--list` names `send` as
+`forwards evt (#0) as the object argument`. The object is built where `send`
+is called, so give `send` a call spec that reads its argument as the object:
+
+```yaml
+event_types:
+  se:
+    calls:
+      - function: "trackStructEvent"
+        object_arg: 0
+        args: {category: category, action: action}
+      - function: "send"           # the wrapper --list named
+        object_arg: 0
+        args: {category: category, action: action}
+```
+
+`object_arg:` reads an argument by its position, and only one written without
+a label. Swift callers write `send(evt: […])` unless the parameter is declared
+`_ evt`, and Kotlin callers may write `send(evt = …)`. Such a call is matched
+by the call spec for `send` but its object is not read: it lists as
+`name: not passed` with `not mapped: evt`. `--list` says so in the function's
+row, before you add the spec:
+`forwards evt (#0) as the object argument (object_arg does not read an argument labelled evt)`.
+In Kotlin the calls that pass the argument by position are still read. In
+Swift none is, so there is nothing to configure for that function, short of
+declaring the parameter `_ evt`.
+
+A function is listed this way also when the tracking call in it is otherwise
+read, such as `function opened(props: Props) { track("opened", props) }`: the
+name is in the function's body and only the object comes from its callers. A
+call spec for `opened` then reads what the callers put in the object, not the
+name. `tripl check` builds one item per matched call, so each caller then
+gives a second item, with the fields from its object and no name, next to the
+named one from the function's body: the event is not put together from the
+two. Add that spec only when the callers' fields are worth checking on their
+own.
+
+Only a bare parameter counts, never a property of one (`evt.inner`). The
+function is found the way a `parameter` reason is (see above), with the same
+limits: an Objective-C method is not listed, and a parameter is still taken
+for one after the function assigns it a new value, or inside a lambda whose
+own parameter has its name.
+
+A Swift `init` or a TypeScript `constructor` is listed under its
 type's name, which is what its callers write (`ScreenView(screen: name)`,
 `new PageView(path)`), though the reason line under the call, and
 `declared.function` in the JSON, still name it `init` or `constructor`. One in
@@ -1316,7 +1425,7 @@ one validation, the same verdicts in every file.
 | `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
 | `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
 | `junit` | JUnit XML, for GitLab's test summary and the test reports of most other CI systems. |
-| `markdown` | A note for a merge request: under a [gate](#new-findings), the events the change adds, removes or changes; then the findings that fail the run. See [Summarise a change](#summary). |
+| `markdown` | A note for a merge request: under a [gate](#new-findings), the events the change adds, removes or changes; then the findings that fail the run, and, with [`--strict-suppressions`](#strict-suppressions), the markers that do. See [Summarise a change](#summary). |
 
 ```bash
 tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
@@ -1389,7 +1498,10 @@ no marker in the scanned files, none of these keys is present. Under a
 and finding gains `in_change` and `fails`, a finding `cause`, and `exit_code`
 is the gated one. With a [baseline](#baseline), and only then, `baseline`
 says what the file held and this run matched, every row gains `fails` and
-every finding `baselined` and `fails`. See the
+every finding `baselined` and `fails`. With
+[`--strict-suppressions`](#strict-suppressions), and only then,
+`summary.failing_suppressions` counts the markers that fail the run and each
+`suppressions` entry gains `fails`. See the
 [`check` document](../run/cli.md#check-document).
 
 **A run that could not finish writes no report**: a configuration or usage
@@ -1412,9 +1524,9 @@ Human text and progress messages go to stderr when stdout carries `json`,
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`, and malformed or unused markers unless you pass [`--strict-suppressions`](#strict-suppressions). `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker fails the run on its own only with [`--strict-suppressions`](#strict-suppressions). Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. Also: the output could not be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`). That is one line on stderr, `tripl: cannot write to stdout: ...`, and no report is left behind. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, holds an entry tripl did not write, or is of another version, `fingerprint_key`, project or mode; a baseline file, read or written, that is also a `--report` path; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link or a special file; all before any request. [`--strict-suppressions`](#strict-suppressions) with `--payloads` or `--list`. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -1425,7 +1537,8 @@ accepts it, for a repository with no tracking code yet, and also accepts a
 
 `tripl check --list` checks nothing, so it never fails because nothing
 matched: it exits 0 whenever the scan ran, and 2 for a config error or a flag
-it refuses (see [List what the scan reads](#list)).
+it refuses (see [List what the scan reads](#list)). Like every other mode, it
+exits 1 when its output cannot be written to stdout.
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was
