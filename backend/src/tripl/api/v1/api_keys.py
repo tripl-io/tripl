@@ -21,6 +21,7 @@ from tripl.api.deps import (
     require_org_member,
 )
 from tripl.middleware.org_context import current_org, require_org_id
+from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.user_session import AUTH_METHOD_SSO
 from tripl.schemas.api_key import (
     ApiKeyCreate,
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/me/api-keys", tags=["api-keys"])
 
 # A key never mints or revokes keys, its own included.
 SESSION_REQUIRED = "API key management requires a user session"
+CHECK_UPLOAD_NEEDS_PROJECT = "A check_upload key is bound to one project: pass project_slug"
 
 
 @router.get("", response_model=list[ApiKeyResponse])
@@ -52,6 +54,12 @@ async def create_api_key(
     data: ApiKeyCreate,
 ) -> ApiKeyCreateResponse:
     require_browser_session(request, SESSION_REQUIRED)
+    if data.scope == ApiKeyScope.check_upload and data.project_slug is None:
+        # The CI key: it acts in the one project whose runs it uploads.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CHECK_UPLOAD_NEEDS_PROJECT,
+        )
     if data.scope == "write":
         # A write key needs membership of the organization it will act in; what
         # it may write inside a project is still decided per request by the

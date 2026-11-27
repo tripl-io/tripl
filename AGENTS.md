@@ -334,6 +334,9 @@ Routers currently registered:
 - `/projects/{slug}/alert-destinations`
 - `/projects/{slug}/alert-deliveries`
 - `/projects/{slug}/annotations`, `/projects/{slug}/tracker-config`
+- `/projects/{slug}/check-runs` (`tripl check --upload`: a write a `check_upload`
+key may send; the history) and `GET /projects/{slug}/events/{event_id}/code-usage`
+(where the current default-branch run of each repository and check directory sends the event)
 - event-volume metric routes under project, event, and event-type paths
 
 Useful endpoint groups:

@@ -14,9 +14,12 @@ from tripl.models.enum_types import db_enum
 class ApiKey(UUIDMixin, TimestampMixin, Base):
     """Long-lived bearer token a user can give to non-browser clients.
 
-    Two scopes are supported in v1:
+    Three scopes:
       - ``read``  — GET endpoints only; write surfaces return 403.
       - ``write`` — full editor-level access (subject to the user's role).
+      - ``check_upload`` — what ``read`` may, plus recording ``tripl check``
+        runs; every other write returns 403. Always project-bound: the key a
+        CI job holds.
 
     Orthogonal to scope, a key may be bound to a single project via
     ``project_id``. A bound key only authenticates ``/projects/{slug}/...``

@@ -9,6 +9,8 @@
 # The job runs in branch pipelines, which every project has. If yours runs
 # merge request pipelines (workflow:rules), set pipelines: merge_requests.
 # Every input is described below, and in website/docs/how-to/check-tracking-in-ci.md.
+# To check the events a UI-test job captured, see payloads, needs and when, and
+# website/docs/how-to/record-events-in-ui-tests.md.
 # Needs GitLab 17.0 or newer (CI/CD inputs); `integrity:` on the include, 17.9.
 spec:
   inputs:
@@ -22,6 +24,12 @@ spec:
     stage:
       description: The stage the job runs in.
       default: test
+    job:
+      description: >-
+        The job's name. Include the file twice, with another name the second time,
+        to check the code and the captured events in one pipeline.
+      default: tripl-check
+      regex: ^[A-Za-z0-9][A-Za-z0-9_.:/ -]*$
     base_url:
       description: The instance's https:// address. Empty reads the TRIPL_BASE_URL CI/CD variable.
       default: ""
@@ -39,11 +47,37 @@ spec:
         The committed baseline, relative to the repository root. Used when the file
         exists; empty never uses one.
       default: .tripl/check-baseline.json
+    payloads:
+      description: >-
+        Check the events a test run captured instead of the code (--payloads): an
+        NDJSON or JSON file, relative to the repository root, such as one a UI-test
+        job keeps as an artifact (name that job in needs). Empty checks the code.
+      default: ""
+    payloads_baseline:
+      description: >-
+        With payloads: the committed baseline of the captured events, relative to
+        the repository root, used when the file exists, in place of baseline (a
+        baseline is written for one mode). Empty never uses one.
+      default: .tripl/check-payloads-baseline.json
+    needs:
+      description: >-
+        The jobs to wait for and download artifacts from, as GitLab's needs takes
+        them (a name, or {job, optional, artifacts}): with payloads, the job that
+        wrote the file. Empty starts at once and downloads nothing.
+      type: array
+      default: []
+    when:
+      description: >-
+        on_success runs the job only when every job it needs passed. always runs
+        it after a failed one too: with payloads, to check the events a failed
+        UI-test job sent.
+      options: [on_success, always]
+      default: on_success
     gate:
       description: >-
         Fail only on findings the change brings in (--new-from-rev): a branch's,
         against its merge base with the default branch; a merge request's, against
-        its base.
+        its base. Not applied with payloads: a captured event has no source to diff.
       type: boolean
       default: true
     pipelines:
@@ -69,13 +103,14 @@ spec:
       type: array
       default: [4]
 ---
-tripl-check:
+"$[[ inputs.job ]]":
   image:
     name: $[[ inputs.image ]]:$[[ inputs.version ]]
     entrypoint: [""]
   stage: $[[ inputs.stage ]]
-  needs: []
-  dependencies: []
+  # Artifacts come from the jobs named here and from no others; needs: []
+  # downloads none.
+  needs: $[[ inputs.needs ]]
   before_script: []
   after_script: []
   cache: []
@@ -87,6 +122,8 @@ tripl-check:
     TRIPL_CHECK_CONFIG: $[[ inputs.check_config ]]
     TRIPL_CHECK_DIRECTORY: $[[ inputs.directory ]]
     TRIPL_CHECK_BASELINE: $[[ inputs.baseline ]]
+    TRIPL_CHECK_PAYLOADS: $[[ inputs.payloads ]]
+    TRIPL_CHECK_PAYLOADS_BASELINE: $[[ inputs.payloads_baseline ]]
     TRIPL_CHECK_ARGS: $[[ inputs.args ]]
     TRIPL_CHECK_MODE: "pipelines=$[[ inputs.pipelines ]] gate=$[[ inputs.gate ]] strict=$[[ inputs.strict ]]"
   rules:
@@ -94,8 +131,11 @@ tripl-check:
       when: never # a merge request from a fork has no key
     # branches never matches a merge request pipeline, so it never creates one.
     - if: '"$[[ inputs.pipelines ]]" == "branches" && $CI_COMMIT_BRANCH'
+      when: $[[ inputs.when ]]
     - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: $[[ inputs.when ]]
     - if: '"$[[ inputs.pipelines ]]" == "merge_requests" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: $[[ inputs.when ]]
   script:
     - |
       set -eu
@@ -107,36 +147,50 @@ tripl-check:
       [ -z "$TRIPL_CHECK_PROJECT" ] || set -- "$@" --project "$TRIPL_CHECK_PROJECT"
       [ -z "$TRIPL_CHECK_CONFIG" ] || set -- "$@" --check-config "$root/$TRIPL_CHECK_CONFIG"
       case "$mode" in *" strict=true "*) set -- "$@" --strict ;; esac
-      if [ -n "$TRIPL_CHECK_BASELINE" ]; then
-        if [ -f "$root/$TRIPL_CHECK_BASELINE" ]; then
-          set -- "$@" --baseline "$root/$TRIPL_CHECK_BASELINE"
+      gate=false
+      case "$mode" in *" gate=true "*) gate=true ;; esac
+      baseline="$TRIPL_CHECK_BASELINE"
+      write="tripl check --write-baseline $baseline"
+      unheld="every error outside the change fails the run"
+      if [ -n "$TRIPL_CHECK_PAYLOADS" ]; then
+        # Payload mode checks what a test run captured, not the code. Its
+        # baseline is its own (the CLI refuses one written for the static
+        # mode), and it has no gate: a captured event has no source to diff.
+        set -- "$@" --payloads "$root/$TRIPL_CHECK_PAYLOADS"
+        baseline="$TRIPL_CHECK_PAYLOADS_BASELINE"
+        write="tripl check --payloads $TRIPL_CHECK_PAYLOADS --write-baseline $baseline"
+        unheld="every error fails the run"
+        [ "$gate" = false ] || echo "No gate with payloads: a captured event has no source to diff."
+        gate=false
+      fi
+      if [ -n "$baseline" ]; then
+        if [ -f "$root/$baseline" ]; then
+          set -- "$@" --baseline "$root/$baseline"
         else
-          echo "No baseline at $TRIPL_CHECK_BASELINE: every error outside the change fails the run."
-          echo "Write one with: tripl check --write-baseline $TRIPL_CHECK_BASELINE"
+          echo "No baseline at $baseline: $unheld."
+          echo "Write one with: $write"
         fi
       fi
-      case "$mode" in
-        *" gate=true "*)
-          # The merge request's base: the target branch's commit in a merged
-          # results pipeline or a merge train, else the merge base. On the
-          # default branch there is none: every finding counts there, and the
-          # baseline decides.
-          base="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}}"
-          if [ -n "$base" ]; then
-            git fetch --quiet --no-tags --depth=1 origin "$base"
-          elif [ -z "${CI_MERGE_REQUEST_IID:-}" ] && [ "${CI_COMMIT_BRANCH:-}" != "$CI_DEFAULT_BRANCH" ]; then
-            # A branch pipeline: its merge base with the default branch, which
-            # needs the branch's history.
-            if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
-              git fetch --quiet --no-tags --unshallow origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
-            else
-              git fetch --quiet --no-tags origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
-            fi
-            base="$(git merge-base "origin/$CI_DEFAULT_BRANCH" HEAD)"
+      if [ "$gate" = true ]; then
+        # The merge request's base: the target branch's commit in a merged
+        # results pipeline or a merge train, else the merge base. On the
+        # default branch there is none: every finding counts there, and the
+        # baseline decides.
+        base="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}}"
+        if [ -n "$base" ]; then
+          git fetch --quiet --no-tags --depth=1 origin "$base"
+        elif [ -z "${CI_MERGE_REQUEST_IID:-}" ] && [ "${CI_COMMIT_BRANCH:-}" != "$CI_DEFAULT_BRANCH" ]; then
+          # A branch pipeline: its merge base with the default branch, which
+          # needs the branch's history.
+          if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+            git fetch --quiet --no-tags --unshallow origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+          else
+            git fetch --quiet --no-tags origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
           fi
-          set -- "$@" --new-from-rev "$base"
-          ;;
-      esac
+          base="$(git merge-base "origin/$CI_DEFAULT_BRANCH" HEAD)"
+        fi
+        set -- "$@" --new-from-rev "$base"
+      fi
       # shellcheck disable=SC2086 # split on spaces, on purpose
       set -- "$@" $TRIPL_CHECK_ARGS
       cd "$root/$TRIPL_CHECK_DIRECTORY"
