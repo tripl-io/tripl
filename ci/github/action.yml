@@ -6,7 +6,8 @@
 #       base-url: https://tripl.example.com
 #       api-key: ${{ secrets.TRIPL_READ_ONLY_KEY }}
 #
-# See website/docs/how-to/check-tracking-in-ci.md.
+# See website/docs/how-to/check-tracking-in-ci.md, and, to check the events a
+# UI-test job captured (payloads), website/docs/how-to/record-events-in-ui-tests.md.
 name: tripl check
 description: Check tracking calls in the code against the tripl tracking plan.
 author: tripl
@@ -38,8 +39,22 @@ inputs:
   baseline:
     description: The committed baseline, relative to the repository root. Used when the file exists; empty never uses one.
     default: .tripl/check-baseline.json
+  payloads:
+    description: >-
+      Check the events a test run captured instead of the code (--payloads): an NDJSON
+      or JSON file, relative to the repository root, written by an earlier step or
+      downloaded from the UI-test job's artifact. Empty checks the code.
+    default: ""
+  payloads-baseline:
+    description: >-
+      With payloads: the committed baseline of the captured events, relative to the
+      repository root, used when the file exists, in place of baseline (a baseline is
+      written for one mode). Empty never uses one.
+    default: .tripl/check-payloads-baseline.json
   gate:
-    description: In a pull request or a merge queue, fail only on findings it brings in (--new-from-rev).
+    description: >-
+      In a pull request or a merge queue, fail only on findings it brings in
+      (--new-from-rev). Not applied with payloads: a captured event has no source to diff.
     default: "true"
   plan-branch:
     description: >-
@@ -62,6 +77,8 @@ inputs:
     description: >-
       The code scanning category. Empty is tripl-check, or tripl-check/<directory>,
       so each app of a repository checked in its own step keeps its own alerts.
+      With payloads, tripl-check-payloads in its place, so a run on captured events
+      never replaces the alerts of the code.
     default: ""
   args:
     description: More arguments for tripl check, separated by spaces (no quoting).
@@ -91,6 +108,8 @@ runs:
         INPUT_CHECK_CONFIG: ${{ inputs.check-config }}
         INPUT_DIRECTORY: ${{ inputs.directory }}
         INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_PAYLOADS: ${{ inputs.payloads }}
+        INPUT_PAYLOADS_BASELINE: ${{ inputs.payloads-baseline }}
         INPUT_GATE: ${{ inputs.gate }}
         INPUT_STRICT: ${{ inputs.strict }}
         INPUT_PLAN_BRANCH: ${{ inputs.plan-branch }}
@@ -156,15 +175,32 @@ runs:
         [[ -z "$INPUT_PROJECT" ]] || args+=(--project "$INPUT_PROJECT")
         [[ -z "$INPUT_CHECK_CONFIG" ]] || args+=(--check-config "$root/$INPUT_CHECK_CONFIG")
         [[ "$INPUT_STRICT" != true ]] || args+=(--strict)
-        if [[ -n "$INPUT_BASELINE" ]]; then
-          if [[ -f "$root/$INPUT_BASELINE" ]]; then
-            args+=(--baseline "$root/$INPUT_BASELINE")
+        gate="$INPUT_GATE"
+        baseline="$INPUT_BASELINE"
+        write="tripl check --write-baseline $baseline"
+        unheld="every error outside the change fails the run"
+        scanning="tripl-check"
+        if [[ -n "$INPUT_PAYLOADS" ]]; then
+          # Payload mode checks what a test run captured, not the code. Its
+          # baseline is its own (the CLI refuses one written for the static
+          # mode), and it has no gate: a captured event has no source to diff.
+          args+=(--payloads "$root/$INPUT_PAYLOADS")
+          baseline="$INPUT_PAYLOADS_BASELINE"
+          write="tripl check --payloads $INPUT_PAYLOADS --write-baseline $baseline"
+          unheld="every error fails the run"
+          scanning="tripl-check-payloads"
+          [[ "$gate" != true ]] || echo "No gate with payloads: a captured event has no source to diff."
+          gate=false
+        fi
+        if [[ -n "$baseline" ]]; then
+          if [[ -f "$root/$baseline" ]]; then
+            args+=(--baseline "$root/$baseline")
           else
-            echo "No baseline at $INPUT_BASELINE: every error outside the change fails the run."
-            echo "Write one with: tripl check --write-baseline $INPUT_BASELINE"
+            echo "No baseline at $baseline: $unheld."
+            echo "Write one with: $write"
           fi
         fi
-        if [[ "$INPUT_GATE" == true ]]; then
+        if [[ "$gate" == true ]]; then
           base=""
           case "$EVENT_NAME" in
             pull_request)
@@ -209,8 +245,8 @@ runs:
             directory="$INPUT_DIRECTORY"
             while [[ "$directory" == ./* ]]; do directory="${directory#./}"; done
             while [[ "$directory" == */ ]]; do directory="${directory%/}"; done
-            category="tripl-check"
-            [[ -z "$directory" || "$directory" == . ]] || category="tripl-check/$directory"
+            category="$scanning"
+            [[ -z "$directory" || "$directory" == . ]] || category="$scanning/$directory"
           fi
           echo "sarif=$sarif" >> "$GITHUB_OUTPUT"
           echo "category=$category" >> "$GITHUB_OUTPUT"

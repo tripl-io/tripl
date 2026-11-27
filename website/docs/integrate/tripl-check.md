@@ -169,6 +169,7 @@ event_types:
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
 | `exclude` | Glob patterns for files to skip, even when a `sources` pattern matches them. They are added to the built-in excludes: `.git`, `node_modules`, `Pods`, `Carthage`, `DerivedData`, `.build`, `build` and `dist` directories, and `*.min.js` files. |
 | `enums` | Files that declare the enums your calls use: a glob string, or `{file: GLOB, languages: [...]}`. See [Enum sources](#enum-sources). |
+| `lint` | Optional. Checks of names and keys that need no plan: see [Lint names and keys without a plan](#lint). Without it nothing is linted. |
 | `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. A `preset` and a `presets` list can be combined: the `preset` comes first. An entry with neither is a config error. |
 
 An `event_types` entry can also have `field_map`, which renames targets to
@@ -188,8 +189,8 @@ Each item under `calls` describes one way this event type is tracked:
 
 | Key | Meaning |
 |-----|---------|
-| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. |
-| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). |
+| `function` | A dotted callee, for example `Analytics.shared.log`. It matches whole segments from the right, so `Analytics.shared.log` also matches `app.Analytics.shared.log`, but not `MyAnalytics.shared.log`. The match is case-sensitive. Whitespace, `()` and `[]` in the callee are ignored. In Swift, a type's initializer called by name matches as the type: `ScreenView` also matches `ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)` and `Outer.ScreenView.init(…)`, the same call as `ScreenView(screen: name)`. That takes a type name with a capital first letter, as Swift writes them; `self.init`, `super.init` and `Self.init` are matched only by a spec that names them. |
+| `pattern` | A regular expression (Python syntax) that must match the **whole** normalised callee. The callee is normalised by dropping whitespace, `?` and `!`, and the arguments of intermediate calls, so `Amplitude.instance().logEvent` reads `Amplitude.instance.logEvent`. Use it when the receiver varies (`tracker.track`, `this.tracker.track`). In Swift, a type's initializer called by name also matches when the type alone does: a pattern that matches `ScreenView` matches `ScreenView.init(…)` and `ScreenView.self.init(…)` too, as [`function`](#config-keys) does. |
 | `objc_selector` | An Objective-C selector, for example `trackWithCategory:action:label:`. It matches a message send with exactly these selector parts. |
 | `receiver` | Only with `objc_selector`: a regular expression the receiver must contain (`re.search`), for example `(?i)tracker`. |
 | `args` | Maps an **argument label** (Swift label, Kotlin named argument, a key of the `object_arg` object, or the label of an Objective-C selector part) to a **target**. |
@@ -263,7 +264,7 @@ between the receiver and the method are allowed.
 | `segment_track` | `.track(…)` on a receiver whose name contains `analytics` or `segment`: `analytics.track("Name", {…})` (JS/TS, Kotlin, Java), `analytics.track(name: "Name", properties: […])` (Swift); Objective-C `track:properties:` and `track:` sent to such a receiver | the first argument, or the `name` / `event` label, to the event name; the second, or `properties`, to `properties` |
 | `amplitude_log_event` | `.logEvent(…)` or `.track(…)` on a receiver whose name contains `amplitude`: `amplitude.track("Name", {…})`, `Amplitude.instance().logEvent("Name", withEventProperties: […])`, `amplitude.track(eventType: "Name", eventProperties: […])`; Objective-C `logEvent:withEventProperties:` and `logEvent:` | the first argument, or `eventType` / `event_type`, to the event name; the second, or `eventProperties` / `event_properties` / `withEventProperties`, to `properties` |
 | `snowplow_structured` | `Structured(category: "c", action: "a")` (also `SPStructured`, `StructuredEvent`, `Structured.builder()`) with chained `.label(…)` / `.property(…)` / `.value(…)`; JS `trackStructEvent({category, action, label, property, value})`; Objective-C `[[SPStructured alloc] initWithCategory:action:]` | `category`, `action`, `label`, `property` and `value` to the fields of the same names |
-| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
+| `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`, and in Swift `ScreenView.init(…)`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
 | `snowplow_self_describing` | `SelfDescribing(schema: "iglu:…", payload: […])` (also `SPSelfDescribing`, `SelfDescribingJson`); JS `trackSelfDescribingEvent({event: {schema, data}})`; Objective-C `initWithSchema:payload:` | the Iglu schema's name segment to the event name; `payload` / `data` / `eventData` to `properties` |
 
 To start a call spec of your own from a preset, print it.
@@ -326,7 +327,8 @@ enum AppEvents {
 as the constant's value. A bare name (`PlayStart`, from inside the class that
 declares it) resolves only for a constant declared at file scope. Only
 declarations that cannot be reassigned are read: a `var` (Swift or Kotlin), a
-TypeScript `let` or `var`, and a Java `String` field that is not `final` are
+TypeScript `let` or `var`, a Java `String` field that is not `final`, and an
+Objective-C pointer without `const` before its name (`static NSString *X`) are
 not, because the code can change them before the call, so a reference to one is
 dynamic rather than checked against its initial value.
 
@@ -391,9 +393,12 @@ message text.
 | `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the property the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
-| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
+| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …), as in the [validate API](./agent-api-guide.md#plan-validation), and every report shows it: the text listing prints `policy_violation@naming.event`, the name a [marker](#suppress) waives that one rule by. Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
+| `name_characters` | warning | An event name, field key or property key has a non-ASCII character, whitespace or a quote. Raised by the CLI, only with a [`lint:` section](#lint). |
+| `name_pattern` | warning | An event name does not match `name_pattern`, or a key does not match `key_pattern`. Raised by the CLI, only with a [`lint:` section](#lint). |
+| `duplicate_constant` | warning | The name or key is read from a constant that holds the same value as another constant of the same object. Raised by the CLI, only with a [`lint:` section](#lint). |
 
 Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
 call. The CLI raises them and they do not fail the run, unless
@@ -423,6 +428,57 @@ A `null` (dynamic) value never produces `value_not_allowed` or
 `missing_required_field`. An `info` finding does not change an item's status,
 except with `--strict`, where it makes an otherwise clean item a warning.
 
+## Lint names and keys without a plan {#lint}
+
+Some mistakes pass every plan check once the plan has taken the names from the
+warehouse: the plan then holds the wrong name too. A Cyrillic `а` inside a
+Latin event name, a typographic `’` inside a property key, and two constants
+with one value (one button logs another button's event) all look right in
+review. The lint finds them with no plan and no server. It is off until the
+check config has a `lint:` section:
+
+```yaml
+# .tripl/check.yml
+lint:
+  characters: true                    # the default
+  duplicates: true                    # the default
+  name_pattern: "[a-z][a-z0-9_]*"     # optional
+  key_pattern: "[a-z][a-z0-9_]*"      # optional
+```
+
+A bare `lint:` turns on `characters` and `duplicates`. Quote a pattern: in
+YAML an unquoted `[a-z]…` is a list.
+
+| Key | Meaning |
+|-----|---------|
+| `characters` | `true` or `false`. Flags an event name, field key or property key with a non-ASCII character, whitespace, or a straight quote (`"`, `'`, `` ` ``). Code `name_characters`. A runtime part of a name (`${id}`) is not read; the text around it is. |
+| `duplicates` | `true` or `false`. Flags a call whose event name or property key is read from a constant that holds the same value as another constant of the same type or object, as `Events.SHARE_TAP = "save_tap"` next to `Events.SAVE_TAP = "save_tap"`. Code `duplicate_constant`. Only constants some tracking call reads a name or key from count, so an unrelated constant with the same value is never flagged. An object is its name in one file: two feature modules that each declare an `object Events` have two objects, and a type split over several files (a Swift `extension`) is compared one file at a time. A constant declared at file scope (a Kotlin top-level `const val`, a Swift top-level `let`, a TypeScript module-level `export const`, an Objective-C `NSString *const` or `#define`) has its file as its object: two such constants in one file with one value are compared, and two in different files are not. A reference that may name several declarations (a Swift `.home` with a `home` in several types) reads none of them. Every call that reads one of the duplicated constants gets the finding. |
+| `name_pattern` | Optional. A regular expression (Python syntax) that must match the **whole** event name. Code `name_pattern`. A name with a runtime part (`promo_${id}_shown`) is not matched, because only the plan's name rule can say what fills it. |
+| `key_pattern` | Optional. The same, for every field key and property key. Code `name_pattern`, with the key as the finding's field. |
+
+The lint reads the keys the code or the data supplies: the property keys of a
+call's dictionary, and in a payload run the field keys of each captured event.
+A static run's field keys are the plan fields the call spec names
+(`field:screen`, `args:`), written once in this file, so the lint does not
+report them on every call site that passes one.
+
+An unknown key, a value that is not `true` or `false`, or a pattern that is
+not a valid regular expression is a config error (exit 2).
+
+Each lint finding is a `warning`, so it fails the run only with `--strict`,
+like `oversize_value`. There is no setting to make it an error. The findings
+come with the plan's own, in a static run and in a [payload run](#modes) that
+finds a check config (the character and pattern rules: a captured event has
+no constants). A finding on a key names the key as its field. Lint findings
+are [suppressed](#suppress), fingerprinted, [baselined](#baseline) and
+[gated](#new-findings) like any other: under a gate, a constant edited into a
+duplicate makes the calls that read it new, even in files the change did not
+touch. A message writes a name with escapes for anything outside ASCII, so
+the letter at fault shows as `\u0430` instead of looking like `a`.
+
+[`tripl check --list`](#list) shows the lint's findings under each call and
+counts them, with no URL and no key, and still exits 0.
+
 ## Suppress a finding {#suppress}
 
 Sometimes a call is wrong on purpose: a debug-only event that never reaches
@@ -441,12 +497,24 @@ reads the same in Swift, Objective-C, Kotlin, Java and TypeScript or
 JavaScript:
 
 ```
-tripl-check-ignore[<code>(,<code>)*] -- <reason>
+tripl-check-ignore[<target>(,<target>)*] -- <reason>
+<target> is <code>, <code>:<field>, <code>@<rule> or <code>@<rule>:<field>
 ```
 
 - **Codes.** Each is a finding code (`unknown_event`), or a code and a field
   (`value_not_allowed:plan`) to waive it on that field only. Codes are not
   checked against a list: a misspelled one waives nothing and shows as unused.
+- **Rules.** A policy reports every rule it has under the one code
+  `policy_violation`, so `policy_violation` alone waives all of them on the
+  call. Add `@` and the rule to waive one and keep the others failing:
+  `policy_violation@naming.event`, or with a field too,
+  `policy_violation@forbidden_field:email`. The rule is written as the report
+  prints it, right after the code. A rule the call does not break waives
+  nothing and shows as unused. A rule cannot hold a space, `,`, `:`, `@` or
+  `]`: a marker with one of those in its rule, or with nothing after the `@`,
+  suppresses nothing, and the job log says it names a rule it cannot read. A
+  policy rule whose own name holds one of them can only be waived with
+  `policy_violation` alone.
 - **Reason.** Everything after `--` to the end of the comment line (or to
   `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
   JUnit show it with the finding.
@@ -484,7 +552,7 @@ A covered call is waived on every item it expands into (a name function that
 returns several names, for example).
 
 **A marker without a reason suppresses nothing.** Nor does one that names no
-code or names `no_verdict`, which cannot be suppressed because nothing was
+code, has a rule it cannot read after an `@`, or names `no_verdict`, which cannot be suppressed because nothing was
 decided about the call. The finding fails the run as usual, so the required
 reason is enforced by the check itself, and the marker is reported as
 `invalid_suppression`:
@@ -506,7 +574,8 @@ Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched n
 
 A suppression changes only whether the run fails. A result's `status` and the
 summary counts stay the plan's verdict. Payload mode reads no source, so it has
-no markers. One known limitation: in a JSX file, element text that looks like a
+no markers. To review every marker in the code without a run,
+[`tripl check --list`](#list-suppressions) shows each one on the call it covers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
 
 ### Keep markers clean {#strict-suppressions}
@@ -631,7 +700,8 @@ minus `exclude:`), nothing is scanned twice and nothing is new.
 the change left alone, for example an event the branch archives. Those calls
 are validated against main too, in one more batch: a finding main does not
 have, or has at a lower severity, was caused by the branch, and it is new
-(`cause: "plan_branch"` in JSON).
+(`cause: "plan_branch"` in JSON). A `policy_violation` of a rule main's
+policy did not report on the call counts as one main does not have.
 
 **What it changes.** The exit code, the text listing (only what is new or
 fails, with a `Gate:` line counting the rest; a marker problem is listed only
@@ -732,6 +802,13 @@ revision: 0a1b2c3d-0000-4000-8000-00000000beef
 
 A revision is a stored copy of the whole plan. Take one on the project's
 History page (or with `POST /projects/{slug}/revisions`) and copy its id.
+[`tripl plan revisions`](../run/cli.md#tripl-plan-revisions) lists the ones a
+project already has, id first:
+
+```bash
+tripl plan revisions --project my-app
+```
+
 Every run then validates against that copy, and says so:
 
 ```text
@@ -847,8 +924,8 @@ tripl check --baseline .tripl/check-baseline.json         # in CI: fail only on 
 **What it holds.** An entry is a finding without its place: the call it is
 on, by what the call sends, the same key the gate compares (callee, event
 type, name, field values, what was only known at runtime; never the line or
-the file), plus the finding's code and field, the most severe severity seen
-and how many there were. So:
+the file), plus the finding's code and field, the rule of a
+`policy_violation`, the most severe severity seen and how many there were. So:
 
 - a call moved to another line or file, or reformatted, stays in the
   baseline;
@@ -857,6 +934,14 @@ and how many there were. So:
 - an edited call is new: it sends something else;
 - a finding more severe than its entry (a warning that became an error) is
   new;
+- a `policy_violation` is held only by an entry of its own rule (the entry's
+  `rule` key, written only for a finding that has one): a call baselined for
+  `naming.event` fails once it also breaks `forbidden_field`, and
+  [waiving one rule](#suppress) with a marker does not pass its entry on to
+  another rule. A baseline written by a tripl that did not record the rule
+  has no `rule` keys; such an entry holds a `policy_violation` of any rule on
+  its call, as it did then, until you rewrite the file with
+  `--write-baseline`;
 - a finding a [marker](#suppress) suppresses is not written and takes up no
   count, and `no_verdict` is never baselined: nothing was decided about the
   call.
@@ -978,8 +1063,12 @@ input:
 | `name` | Optional. The event name or identity, looked up across all types when `event_type` is absent. |
 | `fields` | Plan field name to value: a string, number, boolean or `null`. Numbers and booleans are checked as their JSON text (`3`, `true`). |
 | `properties` | Any other keys the event carried. They are checked as field names. |
+| `ref` | Optional. Where the event came from, for whoever reads the file: the test, the screen or the step that sent it. It is never checked or sent, and two events that differ only in it are one. |
 
 An event needs `event_type` or `name`. Any other key is a usage error (exit 2).
+To write this file from your UI tests, through your own tracking facade or a
+Snowplow tracker's plugin, and to check it in CI, see
+[Check the events your UI tests send](../how-to/record-events-in-ui-tests.md).
 
 A payload is a complete event, so a required field that is missing **is** an
 error here (`missing_required_field`), and its values are never treated as
@@ -1017,6 +1106,9 @@ It prints three things:
 - **The functions that forward their own parameter** into a tracking call.
 - **The calls that look like tracking** but match no call spec.
 
+When the code has `tripl-check-ignore` markers, it also shows
+[which call each one covers](#list-suppressions).
+
 The summary counts the calls: how many are fully read, how many are not sent
 (no name or field read, so `tripl check` counts them as `dynamic`), and how
 many are sent with a value not read. It counts the top-level values only (the
@@ -1042,7 +1134,7 @@ that kind of value yet.
 |--------|------------|------------|
 | `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
 | `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
-| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead, and a path through such a parameter (`kEvent.name`) reads `parameter_property`; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), look at what it says the argument is. A parameter of the function around the call (`: parameter evt of send (line 1)`): the object is built by that function's callers, so add a call spec for the function with `object_arg:` (see [Functions that forward their parameter](#list-forwarders)). Anything else: configure the call that builds the object. |
 | `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
 | `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
@@ -1097,9 +1189,19 @@ event_types:
 
 The calls are counted by name, in the function's own file and elsewhere,
 leaving out those in its own body: a call of that name there is the tracking
-call it forwards to, or the function calling itself. By name alone, so a call
-of another function with the same name counts too, a tracking call named like
-it included.
+call it forwards to, or the function calling itself. By name, so a call of
+another function with the same name counts too, a tracking call named like it
+included. Elsewhere, the line counts only the files in the function's own
+language (`swift`, `objc`, `kotlin`, `java`, or `ts` with JavaScript), since a
+function of the same name in another language is most likely another one; the
+calls of that name in other languages are counted at the end of the line
+(`2 calls named track in other languages, not counted`). Mixed code calls
+across languages too: a Java call of a Kotlin wrapper, or an Objective-C call
+of a Swift one, is among those. The JSON keeps the counts by name in every
+language, and adds the narrowed ones (see the
+[`check --list` document](../run/cli.md#check---list-document)). The
+functions are listed by those the line counts, most unmatched calls first: in
+their own file, then elsewhere in their own language.
 
 A function can also pass its parameter on whole, as the object a tracking call
 reads its name and fields from:
@@ -1154,11 +1256,16 @@ limits: an Objective-C method is not listed, and a parameter is still taken
 for one after the function assigns it a new value, or inside a lambda whose
 own parameter has its name.
 
-A Swift `init` or a TypeScript `constructor` is listed under its
-type's name, which is what its callers write (`ScreenView(screen: name)`,
-`new PageView(path)`), though the reason line under the call, and
-`declared.function` in the JSON, still name it `init` or `constructor`. One in
-an anonymous class is not listed.
+A Swift `init` or a TypeScript `constructor` is listed under its type's name,
+which is what its callers write (`ScreenView(screen: name)`,
+`ScreenView.init(screen: name)`, `ScreenView.self.init(screen: name)`,
+`new PageView(path)`), though the reason line
+under the call, and `declared.function` in the JSON, still name it `init` or
+`constructor`; `declared.type` in the JSON names the type. One in an anonymous
+class is not listed. A call spec with `function: "ScreenView"` matches both
+Swift spellings of the call (see [`function`](#config-keys)), so it is the one
+spec to add. `self.init(…)` and `super.init(…)` are no callers, and neither is
+the implicit `.init(screen: name)`, which names no type.
 
 ### Calls that look like tracking {#list-tracking-like}
 
@@ -1169,9 +1276,38 @@ message's selector. Each group has a signal, strongest first:
 - `constant`: an argument is an event-name constant, a constant whose path
   names an event (`wrap(Events.Name.Open)`). These groups come first, and the
   text shows all of them.
-- `name`: the method's name says so. It contains `event`, has a word that
-  starts with `track`, or is `capture`, `screen`, `screenView`,
-  `logScreenView` or `logPurchase`.
+- `name`: the method's name says so. In Swift, Objective-C, Kotlin and Java
+  it contains `event`, has a word that starts with `track`, or is `capture`,
+  `screen`, `screenView`, `logScreenView` or `logPurchase`. TypeScript and
+  JavaScript apps name much of their own code after events and trackers, so
+  there the name has to say more. A React hook is read without its `use`
+  first, for every rule below: `useTrackEvent` is listed as `trackEvent`
+  would be, `useScreenView` as `screenView`, while `useEventRoster` and
+  `useTrackBy` are not. The name is one of those five names, or:
+  - its first word is `track` or `tracking` (`track`, `trackEvent`,
+    `trackPageView`), but it is not Angular's `trackBy` (`trackById`,
+    `TrackBy`);
+  - its first word is `log`, `track`, `send`, `record`, `report` or `capture`,
+    and a later word is `event` or `events` (`logEvent`, `sendEvent`,
+    `logCustomEvent`);
+  - its first word names a tracking SDK, as the `receiver` signal's vendors
+    do, or is `ga`, `gtag` or `fbq`, and a later word is `track`, `tracking`,
+    `event` or `events` (`amplitudeLogEvent`, `mixpanelTrack`, `gaEvent`,
+    `fbqTrack`);
+  - it is `event` called on a receiver (`gtag.event`, `ReactGA.event`), or a
+    bare `event(…)` the file imports by that name from a module whose path
+    has a tracking SDK's name for a word (`import { event } from "vue-gtag"`,
+    `from "@/lib/gtag"`, `require("./analytics")`); any other bare `event(…)`
+    is not listed;
+  - it is Countly's `add_event`, spelled that way.
+
+  So these are left out:
+  query keys and links (`eventTypesKey`, `eventHref`), setters, getters and
+  predicates (`setEvent`, `getTrackers`, `isEventType`), factories and
+  renderers (`makeEvent`, `renderEventsPage`), words that only start with
+  `track` (`trackerFieldError`), testing-library's `fireEvent`, a calendar's
+  `addEvent`, and an event bus's `emitEvent`. A call on a tracking vendor's
+  receiver can still be listed by the `receiver` signal.
 - `receiver`: a tracking vendor's receiver (`analytics`, `tracker`,
   `amplitude`, `firebase` and the like) calls a tracking verb such as `log`,
   `track` or `send`.
@@ -1223,9 +1359,15 @@ left out as well: an interface or abstract method, a protocol requirement, an
 overload, a C prototype in a header. The scan tells one from a call by a
 declaring keyword (`fun`, `func`, `init`, `function`), a return type (the end
 of a preprocessor line, as in `#endif`, is none), a typed parameter or a
-modifier, so a TypeScript member with none of these (`track(name, props);`) is
-still listed. The text shows the 10 largest groups besides the `constant`
-ones; `--json` lists them all.
+modifier. A method in a TypeScript `interface` needs none of these: an
+interface holds no calls, so `track(name, props);` there is left out too, as is
+an untyped construct signature (`new(config);`). Only a declaration counts, so
+the word `interface` in JSX text does not hide a call in the `{…}` after it. In
+an object type (`type Api = { track(name, props); }`, or one nested in an
+interface) or a class, a member with none of these is still listed. The same
+rule keeps plain `tripl check` from sending such a declaration, when a call
+spec names it, as a tracking call. The text shows the 10 largest groups besides
+the `constant` ones; `--json` lists them all.
 
 ### Labels read as fields {#list-default-labels}
 
@@ -1238,6 +1380,33 @@ event: fields key, exclude are read from the labels key and exclude because the 
 ```
 
 List the labels in `args:`, and map the ones that are not fields to `null`.
+
+### Suppression markers {#list-suppressions}
+
+`--list` is also where to audit the [`tripl-check-ignore` markers](#suppress).
+Under each matched call a valid marker covers, a line shows the marker with
+the codes it waives, its reason and its line. After the summary, one line counts
+the markers, and the ones that suppress nothing follow:
+
+```text
+app/src/Cart.kt:12:9  event  analytics.track  name=cart_opened
+    tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (line 11)
+
+Suppression markers: 3 read, covering 1 call site.
+Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
+Suppression on no matched call: app/src/Old.kt:3 tripl-check-ignore[unknown_event].
+```
+
+A marker on no matched call sits where no call spec matches a call: the call
+was removed, or the config does not read it. Move the marker or delete it.
+
+`--list` sends nothing, so it has no verdicts and cannot say whether a marker
+on a call waives a finding. A marker with a misspelled code shows on its call
+here like any other; only `tripl check` reports it, as `Unused suppression:`.
+With no config (below) nothing matches, so the markers are counted and only
+the malformed ones are listed. A repository with no marker prints none of these
+lines. In `--json` they are `calls[].suppressions` and the top-level
+`suppressions`.
 
 ### No config yet {#list-discovery}
 
@@ -1292,6 +1461,8 @@ tripl check --report codequality=gl-code-quality-report.json --report junit=trip
 ```
 
 **SARIF.** Each finding is one result and its code is the rule (`ruleId`).
+A `policy_violation` result keeps that `ruleId` and names the policy's rule in
+`properties.rule` and in its message.
 Errors are `level: "error"`, warnings `level: "warning"` and info findings
 `level: "note"`. A static finding carries a `physicalLocation` with a `region`
 for its line and column. Its path is relative to the scan root, the `root` of
@@ -1314,7 +1485,9 @@ rule `invalid_suppression` at `level: "warning"`, and an unused one rule
 **Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
 (`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
 warning and `info` for an info finding; `location` names the file and the
-call's lines. A [suppressed](#suppress) finding stays in the report with the
+call's lines. The `description` of a `policy_violation` names the policy's
+rule (`(rule naming.event)`); its `check_name` stays `tripl/policy_violation`.
+A [suppressed](#suppress) finding stays in the report with the
 same fingerprint, at `severity: info` and with its description starting
 `Suppressed: <reason> — `, so GitLab shows it as neither new nor resolved. A
 marker that suppresses nothing is a `tripl/invalid_suppression` issue
@@ -1330,6 +1503,7 @@ gate and the [baseline](#baseline), as Code Quality does. A call where nothing w
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
 with its findings as the case's output. A [suppressed](#suppress) finding fails
 no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
+A `policy_violation` is listed as `policy_violation@<rule>`.
 
 **Paths.** In Code Quality and JUnit, paths are relative to the repository root
 (the nearest directory that holds `.git`), the way a CI system resolves them
@@ -1340,7 +1514,9 @@ The text, JSON and SARIF formats keep paths relative to the scan root.
 (`findings[].fingerprint`), SARIF (`partialFingerprints["triplCheck/v2"]`) and
 Code Quality (`fingerprint`). It is built from what the call is (its file,
 callee, event type, name and field values, and the finding's code and field),
-never from its line and never from what the plan says. So a CI system comparing
+never from its line, never from what the plan says and never from the rule of
+a `policy_violation` (the [baseline](#baseline) does tell rules apart; a
+fingerprint does not, so the ones a CI system already stored still match). So a CI system comparing
 two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.
@@ -1446,8 +1622,24 @@ the check block merges. In short:
 - To gate the default branch and a scheduled run too, where there is no diff
   base, commit a [baseline](#baseline) and pass
   `--baseline .tripl/check-baseline.json`.
+- To keep the results in tripl, where the event pages can show where the code
+  sends each event, add `--upload` and use a `check_upload` key: see
+  [Send results to tripl](#send-results-to-tripl).
 - To check a merge request against the plan branch named like its git branch,
   see [Plan branches in CI](#plan-branch-ci) below.
+
+To check captured events instead, for example from a UI test run that writes
+what the app sent to `build/events.ndjson`, give the run a baseline of its own
+and no gate flag (both `--new-from-rev` and a static baseline are refused with
+`--payloads`):
+
+```bash
+tripl check --payloads build/events.ndjson --baseline .tripl/check-payloads-baseline.json --report junit=tripl-events.xml
+```
+
+The GitLab template and the GitHub action do that when their `payloads` input
+is set; [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md#ci)
+has the recorders and the jobs.
 
 ### Plan branches in CI {#plan-branch-ci}
 
@@ -1527,18 +1719,96 @@ though the pull request was checked against its plan branch, so with a merge
 queue the plan branch has to merge before the pull request is queued. A GitLab
 merge train keeps the source branch name and is checked like the merge request.
 
-To check captured events instead, for example from a UI test run that writes
-what the app sent to `build/events.ndjson`:
+## Send results to tripl {#send-results-to-tripl}
+
+By default a check's verdicts live only in the CI log. With `--upload` the run
+is also recorded in tripl, under the commit, the ref, the repository and the
+pipeline that made it:
 
 ```bash
-tripl check --payloads build/events.ndjson --report junit=tripl-events.xml
+tripl check --upload --report codequality=gl-code-quality-report.json
 ```
+
+- **Where the run comes from.** `--upload` reads the CI system's own
+  variables, never the checkout: in GitLab CI `CI_PROJECT_PATH`,
+  `CI_PROJECT_URL`, `CI_COMMIT_SHA`, `CI_COMMIT_REF_NAME`, `CI_DEFAULT_BRANCH`
+  and `CI_PIPELINE_URL`; in GitHub Actions `GITHUB_REPOSITORY`,
+  `GITHUB_SERVER_URL`, `GITHUB_SHA`, `GITHUB_HEAD_REF` (a pull request's source
+  branch) or else `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, and the default branch
+  from the event payload (`GITHUB_EVENT_PATH`, `repository.default_branch`; a
+  `schedule` run, whose payload names no repository, runs on the default branch
+  by GitHub's own rule). Whether it is a merge request pipeline comes from
+  `CI_PIPELINE_SOURCE`, `CI_MERGE_REQUEST_IID` and
+  `CI_EXTERNAL_PULL_REQUEST_IID` in GitLab, and from `GITHUB_EVENT_NAME`
+  (`pull_request`, `pull_request_target`, `merge_group`) in GitHub Actions.
+  When the run was made comes from `CI_PIPELINE_CREATED_AT` and
+  `CI_COMMIT_TIMESTAMP` in GitLab, and from the pushed commit's
+  `head_commit.timestamp` in a GitHub push payload; each is sent in RFC 3339
+  form (in UTC when it has an offset), and one that is not a timestamp is not
+  sent.
+  Anywhere else it is refused (exit 2) before anything is scanned or sent.
+- **The default branch decides what the run is for.** A run on the
+  repository's default branch becomes its *current* run: each call it found,
+  with its file, line and findings, is what "used in code" shows on the event,
+  until a newer default-branch run replaces it, so a call removed from the
+  code disappears. A run on any other ref (a feature branch, a tag) goes to the
+  check history only, as a summary: counts per status, commit, ref and
+  pipeline. So does every merge request or pull request run, even one whose
+  source branch has the default branch's name (`main` into `release`, a
+  fork's `main`): it checks a merged tree, not the default branch.
+  `--default-branch NAME` names the default branch when the CI's is not the
+  one you mean; with none known, the run goes to the history only.
+- **The newest run wins, not the last to finish.** A default-branch run older
+  than the current one goes to the history only, so a retried old pipeline
+  that finishes last never puts old code back. Older is by pipeline creation
+  time when both runs carry one (GitLab), else by commit timestamp when both
+  carry one; with neither to compare, the later upload replaces the current
+  run.
+- **One snapshot per repository and check directory.** A project checked from
+  several repositories (iOS, Android, web) keeps one current run for each. In a
+  repository holding several apps, each checked with its own check config, the
+  check directory tells them apart: each keeps its own snapshot, and "used in
+  code" lists them one by one. It is the directory the config scans (its
+  `root`, by default the directory holding `.tripl/`, relative to the
+  repository root) when the config is that directory's own `.tripl/check.yml`;
+  a config kept anywhere else (`ci/web.yml`, `.tripl/web.yml`) is named by its
+  own path instead, so two configs that scan one directory with different
+  `sources` keep a snapshot each. A check of the whole repository is directory
+  `.`.
+- **Against the live plan only.** The run records which plan event each call
+  sends, so it is refused with a plan branch or a pinned plan revision, from a
+  flag or from the check config (`--revision live` is fine), and with
+  `--payloads` and `--list`.
+- **It never changes the verdict.** The upload is sent once the check has
+  finished, before the reports are written, and one line on stderr, after the
+  run's own output, says what was recorded, or why not. A failed upload (a
+  `read` key, an outage, a run of more than 5,000 calls) is a warning, and the
+  exit code is the check's own. With `--json` the document's
+  [`upload` key](../run/cli.md#check-document) says the same: `ok`, and
+  `error` when it failed.
+- **The key.** The upload is a write of its own, not a plan edit. Mint a key
+  of scope `check_upload` (`tk_c_`, under **Settings → API keys**, bound to the
+  project): it reads like a read key, which is all the check itself needs, and
+  may record check runs and nothing else. A **viewer** of the project may mint
+  one and upload with it; tripl refuses to mint one for a project its user
+  cannot open. A browser session or a `write` key still needs an editing role
+  (permission `check_runs.upload`).
+- **Retention.** Every run but the current ones is deleted after
+  `CHECK_RUN_RETENTION_DAYS` (default 90; see
+  [Configuration](../run/configuration.md#operational-history-retention)).
+
+The runs are read through the API for now
+([Check runs](./agent-api-guide.md#check-runs)): the history, and per event
+where the code sends it. Showing them in the app, on the event page and in the
+project settings, comes next.
 
 ## Related pages {#related}
 
 - [`tripl check`](../run/cli.md#tripl-check) on the CLI page: every flag.
 - [Check tracking code in CI](../how-to/check-tracking-in-ci.md): the jobs for
   GitLab, GitHub and other CI systems.
+- [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md):
+  recorders for payload mode, and its CI jobs.
 - [Agent API guide: plan validation](./agent-api-guide.md#plan-validation): the
   endpoint behind the check, for your own tools.
 - [Properties & templates](../use/variables-and-templates.md): documented values

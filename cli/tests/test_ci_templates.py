@@ -27,6 +27,8 @@ GITLAB = REPO_ROOT / "ci" / "gitlab" / "tripl-check.yml"
 ACTION = REPO_ROOT / "ci" / "github" / "action.yml"
 MARKER = " # tripl version: bin/release.sh sets it"
 BASELINE = ".tripl/check-baseline.json"
+PAYLOADS = "build/events.ndjson"
+PAYLOADS_BASELINE = ".tripl/check-payloads-baseline.json"
 
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 
@@ -77,6 +79,7 @@ def test_every_flag_a_template_passes_is_a_check_flag(script: str) -> None:
         "--strict",
         "--project",
         "--check-config",
+        "--payloads",
     }
     assert passed <= known
 
@@ -95,6 +98,70 @@ def test_every_action_input_is_declared_and_used() -> None:
     declared = set(re.findall(r"^  ([a-z-]+):$", inputs, re.M))
     runs = text.split("\nruns:\n")[1]
     assert set(re.findall(r"inputs\.([a-z-]+)", runs)) == declared
+
+
+# --- held to the docs -----------------------------------------------------------------------------
+HOW_TO_CI = REPO_ROOT / "website" / "docs" / "how-to" / "check-tracking-in-ci.md"
+HOW_TO_EVENTS = REPO_ROOT / "website" / "docs" / "how-to" / "record-events-in-ui-tests.md"
+
+
+def _gitlab_inputs() -> set[str]:
+    header = GITLAB.read_text(encoding="utf-8").split("\n---\n")[0]
+    return set(re.findall(r"^    ([a-z_]+):$", header, re.M))
+
+
+def _action_inputs() -> set[str]:
+    inputs = ACTION.read_text(encoding="utf-8").split("\ninputs:\n")[1].split("\noutputs:\n")[0]
+    return set(re.findall(r"^  ([a-z-]+):$", inputs, re.M))
+
+
+def test_the_ci_how_to_describes_every_template_input() -> None:
+    text = HOW_TO_CI.read_text(encoding="utf-8")
+    table = set(re.findall(r"^\| `([a-z_]+)` \| ", text, re.M))
+    assert table == _gitlab_inputs()
+    github = text.split("### GitHub Actions")[1].split("### Any other CI")[0]
+    assert {name for name in _action_inputs() if f"`{name}`" not in github} == set()
+
+
+def test_gitlab_when_input_lets_the_check_run_after_a_failed_ui_test_job() -> None:
+    # Under GitLab's default on_success, a job whose needs failed is skipped and
+    # never reads their artifact. The when input sets every rule that runs the
+    # job, so always checks the events of a failed test run, as the GitHub
+    # recipe's if: always() does; its default keeps the job as it was.
+    header, job = GITLAB.read_text(encoding="utf-8").split("\n---\n")
+    rules = job.split("\n  rules:\n")[1].split("\n  script:\n")[0]
+    entries = re.split(r"^    - ", rules, flags=re.M)[1:]
+    assert [re.findall(r"when: (.+?)(?: #.*)?$", entry, re.M) for entry in entries] == [
+        ["never"],
+        *[["$[[ inputs.when ]]"]] * (len(entries) - 1),
+    ]
+    when = header.split("\n    when:\n")[1].split("\n    gate:\n")[0]
+    assert "options: [on_success, always]" in when
+    assert "default: on_success" in when
+
+
+def test_the_gitlab_payload_recipe_checks_the_events_of_a_failed_run() -> None:
+    gitlab = HOW_TO_EVENTS.read_text(encoding="utf-8").split("### GitLab CI/CD")[1]
+    gitlab = gitlab.split("### GitHub Actions")[0]
+    recipe = re.findall(r"^```yaml\n(.*?)^```$", gitlab, re.M | re.S)[0]
+    events = recipe.split("job: tripl-check-events")[1]
+    assert re.search(r"^      when: always\b", events, re.M)
+    assert "GitLab skips the check" not in gitlab
+    assert "`when: always`" in gitlab
+
+
+def test_the_payload_recipes_set_only_inputs_the_templates_have() -> None:
+    blocks = re.findall(
+        r"^```yaml\n(.*?)^```$", HOW_TO_EVENTS.read_text(encoding="utf-8"), re.M | re.S
+    )
+    [gitlab] = [block for block in blocks if "ci/gitlab/tripl-check.yml" in block]
+    [github] = [block for block in blocks if "tripl-check-action" in block]
+    included = re.findall(r"^      ([a-z_]+):", gitlab, re.M)
+    assert {"job", "payloads", "needs"} <= set(included) <= _gitlab_inputs()
+    action = github.split("tripl-check-action")[1]
+    given = re.findall(r"^          ([a-z-]+):", action, re.M)
+    assert "payloads" in given
+    assert set(given) <= _action_inputs()
 
 
 # --- a repository as a runner clones it -----------------------------------------------------------
@@ -202,6 +269,8 @@ def _gitlab(clone: Path, tmp_path: Path, shell: str = "sh", **env: str) -> Ran:
         "TRIPL_CHECK_CONFIG": "",
         "TRIPL_CHECK_DIRECTORY": ".",
         "TRIPL_CHECK_BASELINE": BASELINE,
+        "TRIPL_CHECK_PAYLOADS": "",
+        "TRIPL_CHECK_PAYLOADS_BASELINE": PAYLOADS_BASELINE,
         "TRIPL_CHECK_ARGS": "",
         "TRIPL_CHECK_MODE": "pipelines=branches gate=true strict=false",
         **env,
@@ -337,6 +406,104 @@ def test_gitlab_job_exits_as_the_check_did(origin: Path, tmp_path: Path, code: i
     assert ran.code == code
 
 
+def test_gitlab_needs_input_brings_the_artifacts_of_the_jobs_it_names() -> None:
+    # A job with needs downloads the artifacts of the jobs it names and of no
+    # others, and needs: [] downloads none, so needs alone carries the file a
+    # UI-test job wrote. No dependencies: it takes job names only, and would
+    # make a needs object ({job, optional, artifacts}) an invalid config.
+    header, job = GITLAB.read_text(encoding="utf-8").split("\n---\n")
+    assert re.search(r"^  needs: \$\[\[ inputs\.needs \]\]$", job, re.M)
+    assert not re.search(r"^  dependencies:", job, re.M)
+    needs = header.split("\n    needs:\n")[1].split("\n    when:\n")[0]
+    assert "type: array" in needs
+    assert "default: []" in needs
+    assert "{job, optional, artifacts}" in needs
+
+
+def test_gitlab_job_name_is_an_input_so_the_file_can_be_included_twice() -> None:
+    # A second include of the same file, for the captured events, would
+    # otherwise be merged into the first job under its fixed name.
+    header, job = GITLAB.read_text(encoding="utf-8").split("\n---\n")
+    assert job.splitlines()[0] == '"$[[ inputs.job ]]":'
+    name = header.split("\n    job:\n")[1].split("\n    base_url:\n")[0]
+    assert "default: tripl-check" in name
+    pattern = re.search(r"regex: (.+)$", name, re.M)
+    assert pattern
+    for good in ("tripl-check", "tripl-check-events", "check: ios"):
+        assert re.fullmatch(pattern[1], good)
+    for bad in ("", "-x", 'a"b', "a\nb", "$x"):
+        assert not re.fullmatch(pattern[1], bad)
+
+
+def _payload_files(clone: Path, *, baseline: bool) -> None:
+    (clone / "build").mkdir()
+    (clone / PAYLOADS).write_text('{"name": "promo_banner_shown"}\n', encoding="utf-8")
+    if baseline:
+        (clone / PAYLOADS_BASELINE).write_text("{}\n", encoding="utf-8")
+
+
+@needs_git
+@pytest.mark.parametrize("shell", ["sh", "bash"])
+def test_gitlab_payloads_run_has_no_gate_and_its_own_baseline(
+    origin: Path, tmp_path: Path, shell: str
+) -> None:
+    # The CLI refuses --new-from-rev with --payloads, and a baseline written for
+    # the static mode (exit 2), so a payload run passes neither, with the gate
+    # input at its default and the static baseline in the repository.
+    base = _git(origin, "rev-parse", "main")
+    clone = _clone(origin, "feature", tmp_path / "clone")
+    _payload_files(clone, baseline=True)
+    ran = _gitlab(
+        clone,
+        tmp_path,
+        shell,
+        CI_MERGE_REQUEST_IID="7",
+        CI_MERGE_REQUEST_DIFF_BASE_SHA=base,
+        TRIPL_CHECK_PAYLOADS=PAYLOADS,
+        TRIPL_CHECK_MODE=MR_MODE,
+    )
+    assert ran.code == 0, ran.log
+    assert ran.argv == [
+        "check",
+        "--report",
+        f"codequality={clone}/gl-code-quality-report.json",
+        "--report",
+        f"junit={clone}/tripl-check.xml",
+        "--payloads",
+        f"{clone}/{PAYLOADS}",
+        "--baseline",
+        f"{clone}/{PAYLOADS_BASELINE}",
+    ]
+    assert "No gate with payloads" in ran.log
+    with pytest.raises(subprocess.CalledProcessError):  # the base was never fetched
+        _git(clone, "cat-file", "-e", f"{base}^{{commit}}")
+
+
+@needs_git
+def test_gitlab_payloads_run_without_its_baseline_says_how_to_write_one(
+    origin: Path, tmp_path: Path
+) -> None:
+    clone = _clone(origin, "feature", tmp_path / "clone")
+    _payload_files(clone, baseline=False)
+    ran = _gitlab(
+        clone,
+        tmp_path,
+        CI_COMMIT_BRANCH="feature",
+        TRIPL_CHECK_PAYLOADS=PAYLOADS,
+        TRIPL_CHECK_MODE="pipelines=branches gate=false strict=true",
+    )
+    assert ran.code == 0, ran.log
+    assert "--baseline" not in ran.argv
+    assert "--new-from-rev" not in ran.argv
+    assert ran.after("--payloads") == f"{clone}/{PAYLOADS}"
+    assert "--strict" in ran.argv
+    assert "No gate with payloads" not in ran.log
+    assert (
+        f"Write one with: tripl check --payloads {PAYLOADS} --write-baseline {PAYLOADS_BASELINE}"
+        in ran.log
+    )
+
+
 # --- GitHub ---------------------------------------------------------------------------------------
 def _action(clone: Path, tmp_path: Path, **env: str) -> tuple[Ran, dict[str, str]]:
     output = tmp_path / "github_output"
@@ -358,6 +525,8 @@ def _action(clone: Path, tmp_path: Path, **env: str) -> tuple[Ran, dict[str, str
         "INPUT_CHECK_CONFIG": "",
         "INPUT_DIRECTORY": ".",
         "INPUT_BASELINE": BASELINE,
+        "INPUT_PAYLOADS": "",
+        "INPUT_PAYLOADS_BASELINE": PAYLOADS_BASELINE,
         "INPUT_GATE": "true",
         "INPUT_STRICT": "false",
         "INPUT_PLAN_BRANCH": "none",
@@ -509,6 +678,58 @@ def test_action_step_exits_as_the_check_did_unless_tripl_was_down(
     assert ran.code == step
     assert outputs["exit-code"] == str(code)
     assert ("nothing was checked" in ran.log) == (code == 4 and pass_on_outage == "true")
+
+
+@needs_git
+@pytest.mark.parametrize(
+    ("directory", "expected"), [(".", "tripl-check-payloads"), ("app", "tripl-check-payloads/app")]
+)
+def test_action_payloads_run_has_no_gate_its_own_baseline_and_category(
+    origin: Path, merge_ref: str, tmp_path: Path, directory: str, expected: str
+) -> None:
+    # A pull request with the gate input at its default: no --new-from-rev and
+    # no static baseline, both refused by the CLI with --payloads (exit 2), and
+    # a code scanning category of its own, so its upload never closes the
+    # alerts a static step raised.
+    clone = _clone(origin, merge_ref, tmp_path / "clone")
+    _payload_files(clone, baseline=True)
+    ran, outputs = _action(
+        clone,
+        tmp_path,
+        EVENT_NAME="pull_request",
+        GITHUB_SHA=merge_ref,
+        INPUT_PAYLOADS=PAYLOADS,
+        INPUT_DIRECTORY=directory,
+    )
+    assert ran.code == 0, ran.log
+    assert ran.argv == [
+        "tripl@1.2.3",
+        "check",
+        "--report",
+        f"sarif={outputs['sarif']}",
+        "--payloads",
+        f"{clone}/{PAYLOADS}",
+        "--baseline",
+        f"{clone}/{PAYLOADS_BASELINE}",
+    ]
+    assert outputs["category"] == expected
+    assert "No gate with payloads" in ran.log
+
+
+@needs_git
+def test_action_payloads_run_without_its_baseline_says_how_to_write_one(
+    origin: Path, tmp_path: Path
+) -> None:
+    clone = _clone(origin, "main", tmp_path / "clone")
+    _payload_files(clone, baseline=False)
+    ran, _ = _action(clone, tmp_path, INPUT_PAYLOADS=PAYLOADS, INPUT_GATE="false")
+    assert ran.code == 0, ran.log
+    assert "--baseline" not in ran.argv
+    assert "--new-from-rev" not in ran.argv
+    assert (
+        f"Write one with: tripl check --payloads {PAYLOADS} --write-baseline {PAYLOADS_BASELINE}"
+        in ran.log
+    )
 
 
 @needs_git

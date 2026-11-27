@@ -27,8 +27,10 @@ flat events through a third::
 
 A call spec names its call ONE way — ``function`` (a dotted callee, matched on
 whole segments from the right, so ``Analytics.shared.log`` also matches
-``self.analytics.shared.log``), ``pattern`` (a regex over the whole normalised
-callee) or ``objc_selector`` — and then says where each plan field comes from:
+``self.analytics.shared.log``, and ``ScreenView`` also matches Swift's
+``ScreenView.init``), ``pattern`` (a regex over the whole normalised
+callee, or over the type of a Swift ``Type.init`` call) or ``objc_selector``
+— and then says where each plan field comes from:
 
 ``args``
     argument label -> target. Swift ``label:`` and Kotlin ``label =`` labels,
@@ -121,6 +123,15 @@ keys give those templates what they need::
     value, so there it has no effect. ``tripl check`` ignores it (it is not a
     plan field); ``field:value`` still
     addresses a plan field called ``value``.
+
+An optional top-level ``lint`` block turns on checks of names and keys that
+need no plan (``lint.py``); without it nothing is linted::
+
+    lint:
+      characters: true           # non-ASCII, whitespace or a quote (default true)
+      duplicates: true           # two constants of one object, one value (default true)
+      name_pattern: "[a-z][a-z0-9_]*"   # optional; must match a whole event name
+      key_pattern: "[a-z][a-z0-9_]*"    # optional; must match a whole field or property key
 """
 
 from __future__ import annotations
@@ -186,8 +197,10 @@ _TOP_KEYS = frozenset(
         "enums",
         "event_types",
         "codegen",
+        "lint",
     }
 )
+_LINT_KEYS = frozenset({"characters", "duplicates", "name_pattern", "key_pattern"})
 _TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map", "codegen"})
 _CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package", "vars"})
 _CODEGEN_KEYS = frozenset(
@@ -277,10 +290,17 @@ class CallSpec:
         if call.selector is not None:
             return False
         callee = _plain_callee(call.callee)
+        # `ScreenView.init(screen:)` is the call `ScreenView(screen:)` spelled out,
+        # so a spec that matches `ScreenView` matches it too.
+        built = initialized_type(callee, language)
         if self.pattern is not None:
-            return self.pattern.fullmatch(callee) is not None
+            if self.pattern.fullmatch(callee) is not None:
+                return True
+            return built is not None and self.pattern.fullmatch(built) is not None
         wanted = _plain_callee(self.function or "")
-        return callee == wanted or callee.endswith("." + wanted)
+        if callee == wanted or callee.endswith("." + wanted):
+            return True
+        return built is not None and (built == wanted or built.endswith("." + wanted))
 
     def target_for(self, arg: Arg) -> tuple[bool, str | None]:
         """``(mapped, target)`` for one argument; ``mapped`` False means "not configured"."""
@@ -382,6 +402,22 @@ class EnumSource:
 
 
 @dataclass(frozen=True)
+class LintConfig:
+    """The plan-independent lint of names and keys (``lint.py``).
+
+    On only when the check config has a ``lint:`` section; a bare ``lint:``
+    turns on both rules that need no setting. Each pattern must match a whole
+    event name (``name_pattern``) or a whole field or property key
+    (``key_pattern``).
+    """
+
+    characters: bool = True
+    duplicates: bool = True
+    name_pattern: re.Pattern[str] | None = None
+    key_pattern: re.Pattern[str] | None = None
+
+
+@dataclass(frozen=True)
 class CheckConfig:
     path: Path | None
     root: Path
@@ -398,6 +434,8 @@ class CheckConfig:
     enums: tuple[EnumSource, ...] = ()
     event_types: tuple[EventTypeSpec, ...] = ()
     codegen: CodegenDefaults = field(default_factory=CodegenDefaults)
+    # None when the config has no `lint:` section: the lint is opt-in.
+    lint: LintConfig | None = None
 
 
 def default_target(label: str) -> str:
@@ -414,6 +452,30 @@ def selector_field(part: str) -> str:
 
 def _plain_callee(callee: str) -> str:
     return re.sub(r"\(\)|\[\]|\s", "", callee)
+
+
+# A Swift initializer called by name: a capitalised segment, then `.init`, or
+# `.self.init` through the type's metatype. Swift types are capitalised by
+# convention, which leaves out `self.init`, `super.init`, a metatype held in a
+# variable and `factory().init`; `Self` names no type, and the implicit
+# `.init(…)` writes none.
+_SWIFT_INIT_CALL = re.compile(r"((?:.*\.)?([A-Z][A-Za-z0-9_]*))(?:\.self)?\.init")
+
+
+def initialized_type(callee: str, language: str) -> str | None:
+    """The type a Swift ``Type.init(…)`` call builds, as written before ``.init``; else None.
+
+    ``ScreenView.init`` and ``ScreenView.self.init`` are ``ScreenView``, and
+    ``Outer.ScreenView.init`` is ``Outer.ScreenView``: the callee of the same
+    call written without ``.init``. Any other call, and any call in another
+    language, is None.
+    """
+    if language != "swift":
+        return None
+    found = _SWIFT_INIT_CALL.fullmatch(_plain_callee(callee))
+    if found is None or found.group(2) == "Self":
+        return None
+    return found.group(1)
 
 
 # --- locating and loading ------------------------------------------------------
@@ -552,6 +614,33 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
         enums=tuple(enums),
         event_types=tuple(event_types),
         codegen=parse_codegen_defaults(top.get("codegen"), f"{where}: codegen", base=root),
+        lint=parse_lint(top["lint"], f"{where}: lint") if "lint" in top else None,
+    )
+
+
+def parse_lint(raw: Any, where: str) -> LintConfig:
+    """A ``lint:`` section; bare (``lint:``) or empty, it turns on the two rules with no setting."""
+    body = _mapping(raw if raw is not None else {}, where)
+    _known(body, _LINT_KEYS, where)
+    switches: dict[str, bool] = {}
+    for key in ("characters", "duplicates"):
+        value = body.get(key, True)
+        if not isinstance(value, bool):
+            raise TriplConfigError(f"{where}.{key}: expected true or false, got {value!r}.")
+        switches[key] = value
+    return LintConfig(
+        characters=switches["characters"],
+        duplicates=switches["duplicates"],
+        name_pattern=(
+            None
+            if body.get("name_pattern") is None
+            else _regex(body["name_pattern"], f"{where}.name_pattern")
+        ),
+        key_pattern=(
+            None
+            if body.get("key_pattern") is None
+            else _regex(body["key_pattern"], f"{where}.key_pattern")
+        ),
     )
 
 

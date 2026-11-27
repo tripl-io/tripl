@@ -287,11 +287,83 @@ def test_strict_reports_values_only_known_at_runtime(
         "code": "dynamic_value",
         "severity": "warning",
         "field": "label",
+        "rule": None,
         "message": "the value of 'label' is not known until runtime",
     }
     assert document["exit_code"] == 1
     assert document["strict"] is True
     assert json.loads(validator.calls.last.request.content)["strict"] is True
+
+
+def _policy_respond(request: httpx.Request) -> httpx.Response:
+    """A validator whose policy has two rules, both broken by the event ``trial_started``."""
+    verdicts = []
+    for item in json.loads(request.content)["items"]:
+        verdict = _verdict(item)
+        if item.get("name") == "trial_started":
+            verdict["status"] = "error"
+            verdict["findings"] = [
+                {**_finding("policy_violation", "error", None, "bad name"), "rule": "naming.event"},
+                {
+                    **_finding("policy_violation", "error", "name", "forbidden"),
+                    "rule": "forbidden_field",
+                },
+            ]
+        verdicts.append(verdict)
+    return httpx.Response(200, json={"items": verdicts, "summary": {}})
+
+
+def _policy_call(marker: str) -> dict[str, str]:
+    return {
+        "Sources/Trial.swift": "func t() {\n"
+        f"    // tripl-check-ignore[{marker}] -- renamed next release\n"
+        '    Analytics.shared.logEvent("trial_started")\n'
+        "}\n"
+    }
+
+
+def test_the_rule_of_a_policy_finding_is_reported_and_a_marker_can_waive_one_rule(
+    repo: Path, tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tripl_api.handler(VALIDATE_URL, _policy_respond, method="POST")
+    # One rule waived: the other rule's finding still fails the run.
+    _write(repo, _policy_call("policy_violation@naming.event"))
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    assert "    error  policy_violation@forbidden_field [name]: forbidden" in out
+    assert "policy_violation@naming.event" not in out
+    assert "1 finding suppressed" in out
+    assert main(["check", "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    [failed] = [r for r in document["results"] if r["status"] == "error"]
+    assert [(f["rule"], f["suppression"] is not None, f["fails"]) for f in failed["findings"]] == [
+        ("naming.event", True, False),
+        ("forbidden_field", False, True),
+    ]
+    [marker] = document["suppressions"]
+    assert marker["targets"] == [
+        {"code": "policy_violation", "field": None, "rule": "naming.event"}
+    ]
+    assert marker["used"] is True
+
+    # A rule the policy did not raise waives nothing, and the marker is unused.
+    _write(repo, _policy_call("policy_violation@naming.field"))
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    assert "    error  policy_violation@naming.event: bad name" in out
+    assert (
+        "Unused suppression: Sources/Trial.swift:2 "
+        "tripl-check-ignore[policy_violation@naming.field] matched no finding." in out
+    )
+
+    # Both rules named, or the bare code: nothing is left to fail.
+    for listed in (
+        "policy_violation@naming.event,policy_violation@forbidden_field:name",
+        "policy_violation",
+    ):
+        _write(repo, _policy_call(listed))
+        assert main(["check"]) == 0, listed
+        assert "2 findings suppressed" in capsys.readouterr().out
 
 
 def test_info_findings_only_count_under_strict() -> None:
@@ -307,6 +379,28 @@ def test_info_findings_only_count_under_strict() -> None:
     assert relaxed.status == "ok"
     assert [finding.severity for finding in relaxed.findings] == ["info"]
     assert result_for(item, verdict, strict=True, sent=True).status == "warning"
+
+
+def test_the_rule_is_read_without_the_spaces_around_it() -> None:
+    def rules(*sent: object) -> list[str | None]:
+        findings = [
+            {"code": "policy_violation", "severity": "error", "message": "x", "rule": rule}
+            for rule in sent
+        ]
+        verdict = {"ref": "i0", "status": "error", "findings": findings}
+        return [
+            f.rule for f in result_for(_item(1, "a"), verdict, strict=False, sent=True).findings
+        ]
+
+    # A marker names the rule as the report prints it, and cannot name a space.
+    assert rules(" naming.event ", "naming.event", "  ", "", None, 3) == [
+        "naming.event",
+        "naming.event",
+        None,
+        None,
+        None,
+        None,
+    ]
 
 
 def test_strict_names_a_field_called_name_as_that_field_not_the_event_name() -> None:
@@ -740,6 +834,23 @@ def test_an_empty_capture_file_is_fine_with_allow_empty(
     assert not validator.called
 
 
+def test_a_missing_capture_file_is_exit_2_even_with_allow_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A test run that never wrote its file (it crashed, or wrote it elsewhere)
+    # is not a run that sent nothing: --allow-empty passes an empty file only.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    argv = ["check", "--payloads", "events.ndjson", "--project", "demo", "--allow-empty"]
+    assert main(argv) == 2
+    assert "--payloads: events.ndjson does not exist." in capsys.readouterr().err
+    assert not validator.called
+
+
 def test_a_file_the_scan_did_not_read_is_reported(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1096,8 +1207,10 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "truncated": bool,
     "files_scanned": int,
     "skipped": list,
+    "lint": bool,
     "summary": dict,
     "calls": list,
+    "suppressions": list,
     "forwarders": list,
     "unmatched": list,
 }
@@ -1134,9 +1247,22 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         },
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
+        "lint": {},
+        "suppressions": {"markers": 0, "invalid": 0, "no_call": 0, "calls_covered": 0},
     }
+    assert document["lint"] is False  # the config has no `lint:` section
     forwarding, formatted, shaped, sent = document["calls"]
-    assert set(forwarding) == {"location", "snippet", "event_type", "read", "dynamic", "items"}
+    assert set(forwarding) == {
+        "location",
+        "snippet",
+        "event_type",
+        "read",
+        "dynamic",
+        "items",
+        "lint",
+        "suppressions",
+    }
+    assert all(call["lint"] == [] for call in document["calls"])
     assert forwarding["location"] == {
         "path": "app/Screen.kt",
         "line": 3,
@@ -1152,7 +1278,8 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "entries": None,
         "reason": "parameter",
         "expression": "event",
-        "declared": {"function": "logEvent", "line": 2},
+        # `type` names an initializer's type; `logEvent` is none.
+        "declared": {"function": "logEvent", "line": 2, "type": None},
     }
     assert forwarding["dynamic"] == {"name": "parameter", "properties": "parameter"}
     # Nothing about it is known: `tripl check` reports it as dynamic and sends nothing.
@@ -1203,7 +1330,12 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
             "other_files": 0,
             "other_files_matched": 0,
             "first_unmatched": {"path": "app/Screen.kt", "line": 11, "column": 9},
+            # The calls elsewhere in files of its own language: none here either.
+            "other_files_same_language": 0,
+            "other_files_same_language_matched": 0,
+            "first_unmatched_same_language": {"path": "app/Screen.kt", "line": 11, "column": 9},
         },
+        "language": "kotlin",
     }
     assert document["unmatched"] == [
         {
@@ -1623,10 +1755,14 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1, "type": None}},
         None,
         None,
-        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+        {
+            **unread,
+            "expression": "props",
+            "declared": {"function": "opened", "line": 8, "type": None},
+        },
     ]
     assert [
         (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
@@ -1795,6 +1931,63 @@ def test_list_says_where_a_forwarder_s_calls_are_and_which_files_it_did_not_read
         "\n"
         "Not read: 1 configured file: app/Bundle.kt (too large).\n"
     )
+
+
+def test_list_counts_a_forwarder_s_callers_elsewhere_in_its_own_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    files = {
+        ".tripl/check.yml": LIST_FORWARDERS_CONFIG,
+        **LIST_FORWARDERS_SOURCES,
+        # Java calls the Kotlin wrappers, and Swift has a `report` of its own.
+        "app/Legacy.java": (
+            "class Legacy {\n"
+            '  void a() { WrappersKt.relay("legacy"); WrappersKt.lonely("x"); }\n'
+            "}\n"
+        ),
+        "app/Other.swift": 'func other() {\n    report("swift")\n}\n',
+    }
+    _checkout(tmp_path / "repo", files, monkeypatch)
+    assert main(["check", "--list"]) == 0
+    out = capsys.readouterr().out
+    start = out.index("Functions that forward")
+    section = out[start : out.index("\n\n", start)].splitlines()[1:]
+    assert section == [
+        "  relay   app/Wrappers.kt:4  forwards event (#0) to name  "
+        "1 call named relay elsewhere, none matched (first app/Screen.kt:2); "
+        "1 call named relay in other languages, not counted",
+        "  lonely  app/Wrappers.kt:1  forwards event (#0) to name  "
+        "no calls found; 1 call named lonely in other languages, not counted",
+        "  report  app/Wrappers.kt:7  forwards event (#0) to name  "
+        "its calls are matched; 1 call named report in other languages, not counted",
+    ]
+    # The JSON keeps the counts by name, and adds the ones in Kotlin.
+    assert main(["check", "--list", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+
+    def path(place: dict[str, Any] | None) -> str | None:
+        return None if place is None else place["path"]
+
+    assert [
+        (
+            forwarder["function"],
+            forwarder["language"],
+            forwarder["callers"]["other_files"],
+            forwarder["callers"]["other_files_matched"],
+            forwarder["callers"]["other_files_same_language"],
+            forwarder["callers"]["other_files_same_language_matched"],
+            path(forwarder["callers"]["first_unmatched"]),
+            path(forwarder["callers"]["first_unmatched_same_language"]),
+        )
+        for forwarder in document["forwarders"]
+    ] == [
+        ("relay", "kotlin", 2, 0, 1, 0, "app/Legacy.java", "app/Screen.kt"),
+        ("lonely", "kotlin", 1, 0, 0, 0, "app/Legacy.java", None),
+        ("report", "kotlin", 1, 1, 0, 0, None, None),
+    ]
 
 
 def test_list_names_a_field_two_labels_reach_once(

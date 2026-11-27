@@ -504,6 +504,39 @@ def make_branch(
     }
 
 
+def make_revision(
+    revision_id: str = "0a1b2c3d-0000-4000-8000-00000000beef",
+    *,
+    summary: str = "Before the checkout redesign",
+    kind: str = "snapshot",
+    branch_id: str | None = None,
+    created_at: str = "2026-07-30T14:05:11Z",
+    entity_counts: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """One ``PlanRevisionSummary``."""
+    return {
+        "id": revision_id,
+        "project_id": "pid-prod",
+        "summary": summary,
+        "created_at": created_at,
+        "created_by": None,
+        "kind": kind,
+        "branch_id": branch_id,
+        "entity_counts": (
+            {
+                "event_types": 4,
+                "fields": 9,
+                "events": 23,
+                "variables": 6,
+                "meta_fields": 0,
+                "relations": 1,
+            }
+            if entity_counts is None
+            else entity_counts
+        ),
+    }
+
+
 def make_search_result(
     entity_type: str = "event",
     *,
@@ -718,6 +751,10 @@ class FakeInstance:
         return f"{API_BASE}/projects/{slug}/branches"
 
     @staticmethod
+    def revisions_url(slug: str) -> str:
+        return f"{API_BASE}/projects/{slug}/revisions"
+
+    @staticmethod
     def search_url(slug: str) -> str:
         return f"{API_BASE}/projects/{slug}/search"
 
@@ -897,6 +934,19 @@ class FakeInstance:
         """``PlanBranchList``: ``{items, total}``."""
         rows = items or []
         return self._respond(self.branches_url(slug), status, {"items": rows, "total": len(rows)})
+
+    def revisions(
+        self, slug: str, items: Any, total: int | None = None, status: int = 200
+    ) -> respx.Route:
+        """``PlanRevisionList``: ``{items, total}``. A failing status sends ``items`` as body."""
+        if status != 200:
+            return self._respond(self.revisions_url(slug), status, items)
+        rows = items or []
+        return self._respond(
+            self.revisions_url(slug),
+            status,
+            {"items": rows, "total": len(rows) if total is None else total},
+        )
 
     def search(
         self,
