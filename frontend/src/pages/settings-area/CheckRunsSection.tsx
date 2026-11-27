@@ -250,9 +250,13 @@ function HistoryCard({ slug }: { slug: string }) {
   // fetches): step back to the last page that still has runs.
   const pastTheEnd =
     listQuery.isSuccess && !listQuery.isPlaceholderData && items.length === 0 && total > 0 && offset > 0
-  useEffect(() => {
-    if (pastTheEnd) setOffset(Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE)
-  }, [pastTheEnd, total])
+  // Adjusted during render, as useOffsetPaging follows its query: an effect
+  // would paint the empty page first. The new offset is always lower, so this
+  // settles in one step.
+  if (pastTheEnd) {
+    const lastPage = Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE
+    setOffset(lastPage < offset ? lastPage : 0)
+  }
 
   return (
     <SCard
