@@ -128,7 +128,7 @@ def test_the_json_document_carries_the_markers_per_call_and_as_a_whole(
         [
             {
                 "location": {"path": "src/a.ts", "line": 1, "column": 4},
-                "targets": [{"code": "unknown_event", "field": None}],
+                "targets": [{"code": "unknown_event", "field": None, "rule": None}],
                 "reason": "staged rollout",
             }
         ],
@@ -136,8 +136,8 @@ def test_the_json_document_carries_the_markers_per_call_and_as_a_whole(
             {
                 "location": {"path": "src/a.ts", "line": 3, "column": 17},
                 "targets": [
-                    {"code": "deprecated_event", "field": None},
-                    {"code": "unknown_field", "field": "plan"},
+                    {"code": "deprecated_event", "field": None, "rule": None},
+                    {"code": "unknown_field", "field": "plan", "rule": None},
                 ],
                 "reason": "gone   in 5.0",
             }
@@ -148,7 +148,7 @@ def test_the_json_document_carries_the_markers_per_call_and_as_a_whole(
     assert document["suppressions"][0] == {
         "location": {"path": "src/a.ts", "line": 1, "column": 4},
         "text": "tripl-check-ignore[unknown_event] -- staged rollout",
-        "targets": [{"code": "unknown_event", "field": None}],
+        "targets": [{"code": "unknown_event", "field": None, "rule": None}],
         "reason": "staged rollout",
         "problem": None,
         "calls": 1,

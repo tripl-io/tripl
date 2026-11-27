@@ -858,7 +858,7 @@ def _marker_location(marker: Marker | Suppression) -> JsonDict:
 
 
 def _marker_targets(marker: Marker | Suppression) -> list[JsonDict]:
-    return [{"code": code, "field": field} for code, field in marker.targets]
+    return [{"code": code, "field": field, "rule": rule} for code, field, rule in marker.targets]
 
 
 def _read_document(read: ReadValue | None) -> JsonDict | None:

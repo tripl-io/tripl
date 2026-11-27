@@ -563,7 +563,7 @@ class CheckReport:
                 (marker.path, marker.line, marker.column) in unjudged
                 or (
                     not self.strict
-                    and any(code == CODE_DYNAMIC_VALUE for code, _ in marker.targets)
+                    and any(code == CODE_DYNAMIC_VALUE for code, _, _ in marker.targets)
                 )
             ):
                 continue

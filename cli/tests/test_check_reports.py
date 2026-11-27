@@ -528,13 +528,13 @@ def test_every_malformed_marker_fails_under_strict_suppressions() -> None:
         assert report.exit_code == 1
 
 
-def _covered_by(line: int, targets: tuple[tuple[str, str | None], ...]) -> Suppression:
+def _covered_by(line: int, targets: tuple[tuple[str, str | None, str | None], ...]) -> Suppression:
     return Suppression("Sources/Pay.swift", line, 5, targets, "r")
 
 
 def test_a_marker_on_a_call_that_was_not_judged_does_not_fail_as_unused() -> None:
     unused = MarkerState(_marker(40), False)
-    covering = (_covered_by(40, (("x", None),)),)
+    covering = (_covered_by(40, (("x", None, None),)),)
     judged = _result(41, status="ok", findings=())
     judged = replace(judged, item=replace(judged.item, suppressions=covering))
     assert _report(judged, markers=(unused,), strict_suppressions=True).failing_markers == (unused,)
@@ -551,7 +551,7 @@ def test_a_marker_on_a_call_that_was_not_judged_does_not_fail_as_unused() -> Non
 
 
 def test_a_dynamic_value_marker_fails_as_unused_only_where_the_finding_can_be_raised() -> None:
-    targets: tuple[tuple[str, str | None], ...] = (("dynamic_value", None),)
+    targets: tuple[tuple[str, str | None, str | None], ...] = (("dynamic_value", None, None),)
     text = "tripl-check-ignore[dynamic_value] -- r"
     unused = MarkerState(Marker("Sources/Pay.swift", 40, 5, text, targets, "r"), False)
     result = _result(41, status="ok", findings=())
@@ -571,7 +571,7 @@ def test_a_dynamic_value_marker_fails_as_unused_only_where_the_finding_can_be_ra
     assert failing(runtime, strict=True) == (unused,)
     assert failing(known, strict=True) == (unused,)
     # Any other code the marker names is still weighed outside --strict.
-    other = MarkerState(replace(unused.marker, targets=(("unknown_event", None),)), False)
+    other = MarkerState(replace(unused.marker, targets=(("unknown_event", None, None),)), False)
     report = _report(known, markers=(other,), strict_suppressions=True)
     assert report.failing_markers == (other,)
 
