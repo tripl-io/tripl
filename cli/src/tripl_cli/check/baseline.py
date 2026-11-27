@@ -8,9 +8,9 @@ nightly schedule (the plan changes in tripl, not in git) and ``--payloads``
 
 An entry is a finding without its place: the item it is on, by what the item
 sends (``baseline_key``: ``gate.item_key``, so never its line or its file),
-and the finding's code and field, with how many such findings there were and
-the most severe of them. A finding is held by the baseline when an entry for
-its item, code and field exists at its severity or a higher one, and the
+and the finding's code, field and rule, with how many such findings there were
+and the most severe of them. A finding is held by the baseline when an entry for
+its item, code, field and rule exists at its severity or a higher one, and the
 entry's count is not used up: three identical calls where the file holds two
 leave one new (a copy pasted anywhere), and a warning that became an error is
 new (an escalation). Which copy is the new one is decided as the gate decides
@@ -18,6 +18,15 @@ it: under a gate, the findings the change did not bring in take up the count
 first, so a pasted copy is the one that fails. A finding a marker suppresses
 takes up nothing (the marker wins), and ``no_verdict`` is never held: nothing
 was decided about the call.
+
+The rule is what tells one violation of a workspace policy from another: they
+all share the code ``policy_violation``. An entry written for one rule does
+not hold a finding of another, so a call baselined for its name still fails
+when it starts breaking a second rule, and waiving the first rule with a
+marker does not hand its entry to the second. An entry with no rule is what a
+finding without one writes, and what every file written before the rule was
+recorded holds; it stands for a finding of any rule that has no entry of its
+own, so those files keep working as they did.
 
 The file is JSON, written so that it diffs cleanly in review: no timestamp,
 entries sorted, one key per line, each entry with a short ``example`` (the
@@ -32,7 +41,7 @@ worst still seen); it never adds anything.
 
 Captured events (``--payloads``) are matched by presence, not by count: how
 many times a test run fired an event is runtime frequency, not copies of a
-call in the code. An entry holds every finding of its key, code and field;
+call in the code. An entry holds every finding of its key, code, field and rule;
 its count is what was seen when it was written, for a reader, and a prune
 only drops an entry this run did not see at all.
 """
@@ -71,12 +80,19 @@ _RANK = {SEVERITY_ERROR: 2, SEVERITY_WARNING: 1, SEVERITY_INFO: 0}
 _SEVERITIES = tuple(_RANK)
 
 
+# What an entry is of: the item's key, and the finding's code, field and rule.
+Group = tuple[str, str, str | None, str | None]
+
+
 @dataclass(frozen=True)
 class Entry:
     """One line of the baseline: ``count`` findings of ``code`` on ``field`` at items like ``key``.
 
     ``key`` is ``baseline_key``'s canonical JSON; ``severity`` the most
     severe of the findings; ``example`` what a reader is shown, never compared.
+    ``rule`` is the policy rule the findings broke; None for findings without
+    one, and then the entry holds a finding of any rule that has no entry of
+    its own (a file written before the rule was recorded).
     """
 
     key: str
@@ -85,10 +101,11 @@ class Entry:
     severity: str
     count: int
     example: str = ""
+    rule: str | None = None
 
     @property
-    def group(self) -> tuple[str, str, str | None]:
-        return (self.key, self.code, self.field)
+    def group(self) -> Group:
+        return (self.key, self.code, self.field, self.rule)
 
 
 @dataclass(frozen=True)
@@ -203,12 +220,12 @@ def load(path: str, *, project: str, mode: str) -> Baseline:
     if not isinstance(raw, list):
         raise TriplConfigError(f"--baseline: {path}: entries must be a list.")
     entries = [_entry(value, path, number) for number, value in enumerate(raw, start=1)]
-    seen: set[tuple[str, str, str | None]] = set()
+    seen: set[Group] = set()
     for number, entry in enumerate(entries, start=1):
         if entry.group in seen:
             raise TriplConfigError(
-                f"--baseline: {path} entry {number} repeats an earlier entry's key, code and "
-                f"field; merge the two counts, or {rewrite}."
+                f"--baseline: {path} entry {number} repeats an earlier entry's key, code, "
+                f"field and rule; merge the two counts, or {rewrite}."
             )
         seen.add(entry.group)
     return Baseline(path, tuple(entries))
@@ -219,6 +236,7 @@ def _entry(value: Any, path: str, number: int) -> Entry:
     if not isinstance(value, dict):
         raise TriplConfigError(f"{where} is not a JSON object.")
     key, code, field = value.get("key"), value.get("code"), value.get("field")
+    rule = value.get("rule")
     severity, count, example = value.get("severity"), value.get("count"), value.get("example", "")
     if not _well_formed(key):
         raise TriplConfigError(f"{where}: key must be the list tripl wrote.")
@@ -226,6 +244,8 @@ def _entry(value: Any, path: str, number: int) -> Entry:
         raise TriplConfigError(f"{where}: code must be a finding code.")
     if field is not None and not isinstance(field, str):
         raise TriplConfigError(f"{where}: field must be a string or null.")
+    if rule is not None and (not isinstance(rule, str) or not rule):
+        raise TriplConfigError(f"{where}: rule must be a rule's name, or left out.")
     if severity not in _SEVERITIES:
         raise TriplConfigError(f"{where}: severity must be one of {', '.join(_SEVERITIES)}.")
     if isinstance(count, bool) or not isinstance(count, int) or count < 1:
@@ -234,7 +254,7 @@ def _entry(value: Any, path: str, number: int) -> Entry:
         raise TriplConfigError(f"{where}: example must be a string.")
     # The key as item_key prints it, so the two compare as strings.
     canonical = json.dumps(key, sort_keys=True, ensure_ascii=False, default=str)
-    return Entry(canonical, code, field, str(severity), count, example)
+    return Entry(canonical, code, field, str(severity), count, example, rule)
 
 
 _WIRE = frozenset({"event_type", "name", "fields", "properties", "complete"})
@@ -278,8 +298,9 @@ def match(
 ) -> Matching:
     """``results`` with ``baselined`` on every finding, as copies, and what each entry held.
 
-    Each entry holds up to ``count`` findings of its key, code and field at
-    its severity or below. When there are more, the ones the change did not
+    Each entry holds up to ``count`` findings of its key, code, field and
+    rule at its severity or below; a finding whose rule has no entry falls to
+    the entry with no rule, if there is one. When there are more, the ones the change did not
     bring in (under a gate) go first, then the more severe, then in run
     order; the rest are new. With ``presence`` (captured events) the count is
     not enforced: an entry holds every such finding.
@@ -292,7 +313,11 @@ def match(
             if not _counted(finding):
                 continue
             key = key if key is not None else baseline_key(result.item)
-            entry = index.get((key, finding.code, finding.field))
+            entry = index.get((key, finding.code, finding.field, finding.rule))
+            if entry is None and finding.rule is not None:
+                # A file written before the rule was recorded: its entry
+                # stands for the code on this field whichever rule raised it.
+                entry = index.get((key, finding.code, finding.field, None))
             if entry is not None and _rank(finding.severity) <= _rank(entries[entry].severity):
                 found[entry].append((at, position))
     held: set[tuple[int, int]] = set()
@@ -331,16 +356,16 @@ def collect(report: CheckReport) -> tuple[Entry, ...]:
     no marker suppresses, ``no_verdict`` excepted. Each entry's example is its
     first place in the repository, in path and line order.
     """
-    counts: dict[tuple[str, str, str | None], int] = defaultdict(int)
-    worst: dict[tuple[str, str, str | None], str] = {}
-    first: dict[tuple[str, str, str | None], tuple[tuple[str, int, int], str]] = {}
+    counts: dict[Group, int] = defaultdict(int)
+    worst: dict[Group, str] = {}
+    first: dict[Group, tuple[tuple[str, int, int], str]] = {}
     for result in report.results:
         key: str | None = None
         for finding in result.findings:
             if not (_counted(finding) and severe(finding, report.strict)):
                 continue
             key = key if key is not None else baseline_key(result.item)
-            group = (key, finding.code, finding.field)
+            group = (key, finding.code, finding.field, finding.rule)
             counts[group] += 1
             if group not in worst or _rank(finding.severity) > _rank(worst[group]):
                 worst[group] = finding.severity
@@ -348,7 +373,11 @@ def collect(report: CheckReport) -> tuple[Entry, ...]:
             place = (report.repo_path(origin), origin.line, origin.column or 0)
             if group not in first or place < first[group][0]:
                 first[group] = (place, _example(result.item, place[0]))
-    entries = (Entry(*group, worst[group], counts[group], first[group][1]) for group in counts)
+    entries = (
+        Entry(key, code, field, worst[group], counts[group], first[group][1], rule)
+        for group in counts
+        for key, code, field, rule in (group,)
+    )
     return tuple(sorted(entries, key=entry_order))
 
 
@@ -364,8 +393,8 @@ def _example(item: CheckItem, path: str) -> str:
     return f"{item.event_type or '-'} {label} at {where or f'{path}:{origin.line}'}"
 
 
-def entry_order(entry: Entry) -> tuple[str, str, str, str]:
-    return (entry.key, entry.code, entry.field or "", entry.severity)
+def entry_order(entry: Entry) -> tuple[str, str, str, str, str]:
+    return (entry.key, entry.code, entry.field or "", entry.rule or "", entry.severity)
 
 
 def pruned(entries: Sequence[Entry], matching: Matching) -> tuple[Entry, ...]:
@@ -411,6 +440,9 @@ def render_file(entries: Sequence[Entry], *, project: str, mode: str) -> str:
             values = [
                 ("code", _text(entry.code)),
                 ("field", _text(entry.field)),
+                # Only where there is one, so a file with no policy finding
+                # is the same bytes as before the rule was recorded.
+                *([("rule", _text(entry.rule))] if entry.rule is not None else []),
                 ("severity", _text(entry.severity)),
                 ("count", json.dumps(entry.count)),
                 ("example", _text(entry.example)),

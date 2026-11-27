@@ -10,6 +10,11 @@ Per field, not per source: ``--url https://staging`` with the key still coming
 from the config file has to work. "If any flag is given, ignore the file" is a
 plausible-looking bug, so it has its own test.
 
+One more environment variable is read, elsewhere and by two commands only:
+``TRIPL_PLAN_BRANCH`` names a plan branch for ``tripl check`` and ``tripl
+codegen`` (``commands/_plan.py``). It is not a connection setting, so it is
+not resolved here.
+
 Nothing here touches the network, and absent values are never an error at
 resolution time — only a malformed file, a bad value, or an explicit ``--config``
 that does not exist. That is what lets ``main`` resolve before it knows whether

@@ -114,6 +114,10 @@ class Entry:
     value: str
     # A member of a type (enum case, static constant) rather than a file-scope constant.
     member: bool
+    # The file the entry was declared in, relative to the repository root ("" when
+    # not given). Two objects with one name in two files (``object Events`` in each
+    # feature module) are told apart by it, since ``path`` carries no package.
+    source: str = ""
 
 
 def normalise_name(text: str) -> str:
@@ -189,10 +193,12 @@ class SymbolIndex:
     _case_suffixes: set[tuple[str, ...]] = field(
         default_factory=set, init=False, repr=False, compare=False
     )
+    # The file ``index_tokens`` is reading, given to each entry it adds.
+    _source: str = field(default="", init=False, repr=False, compare=False)
 
     # --- building ------------------------------------------------------------
     def add(self, path: tuple[str, ...], value: str, *, member: bool) -> None:
-        entry = Entry(path, value, member)
+        entry = Entry(path, value, member, self._source)
         self.entries.append(entry)
         for start in range(len(path)):
             self._suffixes.setdefault(path[start:], []).append(entry)
@@ -206,7 +212,9 @@ class SymbolIndex:
     def add_function(self, name: str, values: tuple[str, ...] | None, *, language: str) -> None:
         self.functions.setdefault((language, name), []).append(values)
 
-    def index_tokens(self, tokens: list[Token], language: str) -> None:
+    def index_tokens(self, tokens: list[Token], language: str, *, source: str = "") -> None:
+        """Index one file's ``tokens``; ``source`` is the file, kept on each entry."""
+        self._source = source
         if language == "swift":
             _index_scoped(self, tokens, language, _SWIFT_TYPES)
         elif language in ("kotlin", "java"):
@@ -231,10 +239,41 @@ class SymbolIndex:
         In ``language`` a trailing case-name accessor (Kotlin/Java ``name``,
         Swift ``description``) yields the enum case's identifier instead.
         """
+        found = self.lookup(path, hint=hint, shorthand=shorthand, language=language)
+        return None if found is None else found[0]
+
+    def lookup(
+        self,
+        path: Sequence[str],
+        *,
+        hint: str | None = None,
+        shorthand: bool = False,
+        language: str = "",
+    ) -> tuple[str, tuple[Entry, ...]] | None:
+        """``resolve``, with the declaration the value was read from.
+
+        The entries are that one declaration (once, even when its file was
+        indexed twice). They are none when the path may name several
+        declarations that hold the value (a shorthand naming members of
+        several types, one object name declared in two files): which one the
+        code reads is unknown. A case name read through its accessor comes
+        from no entry either.
+        """
+        return _declaration(self._lookup(path, hint=hint, shorthand=shorthand, language=language))
+
+    def _lookup(
+        self,
+        path: Sequence[str],
+        *,
+        hint: str | None,
+        shorthand: bool,
+        language: str,
+    ) -> tuple[str, tuple[Entry, ...]] | None:
         segments = [segment for segment in path if segment]
         name_accessors = CASE_NAME_ACCESSORS.get(language, frozenset())
         if len(segments) > 1 and segments[-1] in name_accessors and not self._has(segments):
-            return self.case_name(segments[:-1], shorthand=shorthand)
+            name = self.case_name(segments[:-1], shorthand=shorthand)
+            return None if name is None else (name, ())
         return _pick(self._candidates(segments, shorthand, name_accessors), hint)
 
     def ambiguous(
@@ -275,14 +314,19 @@ class SymbolIndex:
                 return candidates
         return []
 
-    def member(self, path: Sequence[str], *, hint: str | None = None) -> str | None:
+    def member(
+        self, path: Sequence[str], *, hint: str | None = None
+    ) -> tuple[str, tuple[Entry, ...]] | None:
         """The value of the member whose qualified path is exactly ``path``, or None.
 
         No suffix of it: ``(Screen, HOME)`` is ``Screen``'s ``HOME``, never
         ``Other.Screen.HOME``. None when unknown or ambiguous, as ``resolve``.
+        With the declaration it was read from, as ``lookup`` gives it.
         """
         wanted = tuple(path)
-        return _pick([e for e in self._suffixes.get(wanted, []) if e.path == wanted], hint)
+        return _declaration(
+            _pick([e for e in self._suffixes.get(wanted, []) if e.path == wanted], hint)
+        )
 
     def ambiguous_member(self, path: Sequence[str], *, hint: str | None = None) -> bool:
         """Whether ``member`` gives up on ``path`` because it is declared with different values."""
@@ -325,22 +369,35 @@ class SymbolIndex:
         return distinct.pop() if len(distinct) == 1 else None
 
 
-def _pick(candidates: list[Entry], hint: str | None) -> str | None:
+def _declaration(
+    found: tuple[str, tuple[Entry, ...]] | None,
+) -> tuple[str, tuple[Entry, ...]] | None:
+    """``found``'s value with its one declaration (once), or no entry when it may be several."""
+    if found is None:
+        return None
+    value, entries = found
+    declarations = {(entry.source, entry.path): entry for entry in entries}
+    return value, tuple(declarations.values()) if len(declarations) == 1 else ()
+
+
+def _pick(candidates: list[Entry], hint: str | None) -> tuple[str, tuple[Entry, ...]] | None:
+    """The value ``candidates`` agree on (``hint`` narrows them if not), and its entries."""
     values = {e.value for e in candidates}
     if len(values) == 1:
-        return values.pop()
+        return values.pop(), tuple(candidates)
     if not values or not hint:
         return None
     wanted = normalise_name(hint)
     if not wanted:
         return None
-    preferred = {
-        e.value
+    preferred = [
+        e
         for e in candidates
         if len(e.path) > 1
         and (wanted in normalise_name(e.path[-2]) or normalise_name(e.path[-2]) in wanted)
-    }
-    return preferred.pop() if len(preferred) == 1 else None
+    ]
+    chosen = {e.value for e in preferred}
+    return (chosen.pop(), tuple(preferred)) if len(chosen) == 1 else None
 
 
 def _ambiguous(candidates: list[Entry], hint: str | None) -> bool:
@@ -798,10 +855,12 @@ def _index_objc(index: SymbolIndex, tokens: list[Token]) -> None:
             depth += 1
         elif token.is_punct("}"):
             depth -= 1
-        elif depth == 0 and token.is_punct("=") and 1 <= position < len(tokens) - 1:
+        elif depth == 0 and token.is_punct("=") and 2 <= position < len(tokens) - 1:
             name = tokens[position - 1]
             raw = literal_text(tokens[position + 1])
-            if name.kind == IDENT and raw is not None:
+            # Only `NSString *const X`: without `const` right before the name
+            # the pointer can be set to another string before the call.
+            if name.kind == IDENT and raw is not None and tokens[position - 2].is_ident("const"):
                 index.add((name.text,), raw, member=False)
         elif (
             token.is_punct("#")

@@ -728,3 +728,32 @@ def render_whoami(whoami: Whoami) -> str:
     if whoami.is_platform_admin:
         lines.append("platform admin: yes (operator settings; browser sessions only)")
     return "\n".join(lines)
+
+
+def plan_branch_note(
+    requested: str, status: str | None, *, used_main: bool, fallback_flag: bool = True
+) -> str | None:
+    """What a run says about the plan branch it asked for; None when there is nothing to say.
+
+    Three cases are worth a line. Under ``--branch-if-exists`` the run read main
+    because no branch has that name, or because the branch is merged or closed.
+    Under ``--branch`` the run read a merged or closed branch: the instance
+    answers that from the copy the branch held when it ended, so the verdicts
+    are not the main plan's, and nobody chose that on purpose.
+
+    ``fallback_flag`` false is for a command without ``--branch-if-exists``
+    (``tripl export``): its warning names the check config key instead.
+    """
+    if used_main:
+        if status is None:
+            return f"Plan branch {requested} not found: used the main plan."
+        return f"Plan branch {requested} is {status}: used the main plan."
+    if status in ("merged", "closed"):
+        instead = "set `branch_if_exists` in the check config"
+        if fallback_flag:
+            instead = "use --branch-if-exists"
+        return (
+            f"Warning: plan branch {requested} is {status}, so this run read its frozen copy, "
+            f"not the main plan. Name no branch to read main, or {instead}."
+        )
+    return None

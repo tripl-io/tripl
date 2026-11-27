@@ -49,7 +49,16 @@ from tripl_cli.commands._check_config import (
     check_config_of,
     project_of,
 )
-from tripl_cli.commands._plan import MAIN, Branch, add_branch, begin, resolve_branch
+from tripl_cli.commands._plan import (
+    MAIN,
+    Branch,
+    BranchRequest,
+    add_branch,
+    add_branch_if_exists,
+    begin,
+    branch_request,
+    resolve_request,
+)
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import instance_of
 from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, TriplConfigError
@@ -97,6 +106,7 @@ def register(
     add_check_config(parser)
     add_project_flag(parser)
     add_branch(parser)
+    add_branch_if_exists(parser)
     parser.add_argument(
         "--model",
         dest="model",
@@ -123,7 +133,7 @@ def branch_document(branch: Branch) -> JsonDict | None:
 def fetch_export(
     config: Config,
     project: str,
-    selector: str | None,
+    asked: BranchRequest | None,
     export_format: str,
     *,
     timeout: float,
@@ -133,7 +143,7 @@ def fetch_export(
 
     async def body(client: httpx.AsyncClient) -> tuple[Any, Branch, int]:
         reader = context.reader(client)
-        branch = await resolve_branch(reader, project, selector)
+        branch = await resolve_request(reader, project, asked)
         payload = await reader.send(plan_export.export(project, export_format, branch=branch.id))
         return payload, branch, reader.requests
 
@@ -191,17 +201,27 @@ def run(args: argparse.Namespace, config: Config) -> int:
             "event type (see `tripl codegen --help` and the CLI docs), or pass --check-config."
         )
     project = project_of(args, check_config, "codegen")
-    selector: str | None = args.branch if args.branch is not None else check_config.branch
     if args.model is not None:
-        if args.branch is not None:
-            raise TriplConfigError(
-                "--model is a saved export of one branch already; drop --branch."
-            )
+        # Only the flags are refused: the check config and the environment
+        # name a branch for every run, and a saved export needs none.
+        named = (("--branch", args.branch), ("--branch-if-exists", args.branch_if_exists))
+        for flag, given in named:
+            if given is not None:
+                raise TriplConfigError(
+                    f"--model is a saved export of one branch already; drop {flag}."
+                )
         payload, branch, run_facts = read_model_file(args.model), MAIN, offline_run(config, started)
         base_url, source = run_facts.instance.base_url, "--model"
     else:
+        asked = branch_request(
+            args,
+            config_branch=check_config.branch,
+            config_branch_if_exists=check_config.branch_if_exists,
+        )
+        if asked is not None and asked.replaced is not None:
+            print(asked.replaced, file=sys.stderr)
         payload, branch, run_facts = fetch_export(
-            config, project, selector, plan_export.FORMAT_CODEGEN_MODEL, timeout=args.timeout
+            config, project, asked, plan_export.FORMAT_CODEGEN_MODEL, timeout=args.timeout
         )
         base_url = run_facts.instance.base_url
         source = config.sources.get("base_url", "unknown")
@@ -220,6 +240,8 @@ def run(args: argparse.Namespace, config: Config) -> int:
         print(f"  {row['status']:<9}  {row['path']}", file=human)
     print(file=human)
     print(_summary(rows, check=args.check, model=model), file=human)
+    if branch.note is not None:
+        print(branch.note, file=human)
     if args.as_json:
         document = codegen_document(
             run_facts,
@@ -229,6 +251,7 @@ def run(args: argparse.Namespace, config: Config) -> int:
             check=args.check,
             files=rows,
             exit_code=exit_code,
+            plan_branch=branch.document,
         )
         json.dump(document, sys.stdout)
         sys.stdout.write("\n")

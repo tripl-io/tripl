@@ -267,6 +267,225 @@ def test_model_and_branch_together_are_refused(
     assert "drop --branch" in capsys.readouterr().err
 
 
+def test_codegen_branch_if_exists_uses_an_open_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    assert main(["codegen", "--branch-if-exists", "checkout-redesign", "--json"]) == 0
+    assert route.calls.last.request.url.params["branch"] == "b-9f21"
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["plan_branch"] == {
+        "requested": "checkout-redesign",
+        "status": "draft",
+        "used": "branch",
+    }
+    assert "Plan branch" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("rows", "note"),
+    [
+        ([], "Plan branch checkout-redesign not found: used the main plan."),
+        (
+            [make_branch(status="merged")],
+            "Plan branch checkout-redesign is merged: used the main plan.",
+        ),
+    ],
+)
+def test_codegen_branch_if_exists_reads_main_and_says_so(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    rows: list[dict[str, Any]],
+    note: str,
+) -> None:
+    tripl_api.branches("demo", rows)
+    route = _exporter(tripl_api)
+    # The environment variable means the flag, for codegen as for check.
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["codegen", "--json"]) == 0
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert note in captured.err
+    document = json.loads(captured.out)
+    assert document["branch"] is None
+    assert document["plan_branch"]["used"] == "main"
+    header = (repo / "generated/swift/AppEvents.swift").read_text(encoding="utf-8")
+    assert "branch main" in header
+
+
+def test_codegen_branch_on_a_merged_branch_warns(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch(status="merged")])
+    route = _exporter(tripl_api)
+    assert main(["codegen", "--branch", "checkout-redesign"]) == 0
+    assert route.calls.last.request.url.params["branch"] == "b-9f21"
+    assert "Warning: plan branch checkout-redesign is merged" in capsys.readouterr().out
+
+
+def test_codegen_refuses_both_branch_flags(
+    repo: Path, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["codegen", "--branch", "a", "--branch-if-exists", "b"]) == 2
+    assert "both name the plan branch" in capsys.readouterr().err
+
+
+def test_model_refuses_the_flag_and_ignores_the_environment(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["codegen", "--model", "model.json", "--branch-if-exists", "x"]) == 2
+    assert "drop --branch-if-exists" in capsys.readouterr().err
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["codegen", "--model", "model.json"]) == 0
+    assert "Plan branch" not in capsys.readouterr().out
+
+
+def test_export_honours_the_config_key_but_not_the_environment(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    listing = tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["export", "--format", "codegen_model"]) == 0
+    assert not listing.called
+    capsys.readouterr()
+    monkeypatch.delenv("TRIPL_PLAN_BRANCH")
+    config = repo / ".tripl" / "check.yml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\nbranch_if_exists: feature/login\n",
+        encoding="utf-8",
+    )
+    assert main(["export", "--format", "codegen_model"]) == 0
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert "Plan branch feature/login not found: used the main plan." in captured.err
+    assert json.loads(captured.out)["revision"] == REVISION
+
+
+def test_check_stays_clean_when_the_plan_branch_merges(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Files generated while the plan branch was open name it in their header.
+    # Once it merges the same run reads main: same plan content, another branch
+    # name, and that alone must not turn `--check` red.
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    tripl_api.branches("demo", [make_branch()])
+    _exporter(tripl_api)
+    assert main(["codegen"]) == 0
+    generated = repo / "generated/swift/AppEvents.swift"
+    before = generated.read_bytes()
+    assert b"branch checkout-redesign, plan" in before
+
+    tripl_api.branches("demo", [make_branch(status="merged")])
+    capsys.readouterr()
+    assert main(["codegen", "--check"]) == 0
+    out = capsys.readouterr().out
+    assert "15 generated files are in sync with the plan" in out
+    assert "Plan branch checkout-redesign is merged: used the main plan." in out
+    # A write changes nothing either: the files are current.
+    assert main(["codegen"]) == 0
+    assert "0 created, 0 changed, 15 unchanged" in capsys.readouterr().out
+    assert generated.read_bytes() == before
+
+
+def test_another_branch_name_does_not_hide_a_change_of_content(
+    repo: Path, tripl_api: FakeInstance, configured_env: None
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    _exporter(tripl_api)
+    assert main(["codegen", "--branch", "checkout-redesign"]) == 0
+    generated = repo / "generated/swift/AppEvents.swift"
+    text = generated.read_text(encoding="utf-8")
+    # The plan hash differs: the file is of another plan, whatever the branch.
+    generated.write_text(text.replace(PLAN_HASH, "0" * len(PLAN_HASH), 1), encoding="utf-8")
+    assert main(["codegen", "--check"]) == 1
+    # So does the body.
+    generated.write_text(text + "// hand edit\n", encoding="utf-8")
+    assert main(["codegen", "--check"]) == 1
+
+
+def test_an_empty_branch_if_exists_names_no_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # What `--branch-if-exists "$VARIABLE"` passes when the pipeline has no such variable.
+    listing = tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    assert main(["codegen", "--branch-if-exists", "", "--json"]) == 0
+    assert not listing.called
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert "Plan branch" not in captured.err
+    assert json.loads(captured.out)["plan_branch"] is None
+
+
+def test_the_environment_says_when_it_replaces_the_config_branch(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch()])
+    route = _exporter(tripl_api)
+    config = repo / ".tripl" / "check.yml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\nbranch: checkout-redesign\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "feature/x")
+    assert main(["codegen", "--check"]) == 1
+    assert "branch" not in route.calls.last.request.url.params
+    captured = capsys.readouterr()
+    assert (
+        "TRIPL_PLAN_BRANCH names plan branch feature/x, so `branch` in the check config "
+        "(checkout-redesign) is not used." in captured.err
+    )
+    # The same name from both places is nothing to report.
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["codegen"]) == 0
+    assert "is not used" not in capsys.readouterr().err
+
+
+def test_export_on_a_merged_branch_warns_without_naming_a_flag_it_lacks(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tripl_api.branches("demo", [make_branch(status="merged")])
+    _exporter(tripl_api)
+    assert main(["export", "--format", "codegen_model", "--branch", "checkout-redesign"]) == 0
+    err = capsys.readouterr().err
+    assert (
+        "Warning: plan branch checkout-redesign is merged, so this run read its frozen copy, "
+        "not the main plan. Name no branch to read main, or set `branch_if_exists` in the "
+        "check config.\n" in err
+    )
+    assert "--branch-if-exists" not in err
+    with pytest.raises(SystemExit):
+        main(["export", "--format", "codegen_model", "--branch-if-exists", "x"])
+
+
 # --- export ------------------------------------------------------------------------------
 def test_safe_names_never_leave_the_output_directory() -> None:
     assert safe_name("home:open:card") == "home_open_card"

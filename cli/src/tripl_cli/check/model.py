@@ -36,10 +36,21 @@ CODE_OVERSIZE_VALUE = "oversize_value"
 # Raised locally: the route answered nothing for an item that was sent. Never
 # suppressible, because nothing was decided about the call.
 CODE_NO_VERDICT = "no_verdict"
+# Raised locally by the plan-independent lint (``lint.py``), only when the check
+# config has a ``lint:`` section: a name or key with a non-ASCII character,
+# whitespace or a quote; a name or key that does not match the configured
+# pattern; a name or key read from a constant that holds the same value as
+# another constant of the same object.
+CODE_NAME_CHARACTERS = "name_characters"
+CODE_NAME_PATTERN = "name_pattern"
+CODE_DUPLICATE_CONSTANT = "duplicate_constant"
+LINT_CODES: tuple[str, ...] = (CODE_NAME_CHARACTERS, CODE_NAME_PATTERN, CODE_DUPLICATE_CONSTANT)
 
 # Why a ``tripl-check-ignore`` marker suppresses nothing (``check/suppress.py``):
-# it names no code, names ``no_verdict``, or gives no reason.
+# it names no code, names a rule that cannot be read after a code's ``@``,
+# names ``no_verdict``, or gives no reason.
 MARKER_NO_CODES = "no_codes"
+MARKER_BAD_RULE = "bad_rule"
 MARKER_NOT_SUPPRESSIBLE = "not_suppressible"
 MARKER_NO_REASON = "no_reason"
 # The two codes a report gives a marker it lists (SARIF rules, Code Quality
@@ -111,27 +122,35 @@ class Origin:
     snippet: str = ""
 
 
+# What one entry of a marker's brackets waives: ``(code, field, rule)``. The
+# field is None to waive the code on any field; the rule is None to waive it
+# whichever rule raised it, and otherwise names the one policy rule waived.
+Target = tuple[str, str | None, str | None]
+
+
 @dataclass(frozen=True)
 class Suppression:
     """A valid ``tripl-check-ignore`` marker, as attached to the calls it covers.
 
     ``path``, ``line`` and ``column`` are where the marker's keyword is (the
-    marker's identity in the run); each target is a ``(code, field)`` pair,
-    the field None to waive the code on any field.
+    marker's identity in the run); each target is a ``(code, field, rule)``
+    triple (``Target``).
     """
 
     path: str
     line: int
     column: int
-    targets: tuple[tuple[str, str | None], ...]
+    targets: tuple[Target, ...]
     reason: str
 
     def covers(self, finding: CheckFinding) -> bool:
         if finding.code == CODE_NO_VERDICT:
             return False
         return any(
-            code == finding.code and (field is None or field == finding.field)
-            for code, field in self.targets
+            code == finding.code
+            and (field is None or field == finding.field)
+            and (rule is None or rule == finding.rule)
+            for code, field, rule in self.targets
         )
 
 
@@ -148,7 +167,7 @@ class Marker:
     line: int
     column: int
     text: str
-    targets: tuple[tuple[str, str | None], ...]
+    targets: tuple[Target, ...]
     reason: str | None
     problem: str | None = None
 
@@ -174,6 +193,22 @@ class MarkerState:
 
 
 @dataclass(frozen=True)
+class ConstantUse:
+    """A named constant a call read its event name or a dictionary key from.
+
+    ``path`` is the constant's qualified name (``Events.BUTTON_A``) and
+    ``value`` the string it holds; ``key`` is the key it gave, None for the
+    event name; ``source`` is the file that declares it. The lint (``lint.py``)
+    reads these; nothing else does.
+    """
+
+    path: tuple[str, ...]
+    value: str
+    key: str | None = None
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class CheckItem:
     """One thing to validate. ``wire`` is the request item, minus its ``ref``."""
 
@@ -194,6 +229,9 @@ class CheckItem:
     # never on the wire, so identical items are still sent once and keep their
     # fingerprints.
     suppressions: tuple[Suppression, ...] = field(default=(), compare=False)
+    # The constants the call read its name and its dictionary keys from (a
+    # call site only). Outside equality and never on the wire, like the markers.
+    constants: tuple[ConstantUse, ...] = field(default=(), compare=False)
 
     def wire(self) -> JsonDict:
         return {
@@ -211,6 +249,11 @@ class CheckFinding:
     severity: str
     message: str
     field: str | None = None
+    # The rule that raised the finding, as the validator names it
+    # (``naming.event``); None for a code that is its own rule. A workspace
+    # policy raises every violation under one code, so the rule is what tells
+    # two of them apart.
+    rule: str | None = None
     # The marker that waives this finding; the finding is still reported.
     suppression: Suppression | None = None
     # Under a gate (``--new-from-rev``/``--new-from-patch``): whether the
@@ -222,6 +265,15 @@ class CheckFinding:
     # baseline file holds this finding, so it does not fail the run; None
     # with no baseline.
     baselined: bool | None = None
+
+    @property
+    def label(self) -> str:
+        """The code as a marker names it: ``policy_violation@naming.event``, or the bare code.
+
+        A rule holding a character a marker cannot (``suppress.py``'s grammar)
+        is printed all the same, for the reader; only the bare code waives it.
+        """
+        return self.code if self.rule is None else f"{self.code}@{self.rule}"
 
 
 def severe(finding: CheckFinding, strict: bool) -> bool:
@@ -361,6 +413,29 @@ class PlanPin:
 
 
 @dataclass(frozen=True)
+class UploadOutcome:
+    """What ``--upload`` did with the run: ``check --json``'s ``upload`` key.
+
+    ``ok`` is whether tripl recorded it; ``error`` says why not, else None.
+    ``run_id`` and ``current`` come from tripl's answer and are None when
+    nothing was recorded: ``current`` is whether the run became what "used in
+    code" shows. The rest is what was sent.
+    """
+
+    ok: bool
+    error: str | None
+    run_id: str | None
+    current: bool | None
+    repository: str
+    check_root: str
+    commit_sha: str
+    ref: str
+    default_branch: str | None
+    merge_request: bool
+    calls: int
+
+
+@dataclass(frozen=True)
 class CheckReport:
     run: Run
     project: str
@@ -369,6 +444,11 @@ class CheckReport:
     results: tuple[CheckResult, ...]
     branch_id: str | None = None
     branch_name: str | None = None
+    # The working plan branch the run asked for and that branch's review status
+    # (None when no branch has the name). Both None when none was asked for.
+    # ``branch_id`` None with ``branch_requested`` set: the run fell back to main.
+    branch_requested: str | None = None
+    branch_status: str | None = None
     config_path: str | None = None
     files_scanned: int = 0
     meta: Mapping[str, Any] = field(default_factory=dict)
@@ -393,6 +473,8 @@ class CheckReport:
     # Set when the run was pinned to a plan revision (``--revision``, or
     # ``revision:`` in the check config); None for the live plan.
     plan: PlanPin | None = None
+    # Set with ``--upload``: whether tripl recorded the run, and as what.
+    upload: UploadOutcome | None = None
     # ``--strict-suppressions``: a marker that is malformed, or that waived
     # nothing, fails the run (``failing_markers``).
     strict_suppressions: bool = False
@@ -488,7 +570,7 @@ class CheckReport:
                 (marker.path, marker.line, marker.column) in unjudged
                 or (
                     not self.strict
-                    and any(code == CODE_DYNAMIC_VALUE for code, _ in marker.targets)
+                    and any(code == CODE_DYNAMIC_VALUE for code, _, _ in marker.targets)
                 )
             ):
                 continue

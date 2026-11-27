@@ -41,7 +41,8 @@ def _generate_token(scope: str) -> tuple[str, str]:
     """Return ``(raw_token, key_prefix)``.
 
     Embeds the scope letter in the token so support can eyeball which scope
-    a leaked key carried without DB access (e.g. ``tk_r_...`` vs ``tk_w_...``).
+    a leaked key carried without DB access (``tk_r_...``, ``tk_w_...``, ``tk_c_...``
+    for ``check_upload``).
     """
     body = secrets.token_urlsafe(_RANDOM_LEN)
     raw = f"{_PREFIX}{scope[0]}_{body}"

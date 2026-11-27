@@ -112,7 +112,8 @@ class DocCaller:
             user=user,
             via_api_key=scope is not None,
             key_project_bound=getattr(state, "api_key_project_id", None) is not None,
-            read_only_key=scope == "read",
+            # Only a ``write`` key writes docs; ``check_upload`` reads like ``read``.
+            read_only_key=scope is not None and scope != "write",
             project_role=getattr(state, "project_role", None),
         )
 

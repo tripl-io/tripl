@@ -44,10 +44,12 @@ from tripl_cli.check.config import (
     field_target,
 )
 from tripl_cli.check.lexer import EXTENSIONS, LineIndex, Token, tokenize
+from tripl_cli.check.lint import lint_items
 from tripl_cli.check.model import (
     SKIP_TOO_LARGE,
     SKIP_UNREADABLE,
     CheckItem,
+    ConstantUse,
     Marker,
     Origin,
     SkippedFile,
@@ -330,7 +332,8 @@ def scan(config: CheckConfig) -> ScanOutcome:
             items.extend(
                 call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
             )
-    return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped, tuple(found_markers))
+    linted = tuple(lint_items(items, config.lint, field_keys=False))
+    return ScanOutcome(linted, len(tree.parsed), matched, tree.skipped, tuple(found_markers))
 
 
 def base_items(config: CheckConfig, snapshot: Snapshot) -> list[CheckItem]:
@@ -371,7 +374,9 @@ def base_items(config: CheckConfig, snapshot: Snapshot) -> list[CheckItem]:
             items.extend(
                 call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
             )
-    return items
+    # Linted as scan() lints, so a finding the base had is not new, and one a
+    # change brought in (a constant edited into a duplicate) changes the item.
+    return lint_items(items, config.lint, field_keys=False)
 
 
 def enum_files(config: CheckConfig) -> Iterator[tuple[Path, str, frozenset[str]]]:
@@ -409,7 +414,7 @@ def first_pass(
             skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
             continue
         for language in sorted(languages):
-            symbols.index_tokens(tokenize(text, language), language)
+            symbols.index_tokens(tokenize(text, language), language, source=relative)
         seen.add(path)
     for source in files:
         text, why = read(source.path)
@@ -420,7 +425,7 @@ def first_pass(
             continue
         tokens = tokenize(text, source.language)
         if source.path not in seen:
-            symbols.index_tokens(tokens, source.language)
+            symbols.index_tokens(tokens, source.language, source=source.relative)
         parsed.append((source, text, tokens))
     return Tree(symbols, tuple(parsed), tuple(skipped[path] for path in sorted(skipped)))
 
@@ -570,7 +575,7 @@ def _iglu_name(value: Value) -> Value:
     if value.kind != "text" or value.text is None:
         return value
     match = _IGLU.fullmatch(value.text)
-    return Value("text", text=match.group(1)) if match else value
+    return Value("text", text=match.group(1), constants=value.constants) if match else value
 
 
 def _options(value: Value | None) -> list[str | None]:
@@ -602,8 +607,10 @@ def call_items(
 ) -> list[CheckItem]:
     """The items one call's collected values expand into: what ``tripl check`` sends for it.
 
-    Every item carries ``suppressions``, the markers covering the call.
+    Every item carries ``suppressions``, the markers covering the call, and the
+    constants the call read its name and its property keys from (``lint.py``).
     """
+    constants = _constants(collected)
     fields = collected.fields or {}
     dynamic_targets = [
         target
@@ -634,6 +641,7 @@ def call_items(
                 dynamic=tuple(dynamic_targets) or (NAME,),
                 sendable=False,
                 suppressions=suppressions,
+                constants=constants,
             )
         ]
     items: list[CheckItem] = []
@@ -649,6 +657,24 @@ def call_items(
                 complete=False,
                 dynamic=tuple(dynamic_targets),
                 suppressions=suppressions,
+                constants=constants,
             )
         )
     return items
+
+
+def _constants(collected: _Collected) -> tuple[ConstantUse, ...]:
+    """The constants ``collected``'s name and its properties' keys were read from, each once."""
+    uses: list[ConstantUse] = []
+    if collected.name is not None and collected.name.kind == "text":
+        uses.extend(
+            ConstantUse(entry.path, entry.value, source=entry.source)
+            for entry in collected.name.constants
+        )
+    if collected.properties is not None and collected.properties.kind == "entries":
+        uses.extend(
+            ConstantUse(entry.path, entry.value, key, entry.source)
+            for key, entries in collected.properties.key_constants
+            for entry in entries
+        )
+    return tuple(dict.fromkeys(uses))
