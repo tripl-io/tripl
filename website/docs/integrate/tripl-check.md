@@ -1680,7 +1680,8 @@ pipeline did not set. When the variable replaces another branch named by
 
 `--branch-if-exists` is refused with `--branch`, with `--list` and with a
 [pinned](#pin) run (exit 2). The environment variable is never a refusal: under
-`--list` it is ignored, and a pinned run ignores it with a line on stderr. A
+`--list` it is ignored, and a pinned run and an
+[`--upload`](#send-results-to-tripl) run ignore it with a line on stderr. A
 check config that holds both `branch` and `revision` is still exit 2, whatever
 the variable says.
 
@@ -1777,8 +1778,10 @@ tripl check --upload --report codequality=gl-code-quality-report.json
   `.`.
 - **Against the live plan only.** The run records which plan event each call
   sends, so it is refused with a plan branch or a pinned plan revision, from a
-  flag or from the check config (`--revision live` is fine), and with
-  `--payloads` and `--list`.
+  flag or from the check config (`--revision live` is fine; `--branch-if-exists`
+  and `branch_if_exists` are refused too), and with `--payloads` and `--list`.
+  A `TRIPL_PLAN_BRANCH` exported for the whole pipeline is ignored, with a line
+  on stderr, so the upload job still runs against the live plan.
 - **It never changes the verdict.** The upload is sent once the check has
   finished, before the reports are written, and one line on stderr, after the
   run's own output, says what was recorded, or why not. A failed upload (a

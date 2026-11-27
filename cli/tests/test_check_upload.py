@@ -376,6 +376,16 @@ def test_an_unreachable_instance_is_not_said_to_have_checked_nothing(
     [
         (["--branch", "checkout-redesign"], "", "checks plan branch 'checkout-redesign'"),
         ([], "branch: checkout-redesign\n", "checks plan branch 'checkout-redesign'"),
+        (
+            ["--branch-if-exists", "checkout-redesign"],
+            "",
+            "checks plan branch 'checkout-redesign' (--branch-if-exists)",
+        ),
+        (
+            [],
+            "branch_if_exists: checkout-redesign\n",
+            "checks plan branch 'checkout-redesign' (`branch_if_exists` in the check config)",
+        ),
         (["--revision", REVISION], "", f"pinned to plan revision {REVISION}"),
         ([], f"revision: {REVISION}\n", f"pinned to plan revision {REVISION}"),
         (["--list"], "", "--upload records a check's verdicts, and --list checks nothing"),
@@ -401,6 +411,27 @@ def test_an_upload_that_cannot_happen_is_refused_before_any_request(
     assert reason in capsys.readouterr().err
     assert not validator.called
     assert not uploads.called
+
+
+def test_a_pipeline_plan_branch_variable_is_ignored_by_an_upload(
+    repo: Path,
+    validator: Any,
+    uploads: Any,
+    configured_env: None,
+    gitlab: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Exported for every job: it must not turn the upload job into exit 2.
+    monkeypatch.setenv("TRIPL_PLAN_BRANCH", "checkout-redesign")
+    assert main(["check", "--upload"]) == 0
+    assert uploads.call_count == 1
+    assert validator.called
+    assert all("branch" not in str(call.request.url) for call in validator.calls)
+    assert (
+        "TRIPL_PLAN_BRANCH is ignored: --upload records the run against the live plan."
+        in capsys.readouterr().err
+    )
 
 
 def test_the_live_revision_may_be_uploaded(
