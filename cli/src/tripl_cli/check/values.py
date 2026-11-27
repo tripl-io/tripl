@@ -44,7 +44,12 @@ where it gives up:
     message only there: in Swift and TypeScript ``[…]`` is a literal). Told
     from the shape before anything else, since a format is a call too. A member
     call binds tighter than an operator, so ``"a" + y.format(z)`` is a
-    concatenation and ``("a" + y).format(z)`` a format. When the format string
+    concatenation and ``("a" + y).format(z)`` a format. A comparison, a range
+    or a word operator does the same: ``a < y.format(z)``, ``a..y.format(z)``
+    and ``a to y.format(z)`` are an ``expression``, while type arguments
+    (``pick<String>(a).format(z)``) are no comparison. A word operator is any
+    name between two operands in Kotlin (an infix call), and ``instanceof``,
+    TypeScript's ``in`` and Swift's ``is`` elsewhere. When the format string
     reads as text, ``expression`` is ``format of <template>``.
 ``function``
     A call of a function the index cannot read: it reads one whose every
@@ -82,6 +87,7 @@ from tripl_cli.check.model import (
 from tripl_cli.check.symbols import (
     CASE_NAME_ACCESSORS,
     RAW_ACCESSORS,
+    Entry,
     SymbolIndex,
     number_text,
     template_text,
@@ -105,11 +111,38 @@ _FORMAT_METHODS = frozenset({"format", "formatted"})
 _OBJC_FORMATS = frozenset({"stringWithFormat", "localizedStringWithFormat"})
 _CHOICE_KEYWORDS = frozenset({"if", "when", "switch"})
 # Binary operators, assignment and a lambda's arrow: each binds looser than a
-# member call.
+# member call. A comparison `<` / `>` does too, but the same tokens also open
+# and close a type-argument list (`listOf<String>()`), so `_has_operator`
+# tells the two apart before counting one.
 _OPERATORS = frozenset(
     {"+", "-", "*", "/", "%", "&", "|", "^", "==", "!=", "===", "!==", "<=", ">="}
     | {"&&", "||", "??", "=", "->", "=>"}
+    # Ranges: Kotlin's `..<`, Swift's `...` and `..<`. Kotlin's `..` is two
+    # `.` tokens, which `_has_operator` checks for apart.
+    | {"...", "..<"}
 )
+# Operators written as words, per language. In Kotlin any name that stands
+# right after an operand is an infix call (`a to b`, `a zip b`, `a !in b`),
+# so there the words are the keywords that also follow an operand but join
+# no operands: the rest of an `if`, a `try`. Elsewhere only these words are
+# operators: `instanceof` and TypeScript's `in`, Swift's `is`. Like the
+# operators above, each binds looser than a member call.
+_INFIX_WORDS: dict[str, frozenset[str]] = {
+    "ts": frozenset({"instanceof", "in"}),
+    "java": frozenset({"instanceof"}),
+    "swift": frozenset({"is"}),
+}
+_KOTLIN_NOT_INFIX = frozenset({"else", "catch", "finally"})
+# What a type-argument list may hold between its angle brackets besides
+# names, literals (TypeScript's `pick<"a">`) and bracketed groups (a function
+# type's parameters, a TypeScript object type or tuple): qualified names,
+# nested lists, `,`, Kotlin's `?` and `*`, Java's `?` wildcard, TypeScript's
+# `&` / `|`, and a function type's arrow.
+_TYPE_ARGUMENT_PUNCT = (",", ".", "?", "*", "&", "|", "->", "=>")
+# What may follow a type-argument list: a call, a member, a reference,
+# Kotlin's trailing lambda (`run<String> { … }`), TypeScript's indexed
+# access (`Foo<T>["k"]`).
+_AFTER_TYPE_ARGUMENTS = ("(", ".", "?.", "::", "{", "[")
 _OPENING = ("(", "[", "{")
 _CLOSING = (")", "]", "}")
 
@@ -129,6 +162,12 @@ class Value:
     reason: str = field(default="", compare=False)
     expression: str = field(default="", compare=False)
     path: tuple[str, ...] = field(default=(), compare=False)
+    # The named constants a text value was read from, whole or in part (an
+    # operand of a concatenation, an inlined interpolation); for a dictionary,
+    # the constants each key was read from. Outside equality too: the lint
+    # (``lint.py``) reads them to find two constants holding one value.
+    constants: tuple[Entry, ...] = field(default=(), compare=False)
+    key_constants: tuple[tuple[str, tuple[Entry, ...]], ...] = field(default=(), compare=False)
 
     @property
     def is_known(self) -> bool:
@@ -138,9 +177,13 @@ class Value:
 DYNAMIC = Value("dynamic")
 ABSENT = Value("absent")
 
+# One entry of a dictionary literal: its key, its value, and the constants the
+# key was read from.
+_Pair = tuple[str, Value, tuple[Entry, ...]]
 
-def text(value: str, *, interpolated: bool = False) -> Value:
-    return Value("text", text=value, interpolated=interpolated)
+
+def text(value: str, *, interpolated: bool = False, constants: tuple[Entry, ...] = ()) -> Value:
+    return Value("text", text=value, interpolated=interpolated, constants=constants)
 
 
 def dynamic(
@@ -210,9 +253,11 @@ class Evaluator:
             if not self.explain:
                 return DYNAMIC
             return self._unread(span, field, "value")
-        entries = self._dictionary(span)
-        if entries is not None:
-            return Value("entries", entries=entries)
+        pairs = self._dictionary(span)
+        if pairs is not None:
+            # Wrapped here, not in a helper `_dictionary` calls: no frame is
+            # added to the recursion a nested dictionary goes through.
+            return _entries(pairs)
         concatenated = self._concatenation(span, field)
         if concatenated is not None:
             return concatenated
@@ -241,9 +286,9 @@ class Evaluator:
                 return text("true")
             if token.text in _FALSE:
                 return text("false")
-            resolved = self.symbols.resolve([token.text], hint=field, language=self.language)
+            resolved = self.symbols.lookup([token.text], hint=field, language=self.language)
             if resolved is not None:
-                return text(resolved)
+                return text(resolved[0], constants=resolved[1])
             if not self.explain:
                 return dynamic(token.text)
             return dynamic(
@@ -256,23 +301,28 @@ class Evaluator:
 
     def _string(self, token: Token, field: str | None) -> Value:
         parts: list[str | Interp] = []
+        constants: list[Entry] = []
         for part in token.parts:
             if isinstance(part, Interp):
                 inlined = self._inline(part.expr, field)
-                parts.append(inlined if inlined is not None else part)
+                if inlined is None or inlined.text is None:
+                    parts.append(part)
+                else:
+                    parts.append(inlined.text)
+                    constants.extend(inlined.constants)
             else:
                 parts.append(part)
         interpolated = any(isinstance(part, Interp) for part in parts)
-        return text(template_text(parts), interpolated=interpolated)
+        return text(template_text(parts), interpolated=interpolated, constants=tuple(constants))
 
-    def _inline(self, expr: str, field: str | None) -> str | None:
+    def _inline(self, expr: str, field: str | None) -> Value | None:
         """An interpolation that is itself a constant (an enum raw value, a literal) is inlined."""
         try:
             tokens = tokenize(expr, self.language)
         except ValueError:
             return None
         value = self.evaluate(tokens, field=field)
-        return value.text if value.kind == "text" and not value.interpolated else None
+        return value if value.kind == "text" and not value.interpolated else None
 
     # --- compound forms ------------------------------------------------------
     def _concatenation(self, span: list[Token], field: str | None) -> Value | None:
@@ -297,11 +347,13 @@ class Evaluator:
         if not any(len(op) == 1 and op[0].kind == STRING for op in operands):
             return None
         pieces: list[str] = []
+        constants: list[Entry] = []
         interpolated = False
         for operand in operands:
             value = self.evaluate(operand, field=field)
             if value.kind == "text" and value.text is not None:
                 pieces.append(value.text)
+                constants.extend(value.constants)
                 interpolated = interpolated or value.interpolated
             elif value.kind == "dynamic":
                 pieces.append(f"${{{value.hint}}}")
@@ -311,7 +363,7 @@ class Evaluator:
                 if not self.explain:
                     return dynamic(_hint_of(span))
                 return self._unread(span, field, _hint_of(span), otherwise=REASON_CONCATENATION)
-        return text("".join(pieces), interpolated=interpolated)
+        return text("".join(pieces), interpolated=interpolated, constants=tuple(constants))
 
     def _reference(self, span: list[Token], field: str | None) -> Value | None:
         """``.home``, ``A.B.home.rawValue``, ``Category.HOME.value``, ``name(for: x)``.
@@ -324,12 +376,25 @@ class Evaluator:
         path: list[str] = []
         called: str | None = None
         position = 0
+        # Two names with no `.` / `?.` / `::` between them (`a to b`, Kotlin's
+        # `a !in b`), or two touching dots (Kotlin's range `a..b`), are an
+        # operator, and an operator binds looser than a path or a call: what
+        # it makes is no reference, so `a to f()` calls no `f`.
+        joined = True
         while position < len(body):
             token = body[position]
             if token.kind == IDENT:
+                if not joined:
+                    return None
                 path.append(token.text)
+                joined = False
                 position += 1
-            elif token.is_punct(".", "?.", "::", "?", "!"):
+            elif token.is_punct(".", "?.", "::"):
+                if position > 0 and _range_dots(body, position - 1):
+                    return None
+                joined = True
+                position += 1
+            elif token.is_punct("?", "!"):
                 position += 1
             elif token.is_punct("(") and path:
                 close = matching(list(body), position)
@@ -359,11 +424,11 @@ class Evaluator:
                 only = values[0]
                 return text(only, interpolated="${" in only)
             return Value("choices", choices=values)
-        resolved = self.symbols.resolve(
+        resolved = self.symbols.lookup(
             path, hint=field, shorthand=shorthand, language=self.language
         )
         if resolved is not None:
-            return text(resolved)
+            return text(resolved[0], constants=resolved[1])
         hint = variable_name(".".join(path))
         if not self.explain:
             return dynamic(hint)
@@ -426,14 +491,14 @@ class Evaluator:
             return None
         return template.text if template.kind == "text" else None
 
-    def _dictionary(self, span: list[Token]) -> tuple[tuple[str, Value], ...] | None:
-        """A dictionary literal's ``(key, value)`` pairs, or None when ``span`` is not one."""
+    def _dictionary(self, span: list[Token]) -> list[_Pair] | None:
+        """A dictionary literal's ``(key, value, key constants)``; None when ``span`` is not one."""
         first = span[0]
         if first.is_punct("@") and len(span) > 1 and span[1].is_punct("{"):
             return self._pairs(span[1:], ":")  # ObjC @{ @"k": v }
         if first.is_punct("[") and self.language == "swift":
             if len(span) == 3 and span[1].is_punct(":"):
-                return ()  # [:]
+                return []  # [:]
             return self._pairs(span, ":")
         if first.is_punct("{") and self.language == "ts":
             return self._pairs(span, ":", bare_keys=True)
@@ -459,13 +524,13 @@ class Evaluator:
 
     def _pairs(
         self, span: list[Token], separator: str, *, bare_keys: bool = False
-    ) -> tuple[tuple[str, Value], ...] | None:
+    ) -> list[_Pair] | None:
         if matching(span, 0) != len(span) - 1:
             return None
-        pairs: list[tuple[str, Value]] = []
+        pairs: list[_Pair] = []
         parts = split_top_level(span[1:-1])
         if not parts:
-            return ()
+            return []
         for part in parts:
             if not part:
                 continue
@@ -475,32 +540,33 @@ class Evaluator:
             if split is None:
                 if bare_keys and len(part) == 1 and part[0].kind == IDENT:
                     # `{ category }` shorthand: key and variable share a name.
-                    pairs.append((part[0].text, self.evaluate(part, field=part[0].text)))
+                    pairs.append((part[0].text, self.evaluate(part, field=part[0].text), ()))
                     continue
                 if part[0].is_punct("..."):
                     continue  # a spread adds keys nobody can see statically
                 return None
             key_tokens = part[:split]
             key = self._key(key_tokens, bare_keys)
-            value = self.evaluate(part[split + 1 :], field=key)
-            if key is not None:
-                pairs.append((key, value))
-        return tuple(pairs)
+            value = self.evaluate(part[split + 1 :], field=None if key is None else key.text)
+            if key is not None and key.text is not None:
+                pairs.append((key.text, value, key.constants))
+        return pairs
 
-    def _key(self, tokens: list[Token], bare_keys: bool) -> str | None:
+    def _key(self, tokens: list[Token], bare_keys: bool) -> Value | None:
+        """A dictionary key as a text value (with the constants it was read from), or None."""
         stripped = [token for token in tokens if not token.is_punct("@")]
         if len(stripped) == 1:
             token = stripped[0]
             if token.kind == STRING:
                 value = self._string(token, None)
-                return value.text if not value.interpolated else None
+                return value if not value.interpolated else None
             if bare_keys and token.kind == IDENT:
-                return token.text
+                return text(token.text)
         value = self.evaluate(stripped)
-        return value.text if value.kind == "text" and not value.interpolated else None
+        return value if value.kind == "text" and not value.interpolated else None
 
-    def _kotlin_pairs(self, inner: list[Token]) -> tuple[tuple[str, Value], ...] | None:
-        pairs: list[tuple[str, Value]] = []
+    def _kotlin_pairs(self, inner: list[Token]) -> list[_Pair] | None:
+        pairs: list[_Pair] = []
         parts = split_top_level(inner)
         if parts and not parts[-1]:
             parts = parts[:-1]  # a trailing comma: `mapOf("a" to x,)`
@@ -509,20 +575,31 @@ class Evaluator:
             if split is None:
                 return None
             key = self._key(part[:split], False)
-            if key is not None:
-                pairs.append((key, self.evaluate(part[split + 1 :], field=key)))
-        return tuple(pairs)
+            if key is not None and key.text is not None:
+                value = self.evaluate(part[split + 1 :], field=key.text)
+                pairs.append((key.text, value, key.constants))
+        return pairs
 
-    def _java_pairs(self, inner: list[Token]) -> tuple[tuple[str, Value], ...] | None:
+    def _java_pairs(self, inner: list[Token]) -> list[_Pair] | None:
         parts = split_top_level(inner)
         if len(parts) % 2:
             return None
-        pairs: list[tuple[str, Value]] = []
+        pairs: list[_Pair] = []
         for index in range(0, len(parts), 2):
             key = self._key(parts[index], False)
-            if key is not None:
-                pairs.append((key, self.evaluate(parts[index + 1], field=key)))
-        return tuple(pairs)
+            if key is not None and key.text is not None:
+                value = self.evaluate(parts[index + 1], field=key.text)
+                pairs.append((key.text, value, key.constants))
+        return pairs
+
+
+def _entries(pairs: list[_Pair]) -> Value:
+    """A dictionary literal's pairs as an ``entries`` value, each key's constants kept aside."""
+    return Value(
+        "entries",
+        entries=tuple((key, value) for key, value, _ in pairs),
+        key_constants=tuple((key, constants) for key, _, constants in pairs if constants),
+    )
 
 
 def _strip(span: list[Token]) -> list[Token]:
@@ -636,7 +713,7 @@ def _format_string(span: list[Token], language: str) -> list[Token] | None:
             and span[opening - 2].is_punct(".", "?.")
         ):
             receiver = span[: opening - 2]
-            if _has_operator(receiver):
+            if _has_operator(receiver, language):
                 return None
             if not receiver or not receiver[-1].is_ident("String"):
                 return receiver
@@ -687,18 +764,138 @@ def _opening(span: list[Token], close: int) -> int:
     return -1
 
 
-def _has_operator(span: list[Token]) -> bool:
-    """A choice, or an operator at ``span``'s top level: a binary one, ``=``, a lambda's arrow.
+def _has_operator(span: list[Token], language: str) -> bool:
+    """A choice, or an operator at ``span``'s top level.
 
-    The first token is none: a leading ``-`` or ``*`` is unary.
+    An operator is a binary one, ``=``, a lambda's arrow, a range, a
+    comparison ``<`` / ``>`` that does not bracket type arguments, or a word
+    operator (``_has_infix_word``). The first token is none: a leading ``-``
+    or ``*`` is unary. What stands inside type arguments is no operator
+    either: ``Class<*>``, ``Foo<A | B>``.
     """
     if not span:
         return False
-    return _is_choice(span) or any(
-        token.kind == PUNCT and token.text in _OPERATORS
+    if _is_choice(span):
+        return True
+    types = _type_arguments(span)
+    return any(
+        token.kind == PUNCT
+        and (token.text in _OPERATORS or token.text in ("<", ">") or _range_dots(span, index))
+        for index, token in _top_level(span)
+        if index > 0 and index not in types
+    ) or _has_infix_word(span, language, skip=types)
+
+
+def _range_dots(span: list[Token], index: int) -> bool:
+    """``span[index]`` is the first of the two touching dots of Kotlin's range ``a..b``."""
+    following = index + 1
+    return (
+        span[index].is_punct(".")
+        and following < len(span)
+        and span[following].is_punct(".")
+        and span[index].end == span[following].offset
+    )
+
+
+def _has_infix_word(span: list[Token], language: str, skip: frozenset[int]) -> bool:
+    """A word operator at ``span``'s top level, outside the indexes in ``skip``.
+
+    A word counts only right after an operand, so a variable that shares the
+    name stays a variable: ``to.format(z)`` and ``x.step.format(z)`` hold none,
+    ``a to b``, ``a zip b`` and Kotlin's ``a !in b`` and ``a!! to b`` hold one.
+    """
+    words = _INFIX_WORDS.get(language)
+    if words is None and language != "kotlin":
+        return False
+    return any(
+        token.kind == IDENT
+        and (token.text in words if words is not None else token.text not in _KOTLIN_NOT_INFIX)
+        and index not in skip
+        and _follows_operand(span, index)
         for index, token in _top_level(span)
         if index > 0
     )
+
+
+def _follows_operand(span: list[Token], index: int) -> bool:
+    """``span[index]`` comes right after an operand.
+
+    An operand ends in a name, a literal or a closing bracket, then any
+    number of ``!``: Kotlin's not-null ``a!!``, and the ``!`` that Kotlin
+    writes before ``in`` / ``is`` to negate them. A Kotlin annotation
+    (``@Keep``, ``@Suppress("x")``) ends the same way but is no operand.
+    """
+    before = index - 1
+    while before >= 0 and span[before].is_punct("!"):
+        before -= 1
+    if before < 0:
+        return False
+    token = span[before]
+    if not (token.kind in (IDENT, STRING, NUMBER) or token.is_punct(*_CLOSING)):
+        return False
+    return not _is_annotation(span, before)
+
+
+def _is_annotation(span: list[Token], end: int) -> bool:
+    """``span[end]`` ends an annotation: ``@Name``, ``@a.b.Name`` or ``@Name(…)``.
+
+    A label (``this@Outer``) has a name before its ``@``; an annotation has
+    none.
+    """
+    name = _opening(span, end) - 1 if span[end].is_punct(")") else end
+    while name >= 0 and span[name].kind == IDENT:
+        if name >= 2 and span[name - 1].is_punct("."):
+            name -= 2
+            continue
+        at = name - 1
+        return at >= 0 and span[at].is_punct("@") and (at == 0 or span[at - 1].kind != IDENT)
+    return False
+
+
+def _type_arguments(span: list[Token]) -> frozenset[int]:
+    """The indexes of ``span`` inside a top-level type-argument list, brackets included.
+
+    A ``<`` opens one when its ``>`` closes it over nothing but a type (names,
+    literals, bracketed groups and ``_TYPE_ARGUMENT_PUNCT``) and the list is
+    placed where type arguments go: before a call, a member, a reference, a
+    trailing lambda or an index (``listOf<String>(a)``, ``Foo<Bar>.NAME``,
+    ``run<String> { s }``, ``Foo<T>["k"]``), at the end, after a ``.``
+    (Java's ``Util.<String>pick(a)``), or opening the span (TypeScript's
+    ``<string>x``). Any other ``<`` or ``>`` is a comparison or a shift.
+
+    One pass pairs the brackets: a token no type holds closes every ``<``
+    still open, as none of them can be type arguments any more.
+    """
+    pairs: list[tuple[int, int]] = []
+    open_angles: list[int] = []
+    depth = 0
+    for index, token in enumerate(span):
+        if token.kind == PUNCT and token.text in _OPENING:
+            depth += 1
+        elif token.kind == PUNCT and token.text in _CLOSING:
+            depth -= 1
+        elif depth != 0:
+            continue
+        elif token.is_punct("<"):
+            open_angles.append(index)
+        elif token.is_punct(">"):
+            if open_angles:
+                pairs.append((open_angles.pop(), index))
+        elif token.kind == PUNCT and not token.is_punct(*_TYPE_ARGUMENT_PUNCT):
+            open_angles.clear()
+    inside: set[int] = set()
+    for opening, close in sorted(pairs):
+        if opening in inside:
+            continue
+        placed = (
+            opening == 0
+            or span[opening - 1].is_punct(".")
+            or close == len(span) - 1
+            or span[close + 1].is_punct(*_AFTER_TYPE_ARGUMENTS)
+        )
+        if placed:
+            inside.update(range(opening, close + 1))
+    return frozenset(inside)
 
 
 def _is_choice(span: list[Token]) -> bool:

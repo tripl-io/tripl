@@ -11,7 +11,8 @@ Layers, each importable without the ones after it:
 ``signatures`` a declaration's parameters, and whether one with no body declares.
 ``scopes``     named functions, their parameters and bodies (``--list``'s hints).
 ``values``     an argument's tokens -> a known string, a choice, a dict, or dynamic.
-``scan``       files -> call sites -> validation items (static mode).
+``lint``       the opt-in checks of names and keys that need no plan (``lint:``).
+``scan``     files -> call sites -> validation items (static mode).
 ``inventory``  the same scan, kept in full for ``--list``: what was read, and why not.
 ``payloads``   captured events -> validation items (payload mode).
 ``validate``   batching to ``POST /plan/validate`` and mapping verdicts back.
