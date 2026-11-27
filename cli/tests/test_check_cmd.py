@@ -1116,6 +1116,7 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "lint": bool,
     "summary": dict,
     "calls": list,
+    "suppressions": list,
     "forwarders": list,
     "unmatched": list,
 }
@@ -1153,6 +1154,7 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
         "lint": {},
+        "suppressions": {"markers": 0, "invalid": 0, "no_call": 0, "calls_covered": 0},
     }
     assert document["lint"] is False  # the config has no `lint:` section
     forwarding, formatted, shaped, sent = document["calls"]
@@ -1164,6 +1166,7 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "dynamic",
         "items",
         "lint",
+        "suppressions",
     }
     assert all(call["lint"] == [] for call in document["calls"])
     assert forwarding["location"] == {

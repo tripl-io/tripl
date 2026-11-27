@@ -578,11 +578,11 @@ class Screen {
     }
     fun promo(id: String) { analytics.logEvent(Events.PROMO.format(id), mapOf("id" to id)) }
     fun show() {
-        analytics.logEvent()
+        analytics.logEvent() // tripl-check-ignore[too_dynamic] -- filled in by the SDK
         logEvent("home_shown", bundle)
         wrap(Events.Name.Open)
     }
-}
+} // tripl-check-ignore[unknown_event]
 """
 
 
@@ -646,7 +646,14 @@ def test_every_sample_is_ascii(
     # section of calls that look like tracking has rows, not just its heading.
     assert main(["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")]) == 0
     listing = capsys.readouterr().out
-    for section in ("Why (call sites", "Functions that forward", "Calls that look like tracking"):
+    for section in (
+        "Why (call sites",
+        "Functions that forward",
+        "    tripl-check-ignore[too_dynamic] -- filled in by the SDK (line 11)\n",
+        "Suppression markers: 2 read, covering 1 call site.\n",
+        "Suppression ignored: app/Screen.kt:15 ",
+        "Calls that look like tracking",
+    ):
         assert section in listing
     assert "  1  wrap      constant  app/Screen.kt:13:9  wrap(Events.Name.Open)\n" in listing
     # Nor for discovery: it stopped at the cap, and said so.
