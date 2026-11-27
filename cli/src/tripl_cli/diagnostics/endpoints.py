@@ -26,6 +26,7 @@ from tripl_cli.api import (
     events,
     monitoring,
     plan_export,
+    plan_revisions,
     plan_validation,
     projects,
     scans,
@@ -133,6 +134,7 @@ PLAN_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "fields": (("get", event_types.FIELDS),),
     "variables": (("get", variables.LIST),),
     "branches": (("get", branches.LIST),),
+    "revisions": (("get", plan_revisions.LIST),),
     "search": (("get", search.SEARCH),),
 }
 

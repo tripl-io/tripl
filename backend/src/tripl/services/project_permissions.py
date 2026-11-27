@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 PLAN_EDIT = "plan.edit"
 PLAN_MERGE = "plan.merge"
+CHECK_RUNS_UPLOAD = "check_runs.upload"
 COMMENTS_WRITE = "comments.write"
 DOCS_EDIT = "docs.edit"
 METRICS_MANAGE = "metrics.manage"
@@ -48,6 +49,12 @@ PERMISSIONS: tuple[Permission, ...] = (
         "and their reviews, reconciliation.",
     ),
     Permission(PLAN_MERGE, "Merge branches", "Merge a branch into the plan, or revert a merge."),
+    Permission(
+        CHECK_RUNS_UPLOAD,
+        "Upload check runs",
+        "Recording tripl check runs (tripl check --upload). A check_upload API key may do it "
+        "with a viewer's role too.",
+    ),
     Permission(COMMENTS_WRITE, "Comment", "Comments on events, screenshots and branches."),
     Permission(DOCS_EDIT, "Edit docs", "The project's notes, folders, translations and sharing."),
     Permission(
@@ -81,6 +88,7 @@ _RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     for pattern, permission in (
         (r"^/branches/\{branch_id\}/(?:merge|revert)$", PLAN_MERGE),
         (r"/comments" + _SEGMENT, COMMENTS_WRITE),
+        (r"^/check-runs" + _SEGMENT, CHECK_RUNS_UPLOAD),
         (r"^/docs" + _SEGMENT, DOCS_EDIT),
         (
             r"^/(?:alert-destinations|alert-deliveries|alert-inbox|monitors|anomalies|signals"

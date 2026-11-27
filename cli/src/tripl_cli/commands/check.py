@@ -64,7 +64,9 @@ never changes the exit code.
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime) that no
 ``tripl-check-ignore`` marker suppresses (``check/suppress.py``) and that, under
-a gate, is new in the change; 2 for a bad config, a bad payload file, a bad
+a gate, is new in the change, and, with ``--strict-suppressions``, when a
+``tripl-check-ignore`` marker is malformed or waived nothing
+(``CheckReport.failing_markers``); 2 for a bad config, a bad payload file, a bad
 invocation, a change that cannot be read (no git, an unknown REF, an
 unreadable patch), or a config that matches no call
 at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
@@ -72,7 +74,7 @@ unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
 refuses the key is exit 1, with the reason on stderr. ``--list`` exits 0
 whenever the scan ran, a reader that closed the pipe early included, and 2 for
 a bad config or a flag it refuses (``--report``, ``--branch``, ``--strict``,
-``--allow-empty``, and a ``--format`` other than text or JSON).
+``--strict-suppressions``, ``--allow-empty``, and a ``--format`` other than text or JSON).
 
 ``--check-config`` rather than ``--config``: ``--config`` is already the global
 flag naming the CLI's own connection settings file, on every command.
@@ -88,14 +90,15 @@ import stat
 import sys
 import time
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, NoReturn, TextIO
 
 import httpx
 
+from tripl_cli.api import check_runs as check_runs_api
 from tripl_cli.api import event_types as event_types_api
 from tripl_cli.api import events as events_api
 from tripl_cli.check import baseline as baseline_mod
@@ -105,8 +108,10 @@ from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
 from tripl_cli.check import summary as summary_mod
+from tripl_cli.check import upload as upload_mod
 from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
 from tripl_cli.check.inventory import inventory
+from tripl_cli.check.lint import lint_items
 from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import (
     BASELINE_CHECK,
@@ -126,6 +131,7 @@ from tripl_cli.check.model import (
     PlanBranchComparison,
     PlanPin,
     SkippedFile,
+    UploadOutcome,
 )
 from tripl_cli.check.presets import PRESETS, preset_yaml
 from tripl_cli.check.render import nothing_matched, render_text, sarif_document
@@ -148,7 +154,8 @@ from tripl_cli.install.shell import Runner, subprocess_runner
 from tripl_cli.model import JsonDict, JsonList, Run, as_list, page_items, page_total, to_rfc3339
 from tripl_cli.render import plural, render_header
 from tripl_cli.report import check_document, check_list_document
-from tripl_cli.runner import run_gate
+from tripl_cli.runner import run_async, run_gate
+from tripl_cli.streams import silence, write_failure
 
 FORMAT_TEXT = "text"
 FORMAT_JSON = "json"
@@ -179,7 +186,9 @@ class _PrintPreset(argparse.Action):
     it prints its YAML even with ``--json``, and leaves ``--report`` files
     alone. An unknown NAME is argparse's own invalid choice, which lists them.
     It prints the way ``--list`` does, so a reader that left early
-    (``| true``) ends the output, and the exit is still 0.
+    (``| true``) ends the output, and the exit is still 0; a stdout that cannot
+    be written at all (``> /dev/full``) is one line and exit 1, which
+    ``cli.main`` reports because it parses the arguments inside its own try.
     """
 
     def __call__(
@@ -216,8 +225,9 @@ def register(
             "fail the run; with --baseline, only findings the baseline file does not hold "
             "(write it with --write-baseline). "
             "Exits 1 on any error (or warning, with --strict) that is not suppressed (and, "
-            "with a gate, is new in the change, and with a baseline, is not in it), 4 when "
-            "the instance was unavailable."
+            "with a gate, is new in the change, and with a baseline, is not in it), and, "
+            "with --strict-suppressions, on a tripl-check-ignore marker that is malformed "
+            "or suppresses nothing; 4 when the instance was unavailable."
         ),
     )
     add_check_config(parser)
@@ -313,14 +323,24 @@ def register(
         metavar="ID",
         help=(
             "validate against the stored plan revision ID instead of the live plan, so the "
-            "verdicts do not change when the plan does; overrides `revision` in the check "
-            f"config, and {REVISION_LIVE} unpins it for this run"
+            "verdicts do not change when the plan does (`tripl plan revisions` lists the ids); "
+            f"overrides `revision` in the check config, and {REVISION_LIVE} unpins it for this run"
         ),
     )
     parser.add_argument(
         "--strict",
         action="store_true",
         help="exit 1 on warnings too, and report values that are only known at runtime",
+    )
+    parser.add_argument(
+        "--strict-suppressions",
+        dest="strict_suppressions",
+        action="store_true",
+        help=(
+            "exit 1 on a tripl-check-ignore marker that is malformed or that suppressed "
+            "nothing in this run; with --new-from-rev or --new-from-patch, only in the "
+            "files the change touches"
+        ),
     )
     parser.add_argument(
         "--format",
@@ -360,6 +380,25 @@ def register(
             "also list the planned events (status "
             f"{', '.join(coverage_mod.COVERED_STATUSES)}) that no scanned call sends; "
             "never changes the exit code"
+        ),
+    )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help=(
+            "also record this run in tripl under its commit, ref, repository and pipeline, "
+            "read from GitLab CI or GitHub Actions variables; a run on the default branch "
+            "becomes what 'used in code' shows on each event, any other goes to the history; "
+            "a failed upload is a warning and never changes the exit code"
+        ),
+    )
+    parser.add_argument(
+        "--default-branch",
+        dest="default_branch",
+        metavar="NAME",
+        help=(
+            "with --upload: the repository's default branch, instead of the one the CI "
+            "names (CI_DEFAULT_BRANCH, or the GitHub event's repository)"
         ),
     )
     add_json(parser)
@@ -538,6 +577,11 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
             "--strict changes what fails a check, and --list checks nothing (it already "
             "lists every value the scan could not read); drop --strict."
         )
+    if args.strict_suppressions:
+        return (
+            "--strict-suppressions fails a check on its markers, and --list checks nothing; "
+            "drop --strict-suppressions."
+        )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
     if args.revision is not None:
@@ -549,6 +593,9 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
             "--coverage compares the scan with the plan, and --list sends nothing; "
             "run tripl check --coverage without --list."
         )
+    if args.upload or args.default_branch is not None:
+        flag = "--upload" if args.upload else "--default-branch"
+        return f"{flag} records a check's verdicts, and --list checks nothing; drop {flag}."
     gate = _gate_flag(args) or _baseline_flag(args)
     if gate == "--write-baseline":
         return "--write-baseline records a check's findings, and --list checks nothing; drop it."
@@ -600,32 +647,35 @@ def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
 
     The human lines beside the JSON document (``primary`` false: stderr under
     ``--json``) end the same way on any failure to write them, a full disk
-    included, so the document still reaches stdout. On the primary output any
-    other failure is one.
+    included, so the document still reaches stdout. On the primary output,
+    which is always stdout, any other failure (``> /dev/full``) fails the run
+    with one line and exit 1: what was asked for did not get out.
     """
     if stream is None:
         return
-    try:
+    with _writing(stream, primary=primary):
         _say(text, stream)
+
+
+@contextlib.contextmanager
+def _writing(stream: TextIO, *, primary: bool = True) -> Iterator[None]:
+    """Write to ``stream`` in the block and flush it, on ``_emit``'s terms.
+
+    The flush is here so a failure surfaces inside the run, where it can still
+    fail the run (and remove its reports), rather than in the interpreter's
+    flush at exit.
+    """
+    try:
+        yield
         stream.flush()
     except BrokenPipeError:
-        _silence(stream)
-    except OSError:
+        silence(stream)
+    except OSError as exc:
+        # Silenced either way, so the text still in the buffer cannot fail
+        # again when the interpreter flushes at exit.
+        silence(stream)
         if primary:
-            raise
-        _silence(stream)
-
-
-def _silence(stream: TextIO) -> None:
-    try:
-        descriptor = stream.fileno()
-    except (OSError, ValueError):
-        return  # not backed by a file (a test's stream), so no flush at exit reaches one
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    try:
-        os.dup2(devnull, descriptor)
-    finally:
-        os.close(devnull)
+            raise TriplError(write_failure(exc)) from exc
 
 
 def _gate_flag(args: argparse.Namespace) -> str | None:
@@ -760,6 +810,7 @@ def _change(
         unreconstructable=marking.unreconstructable,
         unmapped=marking.unmapped,
         untracked=marking.untracked,
+        whole=marking.whole,
     )
     return info, marking.changed, marking.base
 
@@ -771,7 +822,13 @@ def default_runner() -> Runner:
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
-    refusal = _gate_refusal(args) or _baseline_refusal(args, targets) or _coverage_refusal(args)
+    refusal = (
+        _gate_refusal(args)
+        or _baseline_refusal(args, targets)
+        or _coverage_refusal(args)
+        or _upload_refusal(args)
+        or _suppressions_refusal(args)
+    )
     if refusal is not None:
         raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
@@ -802,6 +859,8 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             "--coverage reads the events of the live plan, and this run is pinned to plan "
             f"revision {pin}; run it with --revision {REVISION_LIVE}."
         )
+    # Before the scan and any request: an upload that cannot happen stops the run.
+    ci = _upload_context(args, selector, pin)
     answered: list[JsonDict] = []
     files = 0
     skipped: tuple[SkippedFile, ...] = ()
@@ -809,6 +868,9 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     items: tuple[CheckItem, ...]
     if args.payloads is not None:
         items = tuple(payloads_mod.load(args.payloads, allow_empty=args.allow_empty))
+        if check_config is not None:
+            # The captured names and keys get the same lint as a static scan's.
+            items = tuple(lint_items(items, check_config.lint))
     else:
         assert check_config is not None  # raised above when missing
         outcome = scan_mod.scan(check_config)
@@ -918,15 +980,40 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         coverage=covered,
         changes=compared,
         plan=_plan_pin(pin, answered),
+        # --write-baseline records the findings and exits 0 unless a call got no
+        # verdict; a baseline cannot hold a marker, so a marker must not fail it.
+        strict_suppressions=args.strict_suppressions and args.write_baseline is None,
     )
     report, written = _with_baseline(args, report, baseline)
+    uploaded: str | None = None
+    if ci is not None:
+        # Before the reports, so the JSON document can say what it did; its
+        # stderr line waits for the end, after the run's own output.
+        recorded, uploaded = _upload(
+            config,
+            context.reader,
+            project,
+            report,
+            ci,
+            check_root=upload_mod.check_directory(
+                scan_root, repo_root, check_config.path if check_config is not None else None
+            ),
+            timeout=args.timeout,
+        )
+        report = replace(report, upload=recorded)
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.
     # The baseline last, so a run that fails writing a report leaves it alone.
-    for report_format, path in targets:
-        _write(path, _render(report_format, report, scan_root))
-    if written is not None:
-        _write(Path(written[0]), written[1], what="baseline")
+    try:
+        for report_format, path in targets:
+            _write(path, _render(report_format, report, scan_root))
+        if written is not None:
+            _write(Path(written[0]), written[1], what="baseline")
+    except TriplError:
+        # tripl has the run already: say so before the error that ends it.
+        if uploaded is not None:
+            _emit(uploaded, sys.stderr, primary=False)
+        raise
     human = sys.stdout if output == FORMAT_TEXT else sys.stderr
     source = config.sources.get("base_url", "unknown")
     lines = [render_header("check", context.base_url, source), ""]
@@ -939,9 +1026,112 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
     # SECONDARY stream, and a closed or full stderr (2>&-, 2>/dev/full) must not
     # end the run before the document reaches stdout.
     _emit("\n".join(lines), human, primary=output == FORMAT_TEXT)
-    if output != FORMAT_TEXT:
-        sys.stdout.write(_render(output, report, scan_root))
+    if output != FORMAT_TEXT and sys.stdout is not None:
+        # Flushed here, not at exit: a document that cannot be written fails
+        # the run and removes its reports, as the text summary does.
+        try:
+            with _writing(sys.stdout):
+                sys.stdout.write(_render(output, report, scan_root))
+        except TriplError:
+            # tripl has the run already: say so before the error that ends it.
+            if uploaded is not None:
+                _emit(uploaded, sys.stderr, primary=False)
+            raise
+    if uploaded is not None:
+        _emit(uploaded, sys.stderr, primary=False)
     return report.exit_code
+
+
+def _upload_refusal(args: argparse.Namespace) -> str | None:
+    """Why ``--upload`` or ``--default-branch`` cannot do what it says; None when it can."""
+    if args.default_branch is not None and not args.upload:
+        return (
+            "--default-branch says which runs --upload records as the default branch's, "
+            "and there is no --upload; pass --upload, or drop --default-branch."
+        )
+    if args.upload and args.payloads is not None:
+        return (
+            "--upload records where the code sends each event, and captured events are not "
+            "in the code; drop --upload."
+        )
+    return None
+
+
+def _upload_context(
+    args: argparse.Namespace, branch: str | None, pin: str | None
+) -> upload_mod.CiContext | None:
+    """The CI's account of this run when it is to be uploaded; None without ``--upload``.
+
+    Refused for a run against anything but the live plan: a plan branch or a
+    pinned revision, from a flag or from the committed check config. What the
+    run records is where the code sends each event of the plan analysts see,
+    and the event ids of another plan are not that.
+    """
+    if not args.upload:
+        return None
+    if branch is not None:
+        _refuse_upload(
+            f"this run checks plan branch {branch!r} (--branch, or `branch` in the check "
+            "config); drop the branch for the run you upload"
+        )
+    if pin is not None:
+        _refuse_upload(
+            f"this run is pinned to plan revision {pin} (--revision, or `revision` in the "
+            f"check config); run it with --revision {REVISION_LIVE}"
+        )
+    return upload_mod.ci_context(os.environ, default_branch=args.default_branch)
+
+
+def _refuse_upload(why: str) -> NoReturn:
+    raise TriplConfigError(f"--upload records a run against the live plan, and {why}.")
+
+
+def _upload(
+    config: Config,
+    reader_of: Callable[[httpx.AsyncClient], Reader],
+    project: str,
+    report: CheckReport,
+    ci: upload_mod.CiContext,
+    *,
+    check_root: str,
+    timeout: float,
+) -> tuple[UploadOutcome, str]:
+    """Send the finished run: what it recorded, or why it did not, and the stderr line saying so.
+
+    The verdicts are this run's whatever the upload does, so a failed upload
+    is a warning (and ``ok: false`` in the JSON document) and the exit code
+    stays the check's.
+    """
+    body = upload_mod.run_body(report, ci, check_root)
+    calls = len(body["calls"])
+    if calls > check_runs_api.MAX_CALLS:
+        reason = (
+            f"the run has {calls} calls, and tripl records at most "
+            f"{check_runs_api.MAX_CALLS} per run"
+        )
+        return _not_uploaded(ci, check_root, calls, reason)
+
+    async def send(client: httpx.AsyncClient) -> object:
+        return await reader_of(client).send(check_runs_api.upload(project, body))
+
+    # Not ``run_gate``: its outage message says nothing was checked (exit 4),
+    # and here the check has run and its exit code stands.
+    try:
+        answer = run_async(config, send, timeout=timeout)
+    except TriplError as exc:
+        return _not_uploaded(ci, check_root, calls, str(exc).rstrip("."))
+    recorded = upload_mod.outcome(ci, check_root, calls, answer=answer)
+    line = upload_mod.uploaded_line(ci, calls, check_root=check_root, current=recorded.current)
+    return recorded, line
+
+
+def _not_uploaded(
+    ci: upload_mod.CiContext, check_root: str, calls: int, reason: str
+) -> tuple[UploadOutcome, str]:
+    return (
+        upload_mod.outcome(ci, check_root, calls, error=reason),
+        f"Not uploaded: {reason}. The check result stands.",
+    )
 
 
 def _pinned_revision(
@@ -967,7 +1157,8 @@ def _pinned_revision(
     except ValueError:
         raise TriplConfigError(
             f"{source} is not a plan revision id: {raw!r}. Use the id of a revision of the "
-            f"project (its History page lists them), or {REVISION_LIVE} for the live plan."
+            f"project (`tripl plan revisions` and its History page list them), or "
+            f"{REVISION_LIVE} for the live plan."
         ) from None
     if branch is not None:
         raise TriplConfigError(
@@ -1062,6 +1253,16 @@ async def _coverage(
     events = await _planned_events(reader, project, branch)
     scanned = (spec.name for spec in check_config.event_types if spec.calls)
     return coverage_mod.build(events, type_names, scanned, results)
+
+
+def _suppressions_refusal(args: argparse.Namespace) -> str | None:
+    if args.strict_suppressions and args.payloads is not None:
+        return (
+            "--strict-suppressions fails a check on the tripl-check-ignore markers in the "
+            "source, and a captured event has no source to hold one; drop "
+            "--strict-suppressions."
+        )
+    return None
 
 
 def _with_baseline(

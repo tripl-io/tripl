@@ -31,8 +31,16 @@ from tripl_cli.check import inventory as inventory_module
 from tripl_cli.check import yamlish
 from tripl_cli.check.calls import closers, find_calls, matching
 from tripl_cli.check.config import CheckConfig, parse
-from tripl_cli.check.inventory import Inventory, ListedCall, Location, inventory, summarize
+from tripl_cli.check.inventory import (
+    ForwardedParameter,
+    Inventory,
+    ListedCall,
+    Location,
+    inventory,
+    summarize,
+)
 from tripl_cli.check.lexer import STRING, Interp, Token, tokenize
+from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import REASON_CODES, CheckItem
 from tripl_cli.check.scan import Snapshot, base_items, glob_regex, scan
 from tripl_cli.check.scopes import FunctionScope, ScopeIndex
@@ -1334,15 +1342,13 @@ def test_a_dynamic_target_with_no_dynamic_value_says_why(tmp_path: Path) -> None
         {"name": "not_passed"},
         {"name": "not_passed"},
     ]
-    # The object argument is kept, as the evaluator read it: it is why nothing was.
+    # The object argument is kept: it is why nothing was. At the top level of
+    # a file no function explains it, so its reason is the evaluator's own.
     objects = [call.read.unread_object for call in found.calls]
     assert objects[:2] == [None, None]
     assert objects[2] is not None
-    assert (objects[2].kind, objects[2].reason, objects[2].expression) == (
-        "dynamic",
-        "variable",
-        "props",
-    )
+    assert (objects[2].value.kind, objects[2].value.expression) == ("dynamic", "props")
+    assert (objects[2].reason, objects[2].declared) == ("variable", None)
 
 
 def test_every_dynamic_target_has_exactly_one_reason(tmp_path: Path) -> None:
@@ -1459,8 +1465,20 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
             }
             """,
         ),
+        # An interface method with untyped parameters reads exactly like a call.
+        (
+            "web/tracking.ts",
+            """
+            export interface Tracker {
+              track(event, screen);
+            }
+            export function open() {
+              track("screen_view", "home");
+            }
+            """,
+        ),
     ],
-    ids=["kotlin", "java"],
+    ids=["kotlin", "java", "ts-interface"],
 )
 def test_a_function_declaration_is_not_sent_as_a_call(
     tmp_path: Path, path: str, source: str
@@ -1488,6 +1506,38 @@ def test_a_function_declaration_is_not_sent_as_a_call(
     ]
     # --list agrees: one call site, the real one.
     assert [call.items[0].name for call in inventory(config).calls] == ["screen_view"]
+
+
+def test_jsx_text_that_says_interface_does_not_hide_a_call(tmp_path: Path) -> None:
+    """UI copy with the word ``interface`` before a ``{…}`` child is no interface.
+
+    Read as one, the call that starts the child would be a method declaration,
+    and plain check would drop it without a word.
+    """
+    root = _repo(
+        tmp_path,
+        {
+            "web/Banner.tsx": """
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            """
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name, "field:screen"]}]}
+        """,
+    )
+
+    items = scan(config).items
+
+    assert [(item.name, dict(item.fields)) for item in items] == [
+        ("banner_seen", {"screen": "home"})
+    ]
 
 
 # --- function scopes -----------------------------------------------------------------
@@ -1939,6 +1989,65 @@ def _bodiless(language: str, source: str) -> list[str]:
                 "declare function track(event: string)",
                 "export function format(event: string)",
             ],
+        ),
+        # An interface holds no calls, so a method in its body declares with
+        # no type, modifier or `;`. Its `{` closing ends that: a call after
+        # the interface, or in an object type, is still not a declaration.
+        (
+            "ts",
+            """
+            export interface Tracker<T extends { id: string }> extends Base<T>, Other {
+              trackEvent(name, props);
+              flush()
+              send<E>(event)
+              log?(event);
+              delete(key)
+              options: {
+                emit(name);
+              };
+              handler: (name) => void;
+            }
+            declare global {
+              interface Window {
+                trackPage(page);
+              }
+            }
+            type Api = { emit(name); };
+            const tracker = { send(name) { trackEvent(name); } };
+            function relay(event: string) {
+              trackEvent(name, props);
+              config.interface(name)
+            }
+            """,
+            [
+                "trackEvent(name, props)",
+                "flush()",
+                "send<E>(event)",
+                "log?(event)",
+                "delete(key)",
+                "trackPage(page)",
+            ],
+        ),
+        # A header of any length still opens an interface body, and an untyped
+        # construct signature declares there too. The word `interface` in JSX
+        # text starts no declaration, so the call in the `{…}` after it stays a
+        # call, whatever follows the word.
+        (
+            "ts",
+            "export interface Wide extends "
+            + ", ".join(f"Base{number}<T>" for number in range(40))
+            + """ {
+              track(name, props);
+              new(config);
+            }
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            export function Reset() {
+              return <p>Reset interface layout {logEvent("reset_shown")}</p>;
+            }
+            """,
+            ["track(name, props)", "new(config)"],
         ),
     ],
 )
@@ -2439,6 +2548,12 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
                     fun property(kEvent: Event) {
                         analytics.logEvent(kEvent.name)
                     }
+                    fun upperPath(EVENT: E) {
+                        analytics.logEvent(EVENT.name)
+                    }
+                    fun typed(event: Event) {
+                        analytics.logEvent(Event.NAME)
+                    }
                     fun local() {
                         val SCREEN = pick()
                         analytics.logEvent(SCREEN)
@@ -2460,7 +2575,10 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
         # A parameter hides a constant of its name, whatever its case.
         {"name": ("parameter", "log", 2)},
         {"name": ("parameter", "upper", 5)},
-        # A bare name only: one of more segments stays a constant's.
+        # A longer path through it is a property of that parameter.
+        {"name": ("parameter_property", "property", 8)},
+        {"name": ("parameter_property", "upperPath", 11)},
+        # The head must be the parameter's exact name: its type's stays a constant.
         {"name": ("unknown_constant", None, None)},
         # Never a local, which may be one a block declared (the test below).
         {"name": ("unknown_constant", None, None)},
@@ -2780,6 +2898,7 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
             "web/tracker.ts": """
                 export interface Tracker {
                   trackEvent(name: string, props: object);
+                  logEvent(name, params);
                 }
                 tracker.trackEvent("shown", {});
             """,
@@ -3411,3 +3530,219 @@ def test_base_items_reads_the_snapshot_in_place_of_the_tree(tmp_path: Path) -> N
         ("src/added.ts", "brand_new"),
         ("src/renamed.ts", None),
     }
+
+
+# --- a parameter passed on as the object argument -----------------------------------
+OBJECT_SPECS = """
+    project: demo
+    event_types:
+      se: {preset: snowplow_structured}
+      ev:
+        calls:
+          - {function: "track", positional: [name], object_arg: 1}
+"""
+
+
+def _objects(found: Inventory) -> list[tuple[str, str, int] | tuple[str] | None]:
+    """Per call, its unread object argument: the reason, and the function and line it names."""
+    listed: list[tuple[str, str, int] | tuple[str] | None] = []
+    for call in found.calls:
+        unread = call.read.unread_object
+        if unread is None:
+            listed.append(None)
+        elif unread.declared is None:
+            listed.append((unread.reason,))
+        else:
+            listed.append((unread.reason, unread.declared.function, unread.declared.line))
+    return listed
+
+
+def test_a_function_that_passes_its_parameter_on_as_the_object_is_a_forwarder(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/t.ts": """
+                export function send(evt: StructuredEvent) {
+                  trackStructEvent(evt);
+                }
+                export function inner(evt: Wrapper) {
+                  trackStructEvent(evt.inner);
+                }
+                export function built() {
+                  const made = build();
+                  trackStructEvent(made);
+                }
+                export function constant(EVT: StructuredEvent) {
+                  trackStructEvent(EVT);
+                }
+                export function both(name: string, props: Props) {
+                  track(name, props);
+                  track("opened", props);
+                }
+                trackStructEvent(loose);
+            """,
+            "web/use.ts": """
+                send({ category: "checkout", action: "tap" });
+                send(other);
+            """,
+        },
+    )
+    found = inventory(_config(root, OBJECT_SPECS))
+    # The object argument is explained from the function the call sits in, as
+    # a target's value is. A parameter named like a constant is that parameter.
+    assert _objects(found) == [
+        ("parameter", "send", 1),
+        ("parameter_property", "inner", 4),
+        ("local", "built", 8),
+        ("parameter", "constant", 11),
+        ("parameter", "both", 14),
+        ("parameter", "both", 14),
+        ("variable",),
+    ]
+    # The reason stays `not_passed`, on the name: the counts do not move.
+    assert _dynamic_reasons(found)[:4] == [{"name": "not_passed"}] * 4
+    assert _dynamic_reasons(found)[4:] == [{"name": "parameter"}, {}, {"name": "not_passed"}]
+    # Only a bare parameter makes a forwarder: a property of one is set where
+    # its object is built, and a local is not the callers' to give.
+    forwarders = {forwarder.function: forwarder for forwarder in found.forwarders}
+    assert sorted(forwarders) == ["both", "constant", "send"]
+    assert forwarders["send"].parameters == (
+        ForwardedParameter("evt", 0, None, (), object_argument=True),
+    )
+    assert forwarders["constant"].parameters == (
+        ForwardedParameter("EVT", 0, None, (), object_argument=True),
+    )
+    # One parameter as the name, another as the object; two calls forward one.
+    assert forwarders["both"].parameters == (
+        ForwardedParameter("name", 0, None, ("name",)),
+        ForwardedParameter("props", 1, None, (), object_argument=True),
+    )
+    assert forwarders["both"].calls == 2
+    # Its callers are counted like any forwarder's, and it is listed first.
+    assert found.forwarders[0].function == "send"
+    callers = forwarders["send"].callers
+    assert (callers.same_file, callers.other_files, callers.other_files_matched) == (0, 2, 0)
+    assert callers.first_unmatched == Location("web/use.ts", 1, 1)
+
+
+def test_an_initializer_that_passes_its_parameter_on_as_the_object_is_listed_by_its_type(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/page.ts": """
+                export class PageView {
+                  constructor(evt: StructuredEvent) {
+                    trackStructEvent(evt);
+                  }
+                }
+                export const Untyped = class {
+                  constructor(evt: StructuredEvent) {
+                    trackStructEvent(evt);
+                  }
+                }
+                new PageView({ category: "page", action: "view" });
+            """,
+        },
+    )
+    found = inventory(_config(root, OBJECT_SPECS))
+    assert _objects(found) == [("parameter", "constructor", 2), ("parameter", "constructor", 7)]
+    # Under the name its callers write; one in an anonymous class has none.
+    [forwarder] = found.forwarders
+    assert (forwarder.function, forwarder.location) == ("PageView", Location("web/page.ts", 2))
+    assert forwarder.parameters == (ForwardedParameter("evt", 0, None, (), object_argument=True),)
+    assert forwarder.callers.same_file == 1
+
+
+def test_an_object_forwarder_in_each_language_carries_the_label_its_callers_write(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "ios/A.swift": """
+                func send(evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func plain(_ evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func renamed(with evt: [String: Any]) {
+                    logObj(evt)
+                }
+                func use() {
+                    send(evt: ["name": "x"])
+                    plain(["name": "y"])
+                }
+            """,
+            "app/K.kt": """
+                fun sendK(evt: Map<String, Any>) { logObj(evt) }
+                fun useK() {
+                    sendK(mapOf("name" to "y"))
+                    sendK(evt = mapOf("name" to "z"))
+                }
+            """,
+            "app/J.java": """
+                class J {
+                    void sendJ(Map<String, Object> evt) { logObj(evt); }
+                }
+            """,
+            "o/A.m": """
+                @implementation A
+                - (void)send:(NSDictionary *)evt {
+                    logObj(evt);
+                }
+                void cfun(NSDictionary *evt) {
+                    logObj(evt);
+                }
+                @end
+            """,
+        },
+    )
+    specs = """
+        project: demo
+        event_types:
+          ev:
+            calls:
+              - {function: "logObj", object_arg: 0, args: {name: name}}
+              - {function: "send", object_arg: 0, args: {name: name}}
+              - {function: "plain", object_arg: 0, args: {name: name}}
+              - {function: "sendK", object_arg: 0, args: {name: name}}
+    """
+    found = inventory(_config(root, specs))
+    forwarders = {forwarder.function: forwarder.parameters for forwarder in found.forwarders}
+    # The label is what a caller may write: Swift's external one (none for
+    # `_`), the name itself in Kotlin, none in Java and C. An Objective-C
+    # method is no function to the scan, so it is not listed.
+    assert forwarders == {
+        "send": (ForwardedParameter("evt", 0, "evt", (), object_argument=True),),
+        "plain": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+        "renamed": (ForwardedParameter("evt", 0, "with", (), object_argument=True),),
+        "sendK": (ForwardedParameter("evt", 0, "evt", (), object_argument=True),),
+        "sendJ": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+        "cfun": (ForwardedParameter("evt", 0, None, (), object_argument=True),),
+    }
+    # `object_arg` reads the argument only where it is written without a label.
+    names = {
+        (call.origin.snippet, None if call.read.name is None else call.read.name.value.text)
+        for call in found.calls
+        if call.origin.snippet != "logObj"
+    }
+    assert names == {("send", None), ("plain", "y"), ("sendK", "y"), ("sendK", None)}
+    # So the row of a function whose callers may label it says which calls a
+    # call spec for it will not read.
+    rows = {
+        line.split()[0]: line
+        for line in render_listing(found, config=None).splitlines()
+        if " forwards " in line
+    }
+    note = "as the object argument (object_arg does not read an argument labelled {})  "
+    assert note.format("evt") in rows["send"]
+    assert note.format("with") in rows["renamed"]
+    assert note.format("evt") in rows["sendK"]
+    for function in ("plain", "sendJ", "cfun"):
+        assert "as the object argument  " in rows[function]
+        assert "labelled" not in rows[function]
