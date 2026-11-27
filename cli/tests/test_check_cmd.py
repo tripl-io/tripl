@@ -1658,10 +1658,14 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1, "type": None}},
         None,
         None,
-        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+        {
+            **unread,
+            "expression": "props",
+            "declared": {"function": "opened", "line": 8, "type": None},
+        },
     ]
     assert [
         (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
