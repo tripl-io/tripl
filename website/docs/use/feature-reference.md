@@ -1337,7 +1337,8 @@ directory. Runs other than the current ones are deleted after 90 days (see
 `{repository_url}/-/blob/{commit}/{path}#L{line}` for GitLab. It may name
 `{repository_url}`, `{repository}`, `{ref}`, `{commit}`, `{path}` and
 `{line}`, must name `{path}`, and must be an `http(s)` address whose host is
-written out (or that starts with `{repository_url}`). The field shows an
+written out (or that starts with `{repository_url}` and then `/`, `?` or
+`#`). The field shows an
 example link as you type. An editor changes it, with the Save bar at the top
 of the page; a viewer sees it read-only. Emptying it goes back to plain text.
 

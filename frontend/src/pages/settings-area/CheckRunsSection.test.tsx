@@ -75,20 +75,22 @@ const RUNS = [
   run({ id: 'run-ios', repository: 'shop/apps', check_root: 'apps/ios', is_current: true }),
 ]
 
-function renderSection(canMutate = true) {
+function renderSection(canMutate = true, slug = 'demo') {
   vi.mocked(projectsApi.get).mockResolvedValue(project(canMutate))
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const tree = (current: string) => (
     <QueryClientProvider client={client}>
       <AuthContext.Provider value={authAs('member', 'u-1')}>
         <MemoryRouter>
-          <CheckRunsSection slug="demo" />
+          <CheckRunsSection slug={current} />
         </MemoryRouter>
       </AuthContext.Provider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  const view = render(tree(slug))
+  return { ...view, switchTo: (next: string) => view.rerender(tree(next)) }
 }
 
 beforeEach(() => {
@@ -123,7 +125,7 @@ describe('Project · Check runs', () => {
       'https://git.example.com/shop/web/-/pipelines/7',
     )
     expect(within(current).getByText('12')).toBeInTheDocument()
-    expect(within(current).getByText('1 error, 2 warning')).toBeInTheDocument()
+    expect(within(current).getByText('1 error, 2 warnings')).toBeInTheDocument()
     expect(within(current).getByText('Current')).toBeInTheDocument()
 
     expect(within(mergeRequest).getByText('feature/cart')).toBeInTheDocument()
@@ -215,6 +217,57 @@ describe('Project · Check runs', () => {
     await waitFor(() => expect(input).toHaveValue('https://git.example.com/{path}'))
     await waitFor(() => expect(input).toHaveAttribute('readonly'))
     expect(screen.queryByRole('button', { name: /Save changes/ })).toBeNull()
+  })
+
+  it('starts afresh on another project: no draft template and no filters carry over', async () => {
+    const { switchTo } = renderSection(true, 'alpha')
+    await screen.findByRole('table')
+    fireEvent.change(await screen.findByLabelText('Repository URL template'), {
+      target: { value: 'https://alpha.example.com/{path}' },
+    })
+    fireEvent.change(screen.getByLabelText('Repository'), { target: { value: 'shop/web' } })
+    await waitFor(() =>
+      expect(checkRunsApi.list).toHaveBeenLastCalledWith(
+        'alpha',
+        { repository: 'shop/web', checkRoot: undefined, offset: 0, limit: 50 },
+        expect.anything(),
+      ),
+    )
+
+    switchTo('beta')
+
+    await waitFor(() =>
+      expect(checkRunsApi.list).toHaveBeenLastCalledWith(
+        'beta',
+        { repository: undefined, checkRoot: undefined, offset: 0, limit: 50 },
+        expect.anything(),
+      ),
+    )
+    await waitFor(() => expect(screen.getByLabelText('Repository URL template')).toHaveValue(''))
+    expect(screen.getByLabelText('Repository')).toHaveValue('')
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+  })
+
+  it('steps back to the last page when the page shown no longer has runs', async () => {
+    const full = Array.from({ length: 50 }, (_, index) => run({ id: `run-${index}` }))
+    vi.mocked(checkRunsApi.list).mockImplementation(async (_slug, params) =>
+      // The 51st run was cleaned up between the two pages.
+      (params?.offset ?? 0) === 0 ? { items: full, total: 51 } : { items: [], total: 50 },
+    )
+    renderSection()
+    await screen.findByRole('table')
+
+    fireEvent.click(screen.getByRole('button', { name: /Older/ }))
+
+    await waitFor(() =>
+      expect(checkRunsApi.list).toHaveBeenLastCalledWith(
+        'demo',
+        { repository: undefined, checkRoot: undefined, offset: 0, limit: 50 },
+        expect.anything(),
+      ),
+    )
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.queryByText('No check runs yet')).toBeNull()
   })
 
   it('says how to upload when no run was ever uploaded', async () => {

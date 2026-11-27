@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import posixpath
 import re
+import unicodedata
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
@@ -263,9 +264,10 @@ def code_url_template(value: str | None) -> str | None:
     """A link template that fills in to an http(s) URL, or None to show plain text.
 
     It names only :data:`CODE_URL_PLACEHOLDERS`, must name ``{path}``, and has
-    no whitespace or control character. It starts with ``http://`` or
-    ``https://`` and a host written out, or with ``{repository_url}`` (the
-    address a run uploaded, which is http(s) too), and filled in with sample
+    no whitespace, control or invisible format character. It starts with
+    ``http://`` or ``https://`` and a host written out, or with
+    ``{repository_url}`` followed by ``/``, ``?`` or ``#`` (the address a run
+    uploaded, which is http(s) too), and filled in with sample
     values it reads as an http(s) URL with a host.
     """
     if value is None:
@@ -273,8 +275,10 @@ def code_url_template(value: str | None) -> str | None:
     trimmed = value.strip()
     if not trimmed:
         return None
-    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in trimmed):
-        raise ValueError("must not contain spaces or control characters")
+    # Category C covers control, format (zero width, bidi overrides), private
+    # use and unassigned characters: none belongs in a link, and some hide text.
+    if any(char.isspace() or unicodedata.category(char).startswith("C") for char in trimmed):
+        raise ValueError("must not contain spaces, control or invisible characters")
     names = _PLACEHOLDER.findall(trimmed)
     known = ", ".join(f"{{{name}}}" for name in CODE_URL_PLACEHOLDERS)
     unknown = [name for name in names if name not in CODE_URL_PLACEHOLDERS]
@@ -287,6 +291,13 @@ def code_url_template(value: str | None) -> str | None:
         raise ValueError("must contain {path}")
     if "repository_url" in names and not trimmed.startswith("{repository_url}"):
         raise ValueError("{repository_url} may only start the template")
+    # The uploaded address ends in the repository's path, so what follows it
+    # must start a path, query or fragment: "{repository_url}{path}" would glue
+    # the file onto the repository's last segment.
+    if trimmed.startswith("{repository_url}") and not trimmed.startswith(
+        ("{repository_url}/", "{repository_url}?", "{repository_url}#")
+    ):
+        raise ValueError("{repository_url} must be followed by /, ? or #")
     # The host is written out, so no value a run uploads (a path, a ref) can
     # move the link to another site.
     if not trimmed.startswith("{repository_url}") and not _LITERAL_ORIGIN.match(trimmed):

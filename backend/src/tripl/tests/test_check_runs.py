@@ -740,6 +740,13 @@ async def test_an_editor_sets_the_code_link_template_and_the_usage_carries_it(
         "https://git.example.com{path}",
         "https://git.example.com/{repository_url}/{path}",
         "{repository}/{path}",
+        # The run's address must end where a path, query or fragment starts.
+        "{repository_url}{path}",
+        "{repository_url}{ref}/{path}",
+        "{repository_url}blob/{path}",
+        # Invisible format characters (zero width, right-to-left override).
+        "https://git.example.com/\u200b/{path}",
+        "https://git.example.com/\u202e/{path}",
     ],
 )
 async def test_a_code_link_template_that_is_not_an_http_link_is_refused(
@@ -759,6 +766,7 @@ async def test_a_code_link_template_that_is_not_an_http_link_is_refused(
         "https://github.com/org/app/blob/{ref}/{path}#L{line}",
         "{repository_url}/-/blob/{commit}/{path}#L{line}",
         "http://git.internal:8080/{repository}/src/{commit}/{path}?line={line}",
+        "{repository_url}?file={path}",
     ],
 )
 async def test_a_code_link_template_of_each_kind_is_kept(

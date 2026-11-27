@@ -18,7 +18,7 @@ import { codeUrl } from '@/lib/codeLinks'
 import { formatTimestamp } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { canWriteProject } from '@/lib/permissions'
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 import {
   checkRunDirectoriesKey,
   checkRunSettingsKey,
@@ -62,8 +62,10 @@ export default function CheckRunsSection({ slug }: { slug: string }) {
         description="What tripl check found in CI, uploaded with tripl check --upload. The latest run on each repository's default branch is what an event's Used in code shows; every other run is kept as history, for 90 days by default."
       />
       {projectQuery.isSuccess && !canEdit && <ReadOnlyNotice className="mb-4" />}
-      <CodeLinkCard slug={slug} canEdit={canEdit} />
-      <HistoryCard slug={slug} />
+      {/* Keyed by project: a draft template or a filter of one project must
+          never show, or be saved, on the next one the rail switches to. */}
+      <CodeLinkCard key={`link:${slug}`} slug={slug} canEdit={canEdit} />
+      <HistoryCard key={`history:${slug}`} slug={slug} />
     </div>
   )
 }
@@ -182,7 +184,8 @@ function CodeLinkCard({ slug, canEdit }: { slug: string; canEdit: boolean }) {
                   An http(s) address with <code>{'{path}'}</code>, and any of{' '}
                   <code>{'{line}'}</code>, <code>{'{commit}'}</code>, <code>{'{ref}'}</code>,{' '}
                   <code>{'{repository}'}</code> (as the CI names it, <code>org/app</code>) and{' '}
-                  <code>{'{repository_url}'}</code> (the address the CI sent, at the start only).
+                  <code>{'{repository_url}'}</code> (the address the CI sent, at the start only and
+                  followed by <code>/</code>).
                   For GitLab, <code>{'{repository_url}/-/blob/{commit}/{path}#L{line}'}</code>.
                   {example && (
                     <>
@@ -243,6 +246,13 @@ function HistoryCard({ slug }: { slug: string }) {
   const total = listQuery.data?.total ?? 0
   const paging = useOffsetPaging({ query: listQuery, offset, shown: items.length, total })
   const filtered = !!(repository || checkRoot)
+  // The runs of the page shown are gone (the daily cleanup ran between two
+  // fetches): step back to the last page that still has runs.
+  const pastTheEnd =
+    listQuery.isSuccess && !listQuery.isPlaceholderData && items.length === 0 && total > 0 && offset > 0
+  useEffect(() => {
+    if (pastTheEnd) setOffset(Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE)
+  }, [pastTheEnd, total])
 
   return (
     <SCard
@@ -295,7 +305,7 @@ function HistoryCard({ slug }: { slug: string }) {
         </div>
       )}
 
-      {listQuery.isPending ? (
+      {listQuery.isPending || pastTheEnd ? (
         <div className="space-y-2 px-4 py-3" role="status" aria-busy="true" aria-label="Loading check runs">
           {[0, 1, 2].map((index) => (
             <Skeleton key={index} className="h-6 w-full" />
@@ -373,8 +383,8 @@ function RunRow({ run }: { run: CheckRun }) {
   const { calls } = run
   // Calls per verdict: the summary a run keeps, whatever its kind.
   const findings = [
-    calls.error > 0 ? `${calls.error} error` : null,
-    calls.warning > 0 ? `${calls.warning} warning` : null,
+    calls.error > 0 ? `${calls.error} ${pluralize(calls.error, 'error', 'errors')}` : null,
+    calls.warning > 0 ? `${calls.warning} ${pluralize(calls.warning, 'warning', 'warnings')}` : null,
     calls.dynamic > 0 ? `${calls.dynamic} not read` : null,
   ].filter((part): part is string => part !== null)
   return (

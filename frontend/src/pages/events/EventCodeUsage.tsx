@@ -142,7 +142,7 @@ function RepositoryUsage({
         <p className="m-0 mt-1.5 text-body-sm text-fg-tertiary">No call sends this event here.</p>
       ) : (
         <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
-          {repository.calls.map((call) => {
+          {repository.calls.map((call, index) => {
             const place = `${call.path}:${call.line}`
             const href = codeUrl(template, {
               repositoryUrl: repository.repository_url,
@@ -155,7 +155,10 @@ function RepositoryUsage({
             const status = STATUS_LABEL[call.status]
             return (
               <li
-                key={`${call.path}:${call.line}:${call.column ?? ''}`}
+                // Two calls may share a line (and a column, or have none),
+                // and the list is the run's, fixed in order: the index keeps
+                // each key unique.
+                key={`${index}:${call.path}:${call.line}`}
                 className="flex flex-wrap items-center gap-2 text-body-sm"
               >
                 {href ? (

@@ -2426,8 +2426,9 @@ The template may name `{repository_url}` (the address the upload sent),
 `{repository}` (`org/app`, as the CI names it), `{ref}`, `{commit}`, `{path}`
 (relative to the repository root) and `{line}`, and must name `{path}`. It
 starts with `http://` or `https://` and a host written out, or with
-`{repository_url}`, which may appear only there; anything else, an unknown
-placeholder, an unmatched brace, a space or a control character is `422`. The
+`{repository_url}` and then `/`, `?` or `#` (it may appear only there);
+anything else, an unknown placeholder, an unmatched brace, a space, a control
+character or an invisible one (zero width, right to left) is `422`. The
 app escapes each segment of the path, ref and repository when it fills the
 template in, and shows plain text for a path with a `.` or `..` segment or a
 run without the `{repository_url}` the template needs.

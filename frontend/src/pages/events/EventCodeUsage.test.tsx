@@ -153,4 +153,26 @@ describe('Used in code', () => {
     expect(await screen.findByText("Couldn't load where the code sends this event")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Retry|Try again/ })).toBeInTheDocument()
   })
+
+  it('lists two calls on the same line as two places', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(checkRunsApi.codeUsage).mockResolvedValue(
+      usage({
+        repositories: [
+          repository({
+            calls: [
+              { path: 'src/a.ts', line: 3, column: null, status: 'ok', findings: [] },
+              { path: 'src/a.ts', line: 3, column: null, status: 'warning', findings: [] },
+            ],
+          }),
+        ],
+      }),
+    )
+    renderBlock()
+
+    expect(await screen.findAllByText('src/a.ts:3')).toHaveLength(2)
+    const duplicateKey = errors.mock.calls.some((args) => String(args[0]).includes('same key'))
+    errors.mockRestore()
+    expect(duplicateKey).toBe(false)
+  })
 })
