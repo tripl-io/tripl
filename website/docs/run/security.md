@@ -413,7 +413,7 @@ Sessions are server-side records (`user_sessions`): each carries an expiry, expi
 
 ### Programmatic access (API keys)
 
-For non-browser clients, tripl issues personal API keys (`api_key_service.py`). The raw token has the shape `tk_<scope-letter>_<random>` (e.g. `tk_r_…` / `tk_w_…`); only its SHA-256 hash is stored, so a leaked DB dump cannot replay tokens. Keys carry a scope (`read` / `write`), an optional expiry, and an optional project binding. They are presented as `Authorization: Bearer <token>` and are resolved before cookie auth. See the [Agent API Guide](../integrate/agent-api-guide.md).
+For non-browser clients, tripl issues personal API keys (`api_key_service.py`). The raw token has the shape `tk_<scope-letter>_<random>` (e.g. `tk_r_…` / `tk_w_…` / `tk_c_…`); only its SHA-256 hash is stored, so a leaked DB dump cannot replay tokens. Keys carry a scope (`read` / `write` / `check_upload`, which reads and may only record `tripl check` runs, always bound to one project), an optional expiry, and an optional project binding. They are presented as `Authorization: Bearer <token>` and are resolved before cookie auth. See the [Agent API Guide](../integrate/agent-api-guide.md).
 
 Creating and revoking keys requires an interactive user session. A Bearer key cannot mint a successor or revoke another key, even when it has write scope and no project binding. In an organization that [requires single sign-on](../enterprise/sso-and-scim.md#single-sign-on-oidc), a key works only if it was created from a single sign-on session of that organization, and creating one needs such a session (owners may create keys from any session).
 

@@ -39,8 +39,15 @@ export function describeRevealedKey(
   key: Pick<ApiKey, 'name' | 'scope' | 'project_id' | 'expires_at'>,
   projectName?: string,
 ): string {
-  const scope = key.scope === 'write' ? 'read & write' : 'read-only'
+  const scope = scopeLabel(key.scope)
   const project = key.project_id ? (projectName ?? 'one project') : 'All projects'
   const expiry = key.expires_at ? `expires ${formatIsoDate(key.expires_at)}` : 'no expiry'
   return `${key.name} · ${scope} · ${project} · ${expiry}`
+}
+
+/** A key's scope in the reader's words, as the reveal dialog names it. */
+export function scopeLabel(scope: ApiKey['scope']): string {
+  if (scope === 'write') return 'read & write'
+  if (scope === 'check_upload') return 'read & upload check runs'
+  return 'read-only'
 }

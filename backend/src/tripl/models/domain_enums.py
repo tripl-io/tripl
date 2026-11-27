@@ -385,8 +385,18 @@ class OrganizationStatus(enum.StrEnum):
 
 
 class ApiKeyScope(enum.StrEnum):
+    """What an API key may do (``api_keys.scope``).
+
+    ``read`` reads; ``write`` does whatever its user's role allows;
+    ``check_upload`` reads like ``read`` and may also record ``tripl check``
+    runs (``POST /projects/{slug}/check-runs``), and nothing else. A
+    ``check_upload`` key is always bound to one project: it is the key a CI
+    job holds.
+    """
+
     read = "read"
     write = "write"
+    check_upload = "check_upload"
 
 
 class ProjectMemberRole(enum.StrEnum):

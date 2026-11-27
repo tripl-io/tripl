@@ -1,4 +1,6 @@
-"""``tripl plan`` — read the tracking plan: types, fields, properties, branches, search.
+"""``tripl plan`` — read the tracking plan.
+
+The verbs: types, fields, properties, branches, revisions, search.
 
 READ ONLY. Every write route behind these reads either edits the live plan or
 needs a branch to land on, and both decisions stay with a human in the tripl UI
@@ -18,7 +20,7 @@ like", and this is one group per QUESTION rather than one per collection.
 ``plan diff`` is deliberately ABSENT even though ``api.branches.get_diff``
 exists and the MCP exposes it. The diff route answers
 ``{behind_base, entries, summary}`` — not a list — so it does not fit the one
-document shape the seven verbs here share, and ``behind_base`` is the load-
+document shape the verbs here share, and ``behind_base`` is the load-
 bearing field: a branch whose base moved under it has a diff that no longer says
 what merging it would do. Smuggling that into an ``items`` array, or minting a
 second document shape for one verb, are both worse than not shipping it yet.
@@ -33,6 +35,7 @@ import httpx
 
 from tripl_cli.api import branches as branches_api
 from tripl_cli.api import event_types as event_types_api
+from tripl_cli.api import plan_revisions as plan_revisions_api
 from tripl_cli.api import search as search_api
 from tripl_cli.api import variables as variables_api
 from tripl_cli.commands import (
@@ -55,6 +58,7 @@ from tripl_cli.render import (
     event_type_rows,
     field_rows,
     render_plan_read,
+    revision_rows,
     search_rows,
     variable_rows,
 )
@@ -68,11 +72,13 @@ def register(
     parser = subparsers.add_parser(
         "plan",
         parents=[parent],
-        help="read the tracking plan: event types, fields, properties, branches, search",
+        help=(
+            "read the tracking plan: event types, fields, properties, branches, revisions, search"
+        ),
         description=(
             "Read the structure a project's events are described by. Needs a tk_r_ key. "
-            "Every verb except `branches` takes --branch to read a plan branch instead of "
-            "the live main plan. Editing the plan is not available here."
+            "Every verb except `branches` and `revisions` takes --branch to read a plan branch "
+            "instead of the live main plan. Editing the plan is not available here."
         ),
     )
     verbs = parser.add_subparsers(dest="plan_command", metavar="<verb>")
@@ -80,6 +86,7 @@ def register(
     _register_fields(verbs, parent)
     _register_variables(verbs, parent)
     _register_branches(verbs, parent)
+    _register_revisions(verbs, parent)
     _register_search(verbs, parent)
     parser.set_defaults(handler=group_help(parser))
 
@@ -190,6 +197,48 @@ def _register_branches(
     add_json(parser)
     add_timeout(parser)
     parser.set_defaults(handler=run_branches)
+
+
+def _register_revisions(
+    verbs: argparse._SubParsersAction[argparse.ArgumentParser],
+    parent: argparse.ArgumentParser,
+) -> None:
+    parser = verbs.add_parser(
+        "revisions",
+        parents=[parent],
+        help="list the project's stored plan revisions",
+        description=(
+            "List the stored copies of the plan, newest first, with what made each one and "
+            "what it holds. This is where the id you pass to `tripl check --revision` comes "
+            "from. The list covers the whole project, plan branches included. ONE page per "
+            "invocation: the footer says when there are more and --offset walks them. "
+            "Taking a revision and reverting to one are NOT available here - those stay in "
+            "the tripl UI."
+        ),
+    )
+    add_project(parser, single=True)
+    parser.add_argument(
+        "--offset",
+        dest="offset",
+        metavar="N",
+        type=nonneg_int("--offset"),
+        default=0,
+        help="skip this many revisions, to read the next page (default: 0)",
+    )
+    parser.add_argument(
+        "--limit",
+        dest="limit",
+        metavar="N",
+        type=bounded_int("--limit", 1, plan_revisions_api.LIMIT_MAX),
+        default=plan_revisions_api.LIMIT_DEFAULT,
+        help=(
+            f"how many revisions to ask for, 1..{plan_revisions_api.LIMIT_MAX} "
+            f"(default: {plan_revisions_api.LIMIT_DEFAULT})"
+        ),
+    )
+    add_json(parser)
+    add_timeout(parser)
+    parser.set_defaults(handler=run_revisions)
 
 
 def _register_search(
@@ -389,6 +438,41 @@ def run_branches(args: argparse.Namespace, config: Config) -> int:
     return EXIT_OK
 
 
+def run_revisions(args: argparse.Namespace, config: Config) -> int:
+    slug = require_single_project(args)
+    offset: int = int(args.offset)
+    limit: int = int(args.limit)
+    context = begin(config)
+
+    async def body(client: httpx.AsyncClient) -> PlanRead:
+        reader = context.reader(client)
+        payload = as_dict(
+            await reader.send(plan_revisions_api.list_revisions(slug, offset=offset, limit=limit))
+        )
+        return context.read(
+            reader,
+            command="plan revisions",
+            kind="revision",
+            project=slug,
+            # No branch, and no `--branch` flag: the listing covers every
+            # revision of the project, the ones made for plan branches too.
+            branch=MAIN,
+            items=page_items(payload),
+            total=page_total(payload),
+            offset=offset,
+            limit=limit,
+        )
+
+    read = run_async(config, body, timeout=float(args.timeout))
+    emit(
+        read,
+        context,
+        as_json=bool(args.as_json),
+        human=render_plan_read(read, revision_rows(read.items), empty="no revisions"),
+    )
+    return EXIT_OK
+
+
 def run_search(args: argparse.Namespace, config: Config) -> int:
     slug = require_single_project(args)
     selector: str | None = args.branch
@@ -438,7 +522,7 @@ def run_search(args: argparse.Namespace, config: Config) -> int:
         # the field, which is what keeps the guess as the fallback there.
         #
         # Attached here rather than through `ReadContext.read` so the shared
-        # constructor keeps only the envelope numbers all seven verbs answer.
+        # constructor keeps only the envelope numbers all eight verbs answer.
         return replace(read, route_truncated=search_api.reported_truncated(payload))
 
     read = run_async(config, body, timeout=float(args.timeout))

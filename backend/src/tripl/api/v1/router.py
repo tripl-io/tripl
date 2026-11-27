@@ -17,6 +17,7 @@ from tripl.api.v1.auth import router as auth_router
 from tripl.api.v1.auth_google import router as auth_google_router
 from tripl.api.v1.auth_oidc import router as auth_oidc_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
+from tripl.api.v1.check_runs import router as check_runs_router
 from tripl.api.v1.data_sources import router as data_sources_router
 from tripl.api.v1.dependencies import router as dependencies_router
 from tripl.api.v1.docs import router as docs_router
@@ -143,6 +144,8 @@ _include_protected(meta_fields_router)
 _include_protected(events_stream_router)
 # Also BEFORE events_router: `/projects/{slug}/events/duplicate-check` (GH #265).
 _include_protected(duplicate_check_router)
+# Also BEFORE events_router: `/projects/{slug}/events/{event_id}/code-usage`.
+_include_protected(check_runs_router)
 _include_protected(events_router)
 _include_protected(lifecycle_router)
 _include_protected(health_router)
