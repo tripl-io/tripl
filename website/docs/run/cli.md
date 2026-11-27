@@ -45,12 +45,12 @@ rather than the machinery:
 - **`tripl events`** — `list` the catalog with the API's own filters, `show` one
   event with its field values resolved to field names.
 - **`tripl plan`** — the shape events are declared to have: `types`, one type's
-  `fields`, the documented `properties`, the plan `branches`, and `search` across
-  all of it.
+  `fields`, the documented `properties`, the plan `branches`, the stored
+  `revisions`, and `search` across all of it.
 
 Both read one project at a time, so both need `--project SLUG` exactly once, and
-every verb but `plan branches` takes `--branch` to read a plan branch instead of
-the live main plan.
+every verb but `plan branches` and `plan revisions` takes `--branch` to read a
+plan branch instead of the live main plan.
 
 One more checks **your code** against the plan, and is one word:
 
@@ -1777,6 +1777,11 @@ said nothing".
 `--offset 200` walks to the next page; `--limit 10000` asks for the lot in one
 request. The JSON carries `total`, `offset`, `limit` and a derived `truncated`
 so a consumer never has to do that arithmetic itself.
+
+The last page says where it started, `12 of 412 events shown, starting after
+the first 400.`, and a page past the end prints `(no events at --offset 500)`
+rather than `(no events)`, which is kept for a catalog that has none. Every
+verb that takes `--offset` does the same.
 :::
 
 :::note `--silent-since-days` is the one filter worth a runbook entry
@@ -1858,9 +1863,10 @@ changes.
 usage: tripl plan [-h] [--url URL] [--api-key KEY] [--config PATH] <verb> ...
 ```
 
-Five verbs: `types`, `fields`, `variables`, `branches` and `search`. A bare
-`tripl plan` prints this group's help on stderr and exits 2. Every verb takes
-exactly one `--project`, and every one except `branches` takes `--branch`.
+Six verbs: `types`, `fields`, `properties`, `branches`, `revisions` and `search`.
+A bare `tripl plan` prints this group's help on stderr and exits 2. Every verb
+takes exactly one `--project`, and every one except `branches` and `revisions`
+takes `--branch`.
 
 :::note Why `plan types` and not `event-types list`
 The grammar everywhere else is *`<plural-noun> <verb>`* — `scans list`,
@@ -2078,7 +2084,7 @@ This command exists mostly to give you the name to pass to `--branch`.
 `tripl plan diff` is **not** shipped, though the route exists and the MCP
 server's `get_branch_diff` tool reads it. The diff answers
 `{behind_base, entries, renames, summary}` — not a list — so it does not fit the
-one document shape the seven read verbs share, and `behind_base` is too
+one document shape the eight read verbs share, and `behind_base` is too
 load-bearing to smuggle into an `items` array. `renames` makes that worse rather
 than better: it is a second top-level key, and one that points *at* `entries` —
 each pair naming the removal and the addition that are really one renamed row,
@@ -2090,6 +2096,67 @@ Merging, reverting and branch transitions are not here either, and never will
 be: both surfaces hand that decision back to a human in the tripl app, which is
 where the conflict resolution and the review state live.
 :::
+
+**Cost:** one request.
+
+### `tripl plan revisions`
+
+```
+usage: tripl plan revisions [-h] [--url URL] [--api-key KEY] [--config PATH]
+                            [--project SLUG] [--offset N] [--limit N] [--json]
+                            [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--project SLUG` | **Required**, exactly once. |
+| `--offset N` | Skip N revisions, to read the next page. Default `0`. |
+| `--limit N` | How many revisions to ask for, `1`–`200`, default `50`. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**No `--branch`.** A revision is a stored copy of the whole plan, and the list
+covers every revision of the project, the ones made for plan branches too.
+
+```text
+tripl plan revisions - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+prod
+  5e6f7a8b-0000-4000-8000-00000000cafe  2026-08-01T09:00:00Z  merge     branch 7c1d2e3f-0000-4000-8000-000000009f21  4 event types, 23 events, 9 fields, 6 properties, 1 relation  Merge checkout-redesign
+  0a1b2c3d-0000-4000-8000-00000000beef  2026-07-30T14:05:11Z  snapshot  -                                            4 event types, 23 events, 9 fields, 6 properties, 1 relation  Before the checkout redesign
+
+2 revisions.
+```
+
+Newest first. The columns are the revision id, when it was stored, its kind,
+the plan branch behind it, what the stored plan holds, and the summary its
+author gave it, on one line (`-` when it is blank). A character in the summary
+that a terminal would act on instead of show, such as an escape, is printed as
+its code (`\x1b`).
+
+The kind says what made the revision: `snapshot` is one a person took,
+`branch_base` is the copy a plan branch started from, and `merge` is the plan
+right after a branch was merged. The last two name their branch by id (`-` once
+that branch is deleted); `tripl plan branches` lists the ids. A `snapshot` row
+shows `-` there.
+
+The counts leave out whatever the plan has none of: event types, events,
+fields, properties, meta fields and relations, in that order. A plan with
+nothing in it prints `empty`, and counts that are not whole numbers of zero or
+more print `-`.
+
+`(no revisions)` means the project has none. A page past the last one prints
+`(no revisions at --offset 50)`, and the footer of any page after the first
+counts it against the total: `2 of 7 revisions shown, starting after the first
+5.`
+
+This command exists mostly to give you the id to pass to
+[`tripl check --revision`](#tripl-check), or to put under `revision:` in the
+check configuration — see [Pin the plan](../integrate/tripl-check.md#pin). Any
+row's id works there, whatever its kind.
+
+Taking a revision and reverting to one are not here: do both on the project's
+History page.
 
 **Cost:** one request.
 
@@ -2281,6 +2348,7 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
                    --new-from-patch FILE] [--baseline FILE]
                    [--write-baseline FILE] [--prune-baseline] [--project SLUG]
                    [--branch REF] [--revision ID] [--strict]
+                   [--strict-suppressions]
                    [--format {text,json,sarif,codequality,junit,markdown}]
                    [--report FORMAT=PATH] [--allow-empty] [--coverage]
                    [--json] [--timeout SECONDS]
@@ -2291,17 +2359,18 @@ usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--check-config PATH` | The check configuration to read. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) in the current directory or a parent, up to the repository root. (`--config` is the connection config file, as on every other command.) |
 | `--project SLUG` | The project to check against. Overrides `project` in the check configuration. One of the two is required. |
 | `--branch REF` | Check against a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the check configuration. |
-| `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
+| `--revision ID` | Check against the stored plan revision `ID` instead of the live plan, so the verdicts do not change when the plan does. [`tripl plan revisions`](#tripl-plan-revisions) lists the ids. See [Pin the plan](../integrate/tripl-check.md#pin). Overrides `revision` in the check configuration; `--revision live` unpins it for one run. Refused with a plan branch, with `--coverage` and with `--list`. An instance too old to pin fails the run (exit 1) instead of answering from the live plan. |
 | `--payloads FILE` | Payload mode: validate the events in `FILE` (NDJSON, a JSON array, or one object; `-` reads stdin) instead of scanning source files. A missing required field is an error in this mode. Each event is `{event_type?, name?, fields?, properties?, ref?}`; `ref` labels where it came from (a test, a screen, a step) for a reader and is never checked. To record the file from UI tests and check it in CI, see [Check the events your UI tests send](../how-to/record-events-in-ui-tests.md). |
-| `--list` | Scan only, to write the check configuration. It lists every call the configuration matches with what the scan read from it and why a value was not read, the functions that pass their own parameter into a tracking call, and the calls that look like tracking but match no call spec. It needs no URL and no key, opens no connection and sends nothing, and it does not read the connection settings, so a malformed `TRIPL_BASE_URL` or config file, or a `--config` path that does not exist, does not stop it. With no check configuration found, it scans the whole git repository it runs in. It refuses `--report`, `--branch`, `--strict`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` and a `--format` other than `text` or `json` (exit 2), and the parser refuses it together with `--payloads`. See [the example below](#tripl-check-list) and the guide's [List what the scan reads](../integrate/tripl-check.md#list). |
-| `--print-preset [NAME]` | Print the call specs of the preset `NAME` as YAML to paste under an event type's `calls:`, as the start of your own, and exit 0, even when the reader closes the pipe early. Without `NAME` it prints every preset. Two comment lines head each preset: where to paste it, and, for the event type's first preset, the `style:` to set in a `codegen:` block that has none: the one [`tripl codegen`](../integrate/codegen.md#styles) took from that preset's name. It acts as soon as it is parsed, the way `--help` does: the flags after it are ignored, no command runs, and it prints YAML even with `--json`. An unknown `NAME` is exit 2, and the message lists the presets. |
+| `--list` | Scan only, to write the check configuration. It lists every call the configuration matches with what the scan read from it and why a value was not read, the functions that pass their own parameter into a tracking call, and the calls that look like tracking but match no call spec. It needs no URL and no key, opens no connection and sends nothing, and it does not read the connection settings, so a malformed `TRIPL_BASE_URL` or config file, or a `--config` path that does not exist, does not stop it. With no check configuration found, it scans the whole git repository it runs in. It refuses `--report`, `--branch`, `--strict`, `--strict-suppressions`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` and a `--format` other than `text` or `json` (exit 2), and the parser refuses it together with `--payloads`. See [the example below](#tripl-check-list) and the guide's [List what the scan reads](../integrate/tripl-check.md#list). |
+| `--print-preset [NAME]` | Print the call specs of the preset `NAME` as YAML to paste under an event type's `calls:`, as the start of your own, and exit 0, even when the reader closes the pipe early. A stdout it cannot write (`> /dev/full`) is exit 1, with one line on stderr. Without `NAME` it prints every preset. Two comment lines head each preset: where to paste it, and, for the event type's first preset, the `style:` to set in a `codegen:` block that has none: the one [`tripl codegen`](../integrate/codegen.md#styles) took from that preset's name. It acts as soon as it is parsed, the way `--help` does: the flags after it are ignored, no command runs, and it prints YAML even with `--json`. An unknown `NAME` is exit 2, and the message lists the presets. |
 | `--new-from-rev REF` | Fail only on findings that are new in the change from the commit `REF` to the working tree: a new call, an edited one, or one whose values changed through a constant or an `enums:` file the change edited. Legacy findings, a call moved (to another file too), reformatted or renamed and an edit of the check configuration do not fail the run; under `--branch`, neither does a finding main has too. Needs git and the `REF` commit in the clone, not its history (`git fetch --no-tags --depth=1 origin REF`). An empty `REF` gates nothing and says so on stderr, so one job line can serve merge request and default-branch pipelines. A scanned file git does not track (generated, not added yet, ignored or not) has no base, so its calls count as new. See [Gate on the change](../integrate/tripl-check.md#new-findings). |
 | `--new-from-patch FILE` | The same gate, from a diff of the change (base to working tree) in git's format only, a `diff --git` header on every file: `git diff`, `git diff --no-index BASE_DIR .`, `hg diff --git`, `svn diff --git` or `git format-patch` (a series is undone change by change); any prefixes, any context size, `-M` recommended so a rename stays a rename. `-` reads stdin. A plain `diff -u`/`-ruN` is refused (exit 2). Its paths are relative to the repository root, or, outside a repository, to the working directory, as for `git apply`. A path the checkout does not have makes every call count as changed. The patch must cover every change since the base, generated files included: it is all the gate knows. An empty file is a change with nothing new. Needs no git. The parser refuses it together with `--new-from-rev`; both are refused with `--list` and `--payloads` (exit 2). |
 | `--baseline FILE` | Fail only on findings the baseline `FILE` does not hold: a file `--write-baseline` wrote and you committed, `.tripl/check-baseline.json` by convention. A finding is held when an entry has its call (by what the call sends, never its line or file), code and field at its severity or a higher one, and the entry's count is not used up: a pasted copy past the count, an edited call and a warning that became an error are new. A suppressed finding takes up no count; `no_verdict` is never held. With `--payloads`, an event is keyed on its property names, not their values, and an entry is matched by presence: its count is not enforced. With `--new-from-rev` or `--new-from-patch`, a finding fails only when it is new in the change and not in `FILE`. The one gate for `--payloads` and for runs with no diff base (the default branch, a schedule). A `FILE` that is missing, not a baseline, holds an entry tripl did not write, is of another `version` or `fingerprint_key`, is written for another project or mode, or is also a `--report` path is exit 2 before any request. See [Baseline](../integrate/tripl-check.md#baseline). |
 | `--write-baseline FILE` | Run the check and write every finding that fails it (an error, or anything with `--strict`; suppressed ones and `no_verdict` aside) to `FILE`, replacing it, then exit 0 unless an item got no verdict. The same findings always give the same bytes: no timestamp, entries sorted. Refused with `--baseline`, `--prune-baseline`, `--new-from-rev`, `--new-from-patch` and `--list`, and when `FILE` is a directory, a link, a special file or a `--report` path (exit 2). |
 | `--prune-baseline` | With `--baseline FILE`: rewrite `FILE` without the findings this run no longer has (an entry's count lowered, or the entry dropped), never adding one; with `--payloads`, only entries this run did not see at all are dropped and counts are kept. It writes nothing when nothing changed, and nothing after a run that could not see everything: the instance was unavailable (exit 4), nothing was checked, a configured file was not read, or an item got no verdict. The exit code is the check's. Refused without `--baseline` (exit 2). |
 | `--strict` | Fail on warnings too. Also report a `dynamic_value` finding for every value the scanner could not read, and list the calls where nothing was readable (status `dynamic`) as warnings. |
-| `--format FORMAT` | What goes to stdout: `text` (the default), `json`, `sarif` for a SARIF 2.1.0 log, `codequality` for a GitLab Code Quality report, `junit` for JUnit XML, or `markdown` for a [merge request note](../integrate/tripl-check.md#summary): the events the change adds, removes or changes, then the findings that fail the run. See [Output formats](../integrate/tripl-check.md#output). |
+| `--strict-suppressions` | Also fail the run (exit 1) on a `tripl-check-ignore` marker that is malformed or that suppressed nothing in this run, for a team that wants its markers kept clean. Unused means unused against the plan this run checks (`--branch`, `--revision`) and with its own `--strict`: a marker that names `dynamic_value` is not weighed without `--strict`, which alone raises that finding, and neither is one on a call that got no verdict or that the scan could read nothing of. With `--new-from-rev` or `--new-from-patch`, only a marker in a file the change touches fails, and every marker does when the gate counts every call as changed. `--write-baseline` ignores it. Refused with `--payloads` and `--list` (exit 2). See [Keep markers clean](../integrate/tripl-check.md#strict-suppressions). |
+| `--format FORMAT` | What goes to stdout: `text` (the default), `json`, `sarif` for a SARIF 2.1.0 log, `codequality` for a GitLab Code Quality report, `junit` for JUnit XML, or `markdown` for a [merge request note](../integrate/tripl-check.md#summary): the events the change adds, removes or changes, then the findings that fail the run and, with `--strict-suppressions`, the markers that do. See [Output formats](../integrate/tripl-check.md#output). |
 | `--report FORMAT=PATH` | Also write the result in `FORMAT` (any of the six) to the file `PATH`. Repeat it for more files: one run, one validation, the same verdicts in each, for example `--report codequality=gl-code-quality-report.json --report junit=tripl-check.xml`. A run that cannot finish writes none, and removes what an earlier run left at those paths; only a command line the parser rejects outright, such as an unknown flag, leaves them. |
 | `--allow-empty` | Exit 0 when there is nothing to check. Without it, a configuration that matches no call, or a `--payloads` file with no events, is exit 2: a check that checked nothing must not read as a pass. A `--payloads` file that does not exist is exit 2 even with it: it accepts an empty file, not a missing one. Refused with `--list`, which never fails because nothing matched. |
 | `--coverage` | Also report [plan coverage](#tripl-check-coverage): the planned events (status `ready_for_dev`, `implemented` or `live`) that no scanned call sends. It adds two reads to the run and never changes the exit code. Refused with `--payloads` and `--list`. |
@@ -2341,7 +2410,9 @@ Findings use the codes in the guide's
 [findings table](../integrate/tripl-check.md#findings): `unknown_event_type`,
 `unknown_event`, `deprecated_event`, `unknown_field`, `missing_required_field`,
 `value_not_allowed`, `dynamic_value`, `too_dynamic`, `policy_violation`,
-`oversize_value` and `no_verdict`.
+`oversize_value` and `no_verdict`, and, with a
+[`lint:` section](../integrate/tripl-check.md#lint) in the check config,
+`name_characters`, `name_pattern` and `duplicate_constant`.
 
 A comment at the call, `// tripl-check-ignore[unknown_event] -- <reason>`,
 suppresses one finding: it no longer fails the run. The text listing counts it
@@ -2350,7 +2421,16 @@ Code Quality and JUnit reports keep it, marked as suppressed with its reason. A
 marker without a reason suppresses nothing. A malformed marker and an unused
 one get a `Suppression ignored:` or `Unused suppression:` line after the summary
 (in SARIF and Code Quality, rules `invalid_suppression` and `unused_suppression`)
-and never fail the run. See
+and do not fail the run unless `--strict-suppressions` asks them to. Then a
+last line says how many do, and the Markdown summary names them:
+
+```text
+Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] matched no finding.
+1 suppression marker fails the run (--strict-suppressions).
+```
+
+SARIF, Code Quality and JUnit are the same with and without
+`--strict-suppressions`: they list the marker as before. See
 [Suppress a finding](../integrate/tripl-check.md#suppress).
 
 With `--new-from-rev` or `--new-from-patch`, the listing shows only the calls
@@ -2382,7 +2462,8 @@ Baseline: 3 findings it holds were not seen in this run; --prune-baseline drops 
 **Exit codes.** 0 when there is no error (and, with `--strict`, no warning)
 that a `tripl-check-ignore` marker does not suppress and that, under
 `--new-from-rev` or `--new-from-patch`, is new in the change and, with
-`--baseline`, is not in the baseline. 1 when there is
+`--baseline`, is not in the baseline, and, with `--strict-suppressions`, no
+marker that fails the run. 1 when there is
 at least one, or when the instance refused a request. 2 on a
 configuration or usage error, including a configuration that matches no call,
 a change the gate cannot read: no git, not a repository, a `REF` that is
@@ -2397,7 +2478,9 @@ unless an item got no verdict.
 whenever the scan ran, whatever it found, and 2 for a configuration error or a
 flag it refuses. A reader that closes the pipe early, or a closed stdout or
 stderr, does not fail it, and under `--json` neither does a stderr it cannot
-write: the document still reaches stdout. See [Exit codes](#exit-codes).
+write: the document still reaches stdout. A stdout it cannot write (a full
+disk, `> /dev/full`) is exit 1, with one line on stderr, for `tripl check` and
+`--list` alike; `tripl check` then leaves no report. See [Exit codes](#exit-codes).
 
 ### List what the scan reads {#tripl-check-list}
 
@@ -2448,8 +2531,17 @@ given as nothing. Under a call with a value not read, one indented line per
 reason says why, and `not mapped:` names the arguments the call spec maps to no
 target (a label, or `#2` for the third argument). An `object_arg:` argument
 that is not a literal is named on the `not passed` line
-(`name: not passed, object argument evt is not a literal`); the JSON has it
-as `read.object_argument`, also on a call whose name is read. A `?` inside
+(`name: not passed, object argument evt is not a literal`), followed by where
+it comes from when the function around the call says so
+(`: parameter evt of send (line 1)`, a property of a parameter, or a local).
+The JSON has it as `read.object_argument`, also on a call whose name is read.
+A function that passes its own parameter on as the object argument is listed
+with the functions that forward a parameter, as
+`forwards evt (#0) as the object argument`. When its callers may write a
+label before that argument (always in Swift unless it is declared `_`, by
+choice in Kotlin), the row adds
+`(object_arg does not read an argument labelled evt)`: `object_arg:` reads an
+argument by position, and only one written without a label. A `?` inside
 `{…}` is a dictionary entry the scan did not read, and it gets no line: its
 reason is only in the JSON, under the dictionary's `entries`
 (`read.properties.entries.<key>.reason`). The tally
@@ -2471,6 +2563,36 @@ hidden directories (`.venv`, `.gradle`, `.next`), and lists the calls that
 look like tracking: a place to start the configuration. It reads at most 20000 source
 files (`MAX_DISCOVERY_FILES`) and says so when it stops there. Outside a git
 repository it is exit 2.
+
+When the check configuration has a [`lint:` section](../integrate/tripl-check.md#lint),
+each lint finding gets an indented line under its call, written the way
+`tripl check` writes a finding, and the tally gets a `Lint` line. Here two
+buttons log one event through two constants, and a third name has a Cyrillic
+`е` (shown as `\u0435`) and its properties a typographic apostrophe:
+
+```text
+tripl check --list - /home/me/shop/.tripl/check.yml, root /home/me/shop (nothing is sent)
+
+app/Settings.kt:10:9  event  analytics.logEvent  name=save_tap
+    warning  duplicate_constant: the event name is read from Events.SAVE_TAP = 'save_tap', the same value as Events.SHARE_TAP of Events; one of them probably names the wrong event
+app/Settings.kt:14:9  event  analytics.logEvent  name=save_tap
+    warning  duplicate_constant: the event name is read from Events.SHARE_TAP = 'save_tap', the same value as Events.SAVE_TAP of Events; one of them probably names the wrong event
+app/Settings.kt:18:9  event  analytics.logEvent  name=sеttings_opened properties={from=Menu, it’s=x}
+    warning  name_characters: the event name 's\u0435ttings_opened' has a non-ASCII character U+0435 CYRILLIC SMALL LETTER IE
+    warning  name_pattern: the event name 's\u0435ttings_opened' does not match name_pattern '[a-z][a-z0-9_]*'
+    warning  name_characters [it’s]: the property key 'it\u2019s' has a non-ASCII character U+2019 RIGHT SINGLE QUOTATION MARK
+
+3 call sites in 1 file: 3 fully read; 0 not sent (no name or field read); 0 sent with a value not read.
+Read per event type: event: name 3, properties 1.
+Lint, call sites per code: duplicate_constant 2, name_characters 1, name_pattern 1.
+
+Calls that look like tracking but match no call spec: none.
+```
+
+With no finding the line reads `Lint: no findings.` `--list` still exits 0
+with lint findings, and it reads no `tripl-check-ignore` marker, so it shows a
+finding a marker suppresses too. Without a `lint:` section there is no `Lint`
+line; discovery mode (no check configuration) never lints.
 
 ### Plan coverage {#tripl-check-coverage}
 
@@ -3525,9 +3647,9 @@ pipeline gates on, `check`, `codegen` and `export`.
 
 | Code | Meaning |
 |------|---------|
-| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate` / `docs push`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either — that a `tripl-check-ignore` marker does not suppress and that, under `--new-from-rev` or `--new-from-patch`, is new in the change and, with `--baseline`, is not in the baseline; `--write-baseline` once it wrote the file, unless an item got no verdict. `check --list`: the scan ran, whatever it found. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
-| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. The one exception: when `install`'s `pull` fails on a run that created `.env`, that `.env` is removed again, because nothing has started and nothing read it ([when the pull fails on a first install](#when-the-pull-fails-on-a-first-install)). Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change (a malformed or unused marker never decides the code). It also reaches 1 the ordinary way, when the instance refuses a validate request or a `--report` file cannot be written, and then it writes no document and no report; with a machine-readable `--format`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the instance refuses the plan read or a file cannot be written. For all three, an instance that is merely *unavailable* is 4, not 1. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--allow-unordered-tag`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, a configuration that matches no call and a `--payloads` file with no events (both unless `--allow-empty`), no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, a `--report` that is not `FORMAT=PATH` with one of the five formats and a file path, that names one file twice, or that names a directory, a link or a special file, and a `--branch` matching nothing; under `--new-from-rev` or `--new-from-patch`, either one with `--payloads`, a `REF` that starts with `-`, no git on `PATH`, a directory that is not a git checkout, a `REF` that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, and a patch that cannot be read, holds no diff or is not in git's format, all before any request; with `--baseline`, a file that is missing, not a baseline, holds an entry tripl did not write, of another `version` or `fingerprint_key`, or another project's or mode's, a baseline file, read or written, that is also a `--report` path, and conflicting baseline flags (`--write-baseline` with `--baseline`, `--prune-baseline` or a gate flag, `--prune-baseline` without `--baseline`, a file to write that is a directory, a link or a special file), all before any request too. `check --list` adds: `--report`, `--branch`, `--strict`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` or a `--format` other than `text` or `json`, `--payloads` with it, and no check configuration outside a git repository (inside one, it scans the repository instead). `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate` / `docs push`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either — that a `tripl-check-ignore` marker does not suppress and that, under `--new-from-rev` or `--new-from-patch`, is new in the change and, with `--baseline`, is not in the baseline, and, with `--strict-suppressions`, no `tripl-check-ignore` marker is malformed or unused; `--write-baseline` once it wrote the file, unless an item got no verdict. `check --list`: the scan ran, whatever it found. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
+| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. The one exception: when `install`'s `pull` fails on a run that created `.env`, that `.env` is removed again, because nothing has started and nothing read it ([when the pull fails on a first install](#when-the-pull-fails-on-a-first-install)). Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change (a malformed or unused marker decides the code only with `--strict-suppressions`). It also reaches 1 the ordinary way, when the instance refuses a validate request or a `--report` file cannot be written, and then it writes no document and no report, and when its output cannot be written to stdout, and then it leaves no report; with a machine-readable `--format`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the instance refuses the plan read or a file cannot be written. For all three, an instance that is merely *unavailable* is 4, not 1. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. `--help`, `--version` and `check` (`--list` and `--print-preset` included) reach 1 when their output cannot be written to stdout for a reason other than a reader that closed the pipe (a full disk, `> /dev/full`): one line on stderr, `tripl: cannot write to stdout: ...`, in place of a traceback. When stderr cannot be written either (`> /dev/full 2>&1`), that line is dropped and the exit code is still 1. A reader that closed the pipe early (`| head`, `| true`) is not a failure. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches` or `plan revisions`, which have no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--allow-unordered-tag`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, a configuration that matches no call and a `--payloads` file with no events (both unless `--allow-empty`), no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, a `--report` that is not `FORMAT=PATH` with one of the five formats and a file path, that names one file twice, or that names a directory, a link or a special file, and a `--branch` matching nothing; under `--new-from-rev` or `--new-from-patch`, either one with `--payloads`, a `REF` that starts with `-`, no git on `PATH`, a directory that is not a git checkout, a `REF` that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, and a patch that cannot be read, holds no diff or is not in git's format, all before any request; with `--baseline`, a file that is missing, not a baseline, holds an entry tripl did not write, of another `version` or `fingerprint_key`, or another project's or mode's, a baseline file, read or written, that is also a `--report` path, and conflicting baseline flags (`--write-baseline` with `--baseline`, `--prune-baseline` or a gate flag, `--prune-baseline` without `--baseline`, a file to write that is a directory, a link or a special file), all before any request too, and `--strict-suppressions` with `--payloads`. `check --list` adds: `--report`, `--branch`, `--strict`, `--strict-suppressions`, `--allow-empty`, `--new-from-rev`, `--new-from-patch`, `--baseline`, `--write-baseline`, `--prune-baseline` or a `--format` other than `text` or `json`, `--payloads` with it, and no check configuration outside a git repository (inside one, it scans the repository instead). `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **4** | `check`, `codegen` and `export` only: the instance was unavailable — it could not be reached, the request timed out, or it answered `429` or a `5xx` — so nothing was decided and nothing was written. `check` also removes what an earlier run left at its `--report` paths, so an old report cannot pass for this run's. A refused key, an unknown project and a redirect stay **1**: a retry does not fix them. It exists so a CI pipeline can let an outage of tripl pass while findings and drift still block (GitLab: `allow_failure: exit_codes: [4]`). Every other command exits 1 on an unavailable instance, except `doctor`, which reports it as a failed check (exit 3). |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
@@ -4329,7 +4451,7 @@ reason.
 
 ### `events` and `plan` documents
 
-The seven read verbs share **one document shape**. `items` holds the rows
+The eight read verbs share **one document shape**. `items` holds the rows
 whichever verb produced them — including `events show`, which puts its single
 event there rather than inventing a second shape for the one command that
 returns exactly one thing. `jq '.items[]'` therefore works across the whole
@@ -4376,18 +4498,18 @@ group.
 }
 ```
 
-Every key above is present on all seven, so a consumer never tests for one
+Every key above is present on all eight, so a consumer never tests for one
 before reading it.
 
 | Key | Meaning |
 |-----|---------|
 | `project` | The slug that was read. Always exactly one. |
-| `branch` | `{id, name}` when `--branch` was passed, `null` when it was not. `null` means "no branch was named", not "this is main": `--branch main` reads the live plan and still carries main's own id and name, so branch on whether the flag was given rather than on `null` — see [`--branch`](#the---branch-flag). |
-| `kind` | What one member of `items` **is**: `event`, `event_type`, `field`, `variable`, `branch` or `search_result`. Branch on this, never on `command`'s wording. |
+| `branch` | `{id, name}` when `--branch` was passed, `null` when it was not. `null` means "no branch was named", not "this is main" (and on `plan revisions`, which lists the whole project, not "these rows are main's": each row carries its own `branch_id`): `--branch main` reads the live plan and still carries main's own id and name, so branch on whether the flag was given rather than on `null` — see [`--branch`](#the---branch-flag). |
+| `kind` | What one member of `items` **is**: `event`, `event_type`, `field`, `property`, `branch`, `revision` or `search_result`. Branch on this, never on `command`'s wording. |
 | `total` | The count the API reported **before** paging, or `null` where the route reports none. |
 | `offset` / `limit` | What was requested, or `null` where the route takes no such parameter. `plan search` has no offset; `plan types`, `plan fields` and `plan branches` page nothing at all. |
 | `truncated` | Whether rows were left behind. The route's own answer where it reports one — `plan search` does, and it is exact; otherwise whether `total` exceeds `offset` plus the rows returned; and where a route reports neither, whether the page filled. Derived here so nobody has to do that arithmetic twice. |
-| `meta` | Facts the **route** reported about the answer rather than about a row. `{}` on six of the seven; `{"semantic_used": bool}` on `plan search`. |
+| `meta` | Facts the **route** reported about the answer rather than about a row. `{}` on seven of the eight; `{"semantic_used": bool}` on `plan search`. |
 | `items` | The API's own objects, **verbatim**. |
 
 :::warning `"truncated": true` is not an error, and `"items": []` is not "none exist"
@@ -4557,7 +4679,7 @@ by status the way the exit code does.
 | `files_scanned` | How many source files the static scan read. `0` in payload mode. |
 | `skipped` | The configured files the static scan did not read, each `{path, reason}`: `too_large` (over 2 MB, usually generated or bundled code) or `unreadable`. Empty in payload mode. |
 | `summary` | `checked` (every row), and the rows by status: `ok`, `warnings`, `errors`, `dynamic`. With markers (see below), also `suppressed` (the findings a marker waives) and `failing` (the rows that fail the run). |
-| `exit_code` | The process exit code: `1` when a row fails the run (an `error` row, or with `strict` a `warning` row, unless a marker suppresses every finding behind its status); else `0`. |
+| `exit_code` | The process exit code: `1` when a row fails the run (an `error` row, or with `strict` a `warning` row, unless a marker suppresses every finding behind its status) or, with `--strict-suppressions`, a marker does; else `0`. |
 | `results[].status` | `ok`, `warning` or `error` (the worst finding's severity), or `dynamic`: nothing about the call was readable, so nothing was sent for it. With `--strict` a `dynamic` call, and an otherwise clean row with an `info` finding, becomes a `warning`. |
 | `results[].location` | `path`, `line`, `column`, `end_line`, `end_column`. In static mode, the call's span, with 1-based lines and columns and `path` relative to the scan root (the check configuration's `root`, by default the directory that holds `.tripl/`). In payload mode, `path` is the `--payloads` argument as typed, relative to the working directory the command ran in (`<stdin>` for `-`), `line` is the NDJSON line (or `1` for an event in a JSON array), and `column`, `end_line` and `end_column` are `null`. |
 | `results[].snippet` | Static mode: the callee or selector as matched, for example `Analytics.shared.log`. Payload mode: `event N` (the 1-based position) for an event in a JSON array, else `""`. |
@@ -4567,7 +4689,7 @@ by status the way the exit code does.
 | `results[].complete` | `true` for a payload (a whole event, so a missing required field is an error), `false` for a call site. |
 | `results[].dynamic` | The targets whose value was only known at runtime: `name`, `properties`, or field names. A field named like a reserved target is `field:<name>` (`field:name`, `field:properties`), as in a call spec and in `check --list`, so it is never read as the event's name or its properties. |
 | `results[].event_id` / `identity` | The plan event the item resolved to, and the identity it was matched by, with `${…}` holes for parts only known at runtime. `event_id` is `null` when nothing matched; both are `null` for a row that was never sent. |
-| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
+| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) a prose `message`, and a `fingerprint`: the finding's line-free identity, the same value as in the SARIF and Code Quality reports (see [Fingerprints](../integrate/tripl-check.md#output)). Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`), `no_verdict`, and the lint's `name_characters`, `name_pattern` and `duplicate_constant` (only with a [`lint:` section](../integrate/tripl-check.md#lint) in the check config). |
 
 **Suppression keys.** When the static scan read at least one
 [`tripl-check-ignore` marker](../integrate/tripl-check.md#suppress), the
@@ -4583,6 +4705,13 @@ is present, and the document is the one above.
 | `results[].fails` | Whether the row fails the run. `status` stays the plan's verdict: an `error` row whose findings are all suppressed has `fails: false`. |
 | `results[].findings[].suppression` | `null`, or the marker that waives the finding: `{reason, location: {path, line, column}}`. |
 | `results[].findings[].fails` | Whether the finding fails the run on its own: an error (or, with `strict`, any finding) that no marker waives. |
+
+With `--strict-suppressions`, and only then, `summary.failing_suppressions`
+(present even with no marker, and absent under `--write-baseline`, which
+ignores the flag) counts the markers that fail the run, and each
+`suppressions[]` entry gains `fails`, whether it is one of them.
+`summary.failing` still counts rows alone, so `exit_code` can be `1` with
+`failing` at `0`: a marker failed the run.
 
 **Gate keys.** With `--new-from-rev` or `--new-from-patch` (and a gate that
 ran: an empty `REF` runs none), the document also carries the keys below, each
@@ -4654,6 +4783,7 @@ with the type shown. Trimmed to one call of each list:
   "truncated": false,
   "files_scanned": 2,
   "skipped": [],
+  "lint": false,
   "summary": {
     "calls": 4, "items": 4, "fully_read": 1, "not_sent": 3,
     "dynamic": { "name": 3, "properties": 1 },
@@ -4662,7 +4792,8 @@ with the type shown. Trimmed to one call of each list:
       "properties": { "parameter": 1 }
     },
     "targets": { "event": { "name": 4, "properties": 2 } },
-    "default_label_fields": {}
+    "default_label_fields": {},
+    "lint": {}
   },
   "calls": [
     {
@@ -4681,7 +4812,8 @@ with the type shown. Trimmed to one call of each list:
         "object_argument": null
       },
       "dynamic": { "name": "parameter", "properties": "parameter" },
-      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ]
+      "items": [ { "name": null, "fields": {}, "properties": null, "sent": false } ],
+      "lint": []
     }
   ],
   "forwarders": [
@@ -4689,8 +4821,10 @@ with the type shown. Trimmed to one call of each list:
       "function": "track",
       "location": { "path": "app/Tracking.kt", "line": 9 },
       "parameters": [
-        { "name": "event", "index": 0, "label": "event", "targets": ["name"] },
-        { "name": "params", "index": 1, "label": "params", "targets": ["properties"] }
+        { "name": "event", "index": 0, "label": "event", "targets": ["name"],
+          "object_argument": false },
+        { "name": "params", "index": 1, "label": "params", "targets": ["properties"],
+          "object_argument": false }
       ],
       "calls": 1,
       "callers": { "same_file": 0, "same_file_matched": 0, "other_files": 1, "other_files_matched": 0,
@@ -4714,10 +4848,11 @@ with the type shown. Trimmed to one call of each list:
 | `root` | The absolute directory the scan read: the configuration's `root`, or the repository root in discovery mode. Every `path` below is relative to it. |
 | `truncated` | `true` when discovery mode stopped at 20000 source files with files left unread. Always `false` with a check configuration. |
 | `files_scanned` / `skipped` | As in the [`check` document](#check-document). |
-| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. |
-| `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. |
-| `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value whose reason comes from the argument alone (never `parameter`, `parameter_property` or `local`, so `declared` is `null`). `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read, while the text names it only on a `not passed` line. |
-| `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`): add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`). `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
+| `lint` | `true` when the check configuration has a [`lint:` section](../integrate/tripl-check.md#lint), so each call's `lint` holds the lint's findings; else `false`. |
+| `summary` | Counts of call sites: `calls`; `items`, what `tripl check` would build for them; `fully_read`, the calls with no target left unread (a dictionary entry is no target); `not_sent`, the calls where no name and no field was read, which `tripl check` reports as `dynamic` and sends nothing for (properties alone are not sent). `dynamic` counts per target the calls with a value not read, and `reasons` splits each of those by reason code, so a target's codes add up to its `dynamic` count. `targets` counts per event type and target the calls that pass a value for it, read or not. `default_label_fields` lists per event type, each once, the fields a labelled argument reached only because its call spec has no `args:`. `lint` counts per lint code the calls with a finding of it (`{}` without a `lint:` section). |
+| `calls[]` | One per matched call site, in scan order. `location` and `snippet` as in the [`check` document](#check-document). `read` holds a value per target: `name` and `properties` (`null` when the call passes nothing for it), `fields` (field name to value), `unmapped`, the labels (or `#N` positions) of the arguments the call spec maps to no target, and `object_argument` (below). `dynamic` maps each target not read to one reason code, `{}` for a call fully read; a dictionary entry not read is no target, and keeps its reason in its own value under `entries`. `items` are what `tripl check` would send for the call, within the validator's size limits: `name`, `fields`, `properties`, and `sent`, which is `false`, and the call counts in `not_sent`, when no name and no field was read: properties alone are not sent. `lint` lists the [lint](../integrate/tripl-check.md#lint)'s findings on the call, each `{code, severity, field, message}` as in the [`check` document](#check-document), whether or not a marker suppresses one (`--list` reads no markers); `[]` without a `lint:` section. |
+| `calls[].read.object_argument` | The call's `object_arg` argument when the scan could not read it, as a `dynamic` value. Its `reason` is refined from the function the call sits in, the way a target's is: `parameter`, `parameter_property` or `local` with `declared` set to that function and line, else the argument's own reason with `declared` `null`. `null` when the call spec has no `object_arg`, or the call passes nothing there or a value the scan read (a literal, `null`). It is set also on a call whose name is read; the text names it on a `not passed` line and, when it is a parameter, in the function's `forwarders` row. |
+| `forwarders[]` | The functions whose own parameter is a value a matched call could not read (reason `parameter`), as a target's value or as the call's `object_arg` argument: add a call spec for each. `function` is the name its callers write: a Swift `init`'s or a TypeScript `constructor`'s is its type's (a value's `declared.function`, like the reason line in the text, still says `init` or `constructor`), and one in an anonymous class is not listed. `location` is the declaration's `path` and `line`. `parameters` are the forwarded ones, `{name, index, label, targets, object_argument}`, where `label` is what a caller writes (a Swift argument label, a Kotlin parameter name, else `null`), `targets` are the targets the parameter reaches as a value, and `object_argument` is `true` when a tracking call takes it whole as its `object_arg` argument (`calls[].read.object_argument`); `targets` is `[]` for a parameter forwarded only that way. When `object_argument` is `true` and `label` is not `null`, a call spec for the function reads the object only from the callers that write no label: `object_arg:` does not read a labelled argument. `calls` counts the tracking calls in the function that forward one. `callers` counts the calls of that name, leaving out those in the function's own body: `same_file` and `same_file_matched` in its own file, `other_files` and `other_files_matched` elsewhere, and `first_unmatched` (`{path, line, column}` or `null`), the first one no call spec matches, in its own file first. They are counted by name alone, so in its own file and elsewhere a call of another function of the same name counts too, a tracking call named like it included. |
 | `unmatched[]` | The calls that look like tracking but match no call spec, grouped by method (the callee's last segment, or an Objective-C selector). `receivers` counts what came before the method (`""` for a bare call), `signal` says why the calls look like tracking, `calls` counts them, `first` locates the first one, and `example` is its source on one line, at most 80 characters. Groups with signal `constant` come first, then the rest by `calls`. |
 
 A target is keyed the way a call spec writes it: `name`, `properties`, a
@@ -4749,7 +4884,7 @@ refined into `parameter` only. The last two are about the target, not a value:
 |------|---------|
 | `variable` | A variable the scan does not follow (a property, a lambda parameter, a captured variable), not a constant. |
 | `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
-| `format` | A printf-style format, which the scan does not fill in yet. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
+| `format` | A printf-style format, which the scan does not fill in yet. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format, and a comparison, a range or a word operator makes an `expression` (`a < y.format(z)`, `a..y.format(z)`, `a to y.format(z)`). A word operator is any name between two operands in Kotlin, where it is an infix call, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript), in a file under `sources` or `enums`. The guide's [Enum sources](../integrate/tripl-check.md#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. |
 | `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. |
 | `concatenation` | A concatenation the scan does not join yet. |
@@ -4757,7 +4892,7 @@ refined into `parameter` only. The last two are about the target, not a value:
 | `parameter` | A parameter of the function the call sits in: the value comes from its callers. |
 | `parameter_property` | A property of such a parameter: the value is set where that object is built. |
 | `local` | A local variable of that function, declared before the call. |
-| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds. Always reported on `name`. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds with its own reason (`parameter` when the function around the call passes its parameter on, and is then in `forwarders`). Always reported on `name`. |
 | `wrong_shape` | The value has the wrong shape for its target: properties that are not a dictionary, or a name or field that is one. |
 
 The signals: `constant` (an argument is an event-name constant, a path through a
@@ -5019,6 +5154,10 @@ tripl plan properties --project prod --json \
 # Working branches whose base has moved under them - rebase before review.
 tripl plan branches --project prod --json \
   | jq -r '.items[] | select(.behind_base) | .name'
+
+# The newest revision a person took, to pin a check to.
+tripl plan revisions --project prod --json \
+  | jq -r '[.items[] | select(.kind=="snapshot")][0].id'
 
 # Did the semantic index answer, or did you get substring matches?
 tripl plan search 'checkout funnel' --project prod --json | jq '.meta.semantic_used'

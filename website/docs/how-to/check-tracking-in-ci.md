@@ -400,7 +400,7 @@ an outage of tripl pass while a finding still blocks:
 | Exit code | Meaning |
 |-----------|---------|
 | 0 | No errors, or only [suppressed](#accept-one-call) ones, ones not new in the change (`--new-from-rev`) or ones the baseline holds (`--baseline`). Warnings pass unless you add `--strict`. |
-| 1 | At least one error (or warning, with `--strict`). Also a refused key or an unknown project: a retry would not fix those. |
+| 1 | At least one error (or warning, with `--strict`), or, with `--strict-suppressions`, a malformed or unused `tripl-check-ignore` marker. Also a refused key or an unknown project: a retry would not fix those. |
 | 2 | A configuration problem, including a configuration that matched no call, and a `--baseline` file that is missing or was written for another project, mode or tripl version's keys. |
 | 4 | The instance was unavailable: unreachable, timed out, or it answered `429` or a `5xx`. Nothing was checked. |
 
@@ -467,7 +467,8 @@ The finding stops failing the run. It stays in the Code Quality, JUnit, SARIF
 and JSON reports, marked as suppressed with its reason, and the job log counts
 it in the summary (`1 finding suppressed`). The reason after `--` is required: a marker without one suppresses
 nothing, and the job log says so. A marker that no longer matches any finding
-is listed as unused, so you can remove it. Reviewers see the marker in the
+is listed as unused, so you can remove it; add `--strict-suppressions` to the
+job's arguments to fail the job on it instead. Reviewers see the marker in the
 diff like any other code, which keeps each exception a decision someone made.
 The guide's [Suppress a finding](../integrate/tripl-check.md#suppress) has the
 full grammar and the comment forms for each language.
