@@ -15,6 +15,7 @@ from tripl_cli.api import auth as auth_api
 from tripl_cli.api import (
     branches,
     chart_annotations,
+    check_runs,
     data_sources,
     docs,
     event_types,
@@ -94,6 +95,7 @@ def _every_builder() -> list[ApiRequest]:
             "prod", label="Deployed", at=datetime(2026, 9, 25, tzinfo=UTC)
         ),
         plan_validation.validate("prod", [{"ref": "i0", "name": "signup"}]),
+        check_runs.upload("prod", {"repository": "shop/ios", "calls": []}),
         plan_export.export("prod", plan_export.FORMAT_JSONSCHEMA),
         plan_revisions.list_revisions("prod"),
         docs.list_docs("prod"),

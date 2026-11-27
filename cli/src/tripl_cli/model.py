@@ -757,7 +757,13 @@ def format_duration(seconds: float) -> str:
 # token prefix, which the backend derives from the scope's first letter.
 ACCESS_READ = "read"
 ACCESS_WRITE = "write"
-_ACCESS_BY_PREFIX = {"tk_r_": ACCESS_READ, "tk_w_": ACCESS_WRITE}
+# Reads, and records ``tripl check`` runs (``--upload``): a CI job's key.
+ACCESS_CHECK_UPLOAD = "check_upload"
+_ACCESS_BY_PREFIX = {
+    "tk_r_": ACCESS_READ,
+    "tk_w_": ACCESS_WRITE,
+    "tk_c_": ACCESS_CHECK_UPLOAD,
+}
 
 
 @dataclass(frozen=True)
@@ -782,7 +788,7 @@ class Whoami:
 
 
 def access_of_key(api_key: str | None) -> str | None:
-    """``read`` / ``write`` from the token prefix, or ``None`` for anything else."""
+    """``read`` / ``write`` / ``check_upload`` from the token prefix, else ``None``."""
     for prefix, access in _ACCESS_BY_PREFIX.items():
         if api_key and api_key.startswith(prefix):
             return access
