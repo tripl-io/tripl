@@ -1286,9 +1286,15 @@ left out as well: an interface or abstract method, a protocol requirement, an
 overload, a C prototype in a header. The scan tells one from a call by a
 declaring keyword (`fun`, `func`, `init`, `function`), a return type (the end
 of a preprocessor line, as in `#endif`, is none), a typed parameter or a
-modifier, so a TypeScript member with none of these (`track(name, props);`) is
-still listed. The text shows the 10 largest groups besides the `constant`
-ones; `--json` lists them all.
+modifier. A method in a TypeScript `interface` needs none of these: an
+interface holds no calls, so `track(name, props);` there is left out too, as is
+an untyped construct signature (`new(config);`). Only a declaration counts, so
+the word `interface` in JSX text does not hide a call in the `{…}` after it. In
+an object type (`type Api = { track(name, props); }`, or one nested in an
+interface) or a class, a member with none of these is still listed. The same
+rule keeps plain `tripl check` from sending such a declaration, when a call
+spec names it, as a tracking call. The text shows the 10 largest groups besides
+the `constant` ones; `--json` lists them all.
 
 ### Labels read as fields {#list-default-labels}
 

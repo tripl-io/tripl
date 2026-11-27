@@ -45,13 +45,19 @@ Such a declaration with no body (an interface or abstract member, a protocol
 requirement, an overload, a C prototype, as ``signatures`` tells them from a
 call) is no scope, but where its signature ends is kept
 (``ScopeIndex.bodiless``), as ``find_calls`` reads some of them as calls. A
+method in a TypeScript interface's body is such a declaration whatever its
+parameters look like, since an interface holds no calls: there an untyped
+``track(name, props);`` declares too, where ``signatures`` alone cannot tell
+it from a call. An object type, in an interface or not, is not read that way. A
 Swift ``init`` and a TypeScript ``constructor`` also name the type whose body
 they sit in (``FunctionScope.owner``), which is what their callers write.
 
 ``ScopeIndex`` keeps a file's scopes for the lookups made per call, by
 bisection, so a file with many calls costs about its own size.
 
-A hint, never a verdict: nothing ``tripl check`` sends or decides depends on it.
+A hint, never a verdict, but for ``ScopeIndex.bodiless``: plain ``tripl
+check`` reads it too, so a declaration a call spec matched is not sent as a
+call.
 """
 
 from __future__ import annotations
@@ -63,7 +69,7 @@ from dataclasses import dataclass, replace
 
 from tripl_cli.check.calls import matching
 from tripl_cli.check.lexer import IDENT, PUNCT, Token
-from tripl_cli.check.signatures import Parameter, declares, parameters
+from tripl_cli.check.signatures import Parameter, declares, member_start, parameters
 
 # The most tokens a signature tail (a return type, `throws`, `where` …) may hold,
 # a bracketed part it skips (`(…)`, `[…]`, an object type) counting as one.
@@ -277,13 +283,20 @@ def _declarations(
     # Per open `{`: the name of the type it is the body of, else None.
     types: list[str | None] = []
     headers: dict[int, str | None] = {}
+    # Per open `{`: whether it is a TypeScript interface's body, and the `{`s
+    # that will be. Only the innermost `{` counts, so an object type nested in
+    # an interface is not one.
+    interfaces: list[bool] = []
+    interface_bodies: set[int] = set()
     type_keywords = _TYPE_KEYWORDS.get(language, frozenset())
     for index, token in enumerate(tokens):
         if token.kind == PUNCT:
             if token.text == "{":
                 types.append(headers.pop(index, None))
+                interfaces.append(index in interface_bodies)
             elif token.text == "}" and types:
                 types.pop()
+                interfaces.pop()
             continue
         if token.kind != IDENT:
             continue
@@ -291,6 +304,10 @@ def _declarations(
             header = _type_body(tokens, index, language)
             if header is not None:
                 headers[header[0]] = header[1]
+        elif language == "ts" and token.text == "interface":
+            body = _interface_body(tokens, source, index)
+            if body is not None:
+                interface_bodies.add(body)
         declared = _declared(tokens, source, language, index)
         if isinstance(declared, FunctionScope):
             if (language, declared.name) in _OWNED:
@@ -298,6 +315,10 @@ def _declarations(
             found.append(declared)
         elif declared is not None:
             bodiless.append(declared)
+        elif interfaces and interfaces[-1]:
+            member = _interface_member(tokens, source, index)
+            if member is not None:
+                bodiless.append(member)
     claims = Counter(scope.body for scope in found)
     return [scope for scope in found if claims[scope.body] == 1], bodiless
 
@@ -458,6 +479,132 @@ def _method(tokens: list[Token], source: str, name: int) -> FunctionScope | int 
         if close < len(tokens) and _arrow_after(tokens, close + 1) is not None:
             return None
     return _scope(tokens, source, "ts", name, opening)
+
+
+def _interface_member(tokens: list[Token], source: str, name: int) -> int | None:
+    """The signature end of the method ``tokens[name]`` names in a TypeScript interface body.
+
+    An interface holds no statements, so ``name[?][<T>](params)`` at the start
+    of a member declares a method, whatever its parameters look like: the
+    untyped ``track(name, props);`` included, which ``signatures.declares``
+    cannot tell from a call. A construct signature (``new(config);``) is one
+    too, though ``new`` is no name elsewhere. None when no method starts at
+    ``name``.
+    """
+    token = tokens[name]
+    if not (_is_name(token) or token.is_ident("new")) or not member_start(tokens, source, name):
+        return None
+    opening = name + 1
+    if opening < len(tokens) and tokens[opening].is_punct("?"):
+        opening += 1  # an optional method: `track?(name);`
+    if opening < len(tokens) and tokens[opening].is_punct("<"):
+        opening = _after_angles(tokens, opening, allowed=_TYPE_PARAMETER_PUNCT)
+    if opening >= len(tokens) or not tokens[opening].is_punct("("):
+        return None
+    close = matching(tokens, opening)
+    return tokens[close].end if close < len(tokens) else None
+
+
+def _interface_body(tokens: list[Token], source: str, keyword: int) -> int | None:
+    """The ``{`` of the body of the TypeScript interface ``tokens[keyword]`` declares.
+
+    Only a declaration counts: ``interface`` starts a statement (after
+    ``export``, ``declare`` or ``default`` at most), and its header is exactly
+    ``Name[<…>] [extends A[<…>], B.C[<…>] …] {``. Prose in JSX text
+    (``<p>Our new interface is ready, {track("seen")}</p>``) is none, so the
+    call in its ``{…}`` stays a call. The header may be of any length, since
+    every token in it is one of these parts. None when no such body follows.
+    """
+    start = keyword
+    while start and tokens[start - 1].is_ident("export", "declare", "default"):
+        start -= 1
+    if start:
+        before = tokens[start - 1]
+        if (
+            not before.is_punct("{", "}", ";")
+            and "\n" not in source[before.end : tokens[start].offset]
+        ):
+            return None
+    position = keyword + 1
+    if position >= len(tokens) or not _is_type_name(tokens[position]):
+        return None
+    position = _past_type_arguments(tokens, position + 1)
+    if position < len(tokens) and tokens[position].is_ident("extends"):
+        while True:
+            position = _past_heritage(tokens, position + 1)
+            if position >= len(tokens) or not tokens[position].is_punct(","):
+                break
+    if position < len(tokens) and tokens[position].is_punct("{"):
+        return position
+    return None
+
+
+def _past_heritage(tokens: list[Token], position: int) -> int:
+    """The index past one type an interface extends (``A.B<T>``, ``import('x').C``).
+
+    ``len(tokens)`` when no such type starts at ``position``.
+    """
+    if position >= len(tokens) or not _is_type_name(tokens[position]):
+        return len(tokens)
+    if tokens[position].text == "import":
+        if position + 1 >= len(tokens) or not tokens[position + 1].is_punct("("):
+            return len(tokens)
+        position = matching(tokens, position + 1)
+    position += 1
+    while (
+        position + 1 < len(tokens)
+        and tokens[position].is_punct(".")
+        and tokens[position + 1].kind == IDENT
+    ):
+        position += 2
+    return _past_type_arguments(tokens, position)
+
+
+# In a `<…>` type argument list none of these appear: they start a declaration
+# or a statement, so the `<` was no type argument list.
+_NOT_IN_TYPE_ARGUMENTS = (_STATEMENTS - {"new"}) | {
+    "interface",
+    "class",
+    "function",
+    "enum",
+    "var",
+    "let",
+    "export",
+    "declare",
+}
+
+
+def _past_type_arguments(tokens: list[Token], position: int) -> int:
+    """The index past a balanced ``<…>`` at ``position``; ``position`` when none is there.
+
+    Brackets inside are passed over whole, an object type included. ``len(tokens)``
+    when the list does not close before a ``;``, a stray closing bracket or a
+    word no type holds, which also keeps the scan from running past the next
+    declaration.
+    """
+    if position >= len(tokens) or not tokens[position].is_punct("<"):
+        return position
+    depth = 0
+    while position < len(tokens):
+        token = tokens[position]
+        if token.is_punct("<"):
+            depth += 1
+        elif token.is_punct(">"):
+            depth -= 1
+            if not depth:
+                return position + 1
+        elif token.is_punct(*_OPENERS):
+            position = matching(tokens, position)
+        elif token.is_punct(";", *_CLOSERS) or (
+            token.kind == IDENT and token.text in _NOT_IN_TYPE_ARGUMENTS
+        ):
+            break
+        position += 1
+    return len(tokens)
+
+
+def _is_type_name(token: Token) -> bool:
+    return token.kind == IDENT and token.text not in _NOT_TYPE_NAMES and _is_name(token)
 
 
 def _arrow(tokens: list[Token], source: str, keyword: int) -> FunctionScope | None:
