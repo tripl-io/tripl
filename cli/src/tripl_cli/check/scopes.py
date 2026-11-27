@@ -66,10 +66,11 @@ default value. ``ScopeIndex`` keeps a file's
 scopes for the lookups made per call, by bisection, so a file with many calls
 costs about its own size too.
 
-For ``tripl check --list`` these scopes are hints. Plain ``tripl check`` reads
-one thing from them: a call that is really a function's own declaration
-(``FunctionScope.signature_end``, ``ScopeIndex.bodiless``) is not sent as a
-tracking call.
+Mostly a hint for ``--list``. What ``tripl check`` sends depends on it in a few
+places only: a declaration a call spec matched is no call (``scan``), and,
+through ``places.FilePlaces``, a parameter or a local hides a type's member
+named without its type, and a local set once to a constant is read.
+``expression_end`` also tells the evaluator where a Kotlin ``when`` entry ends.
 """
 
 from __future__ import annotations
@@ -79,7 +80,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from tripl_cli.check.calls import closers
+from tripl_cli.check.calls import closers, matching
 from tripl_cli.check.lexer import IDENT, PUNCT, Token
 from tripl_cli.check.signatures import Parameter, declares, member_start, parameters
 
@@ -664,7 +665,7 @@ def _arrow(
     if arrow + 1 < len(tokens) and tokens[arrow + 1].is_punct("{"):
         body = (arrow + 1, closes[arrow + 1])
     else:
-        body = (arrow, _expression_end(tokens, closes, source, arrow, "ts"))
+        body = (arrow, expression_end(tokens, source, arrow, "ts", closes))
     return FunctionScope(tokens[name].text, tokens[name].offset, found, body, signature_end)
 
 
@@ -820,7 +821,7 @@ def _body_after(
             position = closes[position] + 1
             continue
         if token.is_punct("=") and language == "kotlin":
-            return position, _expression_end(tokens, closes, source, position, language)
+            return position, expression_end(tokens, source, position, language, closes)
         if token.is_punct("(", "["):
             # A function or tuple type in the return type: `(Int) -> Unit`, `-> (A, B)`.
             position = closes[position] + 1
@@ -895,8 +896,12 @@ def _arrow_after(tokens: list[Token], closes: list[int], position: int) -> int |
     return None
 
 
-def _expression_end(
-    tokens: list[Token], closes: list[int], source: str, marker: int, language: str
+def expression_end(
+    tokens: list[Token],
+    source: str,
+    marker: int,
+    language: str,
+    closes: Sequence[int] | None = None,
 ) -> int:
     """The first token past the expression body after ``tokens[marker]`` (``=`` or ``=>``).
 
@@ -910,9 +915,11 @@ def _expression_end(
     at a ``,`` separating it from what follows), or at the end.
 
     Nothing inside brackets can end the body, so each bracketed group is
-    stepped over through ``closes`` (``calls.closers(tokens)``) rather than
-    read: a body that holds further declarations in its brackets is then not
-    read again for each of them.
+    stepped over rather than read. Through ``closes`` (``calls.closers(tokens)``)
+    when given, as this module's readers give it: a body that holds further
+    declarations in its brackets is then not read again for each of them.
+    Without it, a caller that asks about one expression (``places``, the
+    evaluator's Kotlin ``when``) pays for that expression's own brackets only.
     """
     first = marker + 1
     # The `)` of a Kotlin `if (…)` outside brackets: its branch may start on the next line.
@@ -934,7 +941,7 @@ def _expression_end(
             ):
                 return position
         if token.kind == PUNCT and token.text in _OPENERS:
-            close = closes[position]
+            close = closes[position] if closes is not None else matching(tokens, position)
             if close >= len(tokens):
                 return len(tokens)  # a bracket left open runs to the end
             if language == "kotlin" and tokens[position - 1].is_ident("if"):

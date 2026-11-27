@@ -55,7 +55,7 @@ from tripl_cli.check.model import (
     SkippedFile,
     Suppression,
 )
-from tripl_cli.check.scopes import ScopeIndex
+from tripl_cli.check.places import FilePlaces
 from tripl_cli.check.suppress import attach, markers
 from tripl_cli.check.symbols import SymbolIndex
 from tripl_cli.check.values import Evaluator, Value
@@ -291,7 +291,9 @@ class FileCalls:
     """One scanned file in the second pass: every call in it, with what it matched.
 
     ``calls`` pairs each call ``find_calls`` found (in offset order) with the
-    event type and call spec that matched it, or None.
+    event type and call spec that matched it, or None. ``places`` is the
+    file's own lookups by position, shared with ``evaluator``: its function
+    scopes are built once, whoever asks first.
     """
 
     source: SourceFile
@@ -300,6 +302,7 @@ class FileCalls:
     lines: LineIndex
     evaluator: Evaluator
     calls: tuple[tuple[Call, tuple[EventTypeSpec, CallSpec] | None], ...]
+    places: FilePlaces
 
 
 def scan(config: CheckConfig) -> ScanOutcome:
@@ -437,21 +440,20 @@ def second_pass(config: CheckConfig, tree: Tree, *, explain: bool = False) -> It
         language = source.language
         calls = find_calls(tokens, language, text)
         pairs = [(call, _first_match(config.event_types, call, language)) for call in calls]
+        places = FilePlaces(tokens, language, text)
         yield FileCalls(
             source,
             text,
             tokens,
             LineIndex(text),
-            Evaluator(tree.symbols, language, explain=explain),
-            tuple(_unmatch_declarations(pairs, tokens, language, text)),
+            Evaluator(tree.symbols, language, explain=explain, places=places),
+            tuple(_unmatch_declarations(pairs, places)),
+            places,
         )
 
 
 def _unmatch_declarations(
-    pairs: list[tuple[Call, tuple[EventTypeSpec, CallSpec] | None]],
-    tokens: list[Token],
-    language: str,
-    text: str,
+    pairs: list[tuple[Call, tuple[EventTypeSpec, CallSpec] | None]], places: FilePlaces
 ) -> list[tuple[Call, tuple[EventTypeSpec, CallSpec] | None]]:
     """``pairs`` with every function DECLARATION a call spec matched left unmatched.
 
@@ -466,7 +468,7 @@ def _unmatch_declarations(
     """
     if not any(hit is not None and call.selector is None for call, hit in pairs):
         return pairs
-    scopes = ScopeIndex(tokens, language, text)
+    scopes = places.scopes
     declarations = scopes.bodiless.union(scope.signature_end for scope in scopes.functions)
     return [
         (call, None if call.selector is None and call.end in declarations else hit)

@@ -2547,17 +2547,15 @@ app/Tracking.kt:10:9  event  analytics.logEvent  name=? properties=?
     properties: parameter params of track (line 9)
 app/checkout/CheckoutScreen.kt:6:9  event  analytics.logEvent  name=checkout_started properties={step=?, cart=main}
     tripl-check-ignore[unknown_field:cart] -- the plan gains cart next release (line 5)
-app/checkout/CheckoutScreen.kt:11:9  event  analytics.logEvent  name=?
-    name: format of promo_%s_shown
+app/checkout/CheckoutScreen.kt:11:9  event  analytics.logEvent  name=promo_${promo}_shown
 app/checkout/CheckoutScreen.kt:15:9  event  analytics.logEvent  name=?
     name: action.event: property of parameter action of onAction (line 14)
 
-4 call sites in 2 files: 1 fully read; 3 not sent (no name or field read); 0 sent with a value not read.
-Values not read: name 3, properties 1.
+4 call sites in 2 files: 2 fully read; 2 not sent (no name or field read); 0 sent with a value not read.
+Values not read: name 2, properties 1.
 Read per event type: event: name 4, properties 2.
 
 Why (call sites, per target):
-  name        format              1  a printf-style format, which the scan does not fill in yet
   name        parameter           1  a parameter of the function the call sits in: the value comes from its callers; add a call spec for that function
   name        parameter_property  1  a property of such a parameter: the value is set where that object is built; configure that, not the function's callers
   properties  parameter           1  a parameter of the function the call sits in: the value comes from its callers; add a call spec for that function
@@ -2743,6 +2741,16 @@ The complete jobs, with the variables, rules and permissions they need, the
 gate for every CI, and the hookups for Jenkins, Azure Pipelines, Bitbucket,
 CircleCI and TeamCity, are in
 [Check tracking code in CI](../how-to/check-tracking-in-ci.md).
+
+**After an upgrade.** A newer `tripl` may read calls an older one left
+dynamic (a format, constants joined with `+`, an `if` or `when` over
+constants, a local set to a constant, a `Bundle().apply { … }` argument), and
+so report findings on code nobody changed. The gate scans both sides of a
+change with the same version, so it fails only on what the change adds. A
+committed baseline written by the older version does not hold the new
+findings, and its entries for those calls are reported as not seen: write it
+again, or prune it. See the guide's
+[Formats and concatenations](../integrate/tripl-check.md#formats).
 
 **Cost:** one request per 5,000 calls or payloads, plus one to resolve
 `--branch` or `--branch-if-exists` when you pass it. Under a gate with a plan
@@ -4874,10 +4882,10 @@ with the type shown. Trimmed to one call of each list:
   "skipped": [],
   "lint": false,
   "summary": {
-    "calls": 4, "items": 4, "fully_read": 1, "not_sent": 3,
-    "dynamic": { "name": 3, "properties": 1 },
+    "calls": 4, "items": 4, "fully_read": 2, "not_sent": 2,
+    "dynamic": { "name": 2, "properties": 1 },
     "reasons": {
-      "name": { "parameter": 1, "format": 1, "parameter_property": 1 },
+      "name": { "parameter": 1, "parameter_property": 1 },
       "properties": { "parameter": 1 }
     },
     "targets": { "event": { "name": 4, "properties": 2 } },
@@ -4981,25 +4989,27 @@ every key present:
 | `expression` | A `dynamic` value as written, at most 60 characters. Else `null`. |
 | `declared` | `{function, line, type}` for the codes `parameter` and `parameter_property` (the function the call sits in, and its declaration line) and `local` (that function, and the local's line). `function` is the name it is declared with, so a Swift initializer is `init` and a TypeScript one `constructor`; for those, `type` is the type it belongs to, the name its callers write (`ScreenView`), and it is `null` for any other function. `declared` is else `null`, and always `null` on an entry. |
 
-The reason codes. The first seven come from reading the argument. The next three
+The reason codes. The first eight come from reading the argument. The next three
 refine a `variable` from the function the call sits in, a hint read from the
-source and never a verdict; an `unknown_constant` that names a parameter is
-refined too, a bare one such as `kEvent` into `parameter` and a path through
-one such as `kEvent.name` into `parameter_property`, but never into `local`.
-The last two are about the target, not a value:
+source and never a verdict; an `unknown_constant` or `ambiguous_constant`
+that names a parameter is refined too, a bare one such as `kEvent` into
+`parameter` and a path through one such as `kEvent.name` into
+`parameter_property`, but never into `local`. The last two are about the
+target, not a value:
 
 | Code | Meaning |
 |------|---------|
 | `variable` | A variable the scan does not follow (a property, a lambda parameter, a captured variable), not a constant. |
-| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, several constants share its name, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead, and a path through such a parameter (`kEvent.name`) is `parameter_property`; a Swift shorthand such as `.home` never is. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. |
-| `format` | A printf-style format, which the scan does not fill in yet. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format, and a comparison, a range or a word operator makes an `expression` (`a < y.format(z)`, `a..y.format(z)`, `a to y.format(z)`). A word operator is any name between two operands in Kotlin, where it is an infix call, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
+| `unknown_constant` | A constant or enum case the scan could not resolve: its file is not under `sources` or `enums`, or the case has no string raw value. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in is `parameter` instead, and a path through such a parameter (`kEvent.name`) is `parameter_property`; a Swift shorthand such as `.home` never is. A local of that name set to a constant is read; any other local of that name does not make it `local`, because the local may be in a block that closed before the call. |
+| `ambiguous_constant` | Such a constant that resolves in several objects to different values (`.home` in two enums, `HOME` at file scope in two files), which the field the value goes to does not tell apart. Plain `tripl check` sends it as dynamic, with no finding of its own. |
+| `format` | A printf-style format the scan does not fill in: a template it cannot read, a conversion other than a plain `%s`, `%d` or `%@` (a flag, a width or a precision included), arguments the conversions do not use up exactly, an argument that is several values, a dictionary or `null`, a spread, or a format inside another format. The guide's [Formats and concatenations](../integrate/tripl-check.md#formats) lists the formats it fills in. `expression` is `format of <template>` when the template was read. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation`, not a format, and a comparison, a range or a word operator makes an `expression` (`a < y.format(z)`, `a..y.format(z)`, `a to y.format(z)`). A word operator is any name between two operands in Kotlin, where it is an infix call, and `instanceof`, TypeScript's `in` or Swift's `is` elsewhere. `[NSString stringWithFormat:…]` is one in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal. |
 | `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript), in a file under `sources` or `enums`. The guide's [Enum sources](../integrate/tripl-check.md#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. |
-| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. |
-| `concatenation` | A concatenation the scan does not join yet. |
+| `conditional` | A choice between values the scan does not read: an `if`, `when` or ternary with a branch that is not a constant, a `switch`, or a `?:` or `??` fallback. The guide's [Conditionals and locals](../integrate/tripl-check.md#conditionals) lists the ones it reads. |
+| `concatenation` | A concatenation the scan does not join: one with no string literal among its parts and a part that is not a constant (`Events.PREFIX + id`, or a number), or one with a part that is several values or a dictionary. |
 | `expression` | Any other expression: a chained call, an operator, a subscript, a lambda, or a map literal the scan could not read. |
 | `parameter` | A parameter of the function the call sits in: the value comes from its callers. |
 | `parameter_property` | A property of such a parameter: the value is set where that object is built. |
-| `local` | A local variable of that function, declared before the call. |
+| `local` | A local variable of that function, declared before the call, that the scan does not read: it reads one declared once with `val`, `let`, `const` or a Java type and set to a constant (see [Conditionals and locals](../integrate/tripl-check.md#conditionals)). |
 | `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal, which `read.object_argument` then holds with its own reason (`parameter` when the function around the call passes its parameter on, and is then in `forwarders`). Always reported on `name`. |
 | `wrong_shape` | The value has the wrong shape for its target: properties that are not a dictionary, or a name or field that is one. |
 

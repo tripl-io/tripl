@@ -878,13 +878,14 @@ def _evaluated(language: str, source: str) -> Value:
         # Apple's and Google's `k` prefix names a constant; `kind` is a variable.
         ("objc", "kFIREventSelectContent", "unknown_constant", "kFIREventSelectContent"),
         ("kotlin", "kind", "variable", "kind"),
-        # A format is told from its shape, whatever the receiver; its template
-        # shows when the format string reads as text.
-        ("kotlin", '"%s_x".format(id)', "format", "format of %s_x"),
-        ("kotlin", "Events.Name.Promo.format(id)", "format", "format of promo_%s_shown"),
+        # A format is told from its shape, whatever the receiver; one the scan
+        # does not fill in shows its template when the format string reads as text.
+        ("kotlin", '"%.2f_x".format(v)', "format", "format of %.2f_x"),
+        ("kotlin", "Events.Name.Promo.format(*ids)", "format", "format of promo_%s_shown"),
         ("kotlin", "Unknown.Thing.format(id)", "format", "Unknown.Thing.format(id)"),
-        ("java", 'String.format(Locale.US, "%s_x", x)', "format", "format of %s_x"),
-        ("swift", 'String(format: "%@_x", id)', "format", "format of %@_x"),
+        ("java", 'String.format(Locale.US, "%x_x", x)', "format", "format of %x_x"),
+        ("swift", 'String(format: "%@_x", arguments: ids)', "format", "format of %@_x"),
+        ("ts", '"%s_x".format(id)', "format", "format of %s_x"),
         # `[…]` is a message only in Objective-C; in Swift and TypeScript, a literal.
         ("swift", '[stringWithFormat: "%@_x", 1]', "expression", '[stringWithFormat: "%@_x", 1]'),
         ("ts", '[c ? stringWithFormat : "%s"]', "expression", '[c ? stringWithFormat : "%s"]'),
@@ -974,14 +975,16 @@ def _evaluated(language: str, source: str) -> Value:
         ),
         ("ts", 'Foo<T>["k"].format(c)', "format", 'Foo<T>["k"].format(c)'),
         ("kotlin", "getMapTypeLog()", "function", "getMapTypeLog()"),
-        ("kotlin", 'if (flag) "a" else "b"', "conditional", 'if (flag) "a" else "b"'),
+        # A conditional with a branch that is no constant.
+        ("kotlin", 'if (flag) "a" else b', "conditional", 'if (flag) "a" else b'),
         (
             "kotlin",
             'when (x) { 1 -> "a" else -> "b" }',
             "conditional",
             'when (x) { 1 -> "a" else -> "b" }',
         ),
-        ("ts", 'flag ? "a" : "b"', "conditional", 'flag ? "a" : "b"'),
+        ("ts", 'flag ? "a" : b', "conditional", 'flag ? "a" : b'),
+        ("ts", 'flag ? "a" + x : "b"', "conditional", 'flag ? "a" + x : "b"'),
         ("kotlin", 'name ?: "fallback"', "conditional", 'name ?: "fallback"'),
         ("swift", 'name ?? "fallback"', "conditional", 'name ?? "fallback"'),
         ("kotlin", "Event.A + Params.B", "concatenation", "Event.A + Params.B"),
@@ -1047,8 +1050,378 @@ def test_a_kotlin_map_with_a_trailing_comma_reads_its_entries(builder: str) -> N
 
 
 def test_an_objective_c_format_names_its_template() -> None:
+    value = _evaluated("objc", '[tracker track:[NSString stringWithFormat:@"%@_%@", y]];')
+    assert (value.reason, value.expression) == ("format", "format of %@_%@")
+
+
+def _read_both_ways(language: str, argument: str, index: str = _INDEX) -> Value:
+    """``argument`` read by plain ``tripl check`` and by ``--list``, which must agree."""
+    symbols = SymbolIndex()
+    symbols.index_tokens(tokenize(index, "kotlin"), "kotlin")
+    tokens = tokenize(argument, language)
+    plain = Evaluator(symbols, language).evaluate(tokens)
+    listed = Evaluator(symbols, language, explain=True).evaluate(tokens)
+    assert (plain, plain.text) == (listed, listed.text)
+    return listed
+
+
+@pytest.mark.parametrize(
+    ("language", "argument", "name"),
+    [
+        # A hole is named after its argument, as a concatenation names one.
+        ("kotlin", '"%s_x".format(id)', "${id}_x"),
+        ("kotlin", "Events.Name.Promo.format(id)", "promo_${id}_shown"),
+        ("kotlin", "Events.Name.Promo.formatted(sheet.id)", "promo_${id}_shown"),
+        # An argument that reads as text is filled in.
+        ("kotlin", "Events.Name.Promo.format(Events.Name.Open)", "promo_open_shown"),
+        ("kotlin", '"%s_%d".format(Events.Name.Open, 3)', "open_3"),
+        ("kotlin", '"%d%%_%s".format(7, x)', "7%_${x}"),
+        ("kotlin", '"%s".format(id,)', "${id}"),
+        ("kotlin", '"%s_x".format(Locale.US, id)', "${id}_x"),
+        ("java", 'String.format(Locale.US, "%s_%d", screen.name, n)', "${name}_${n}"),
+        ("java", 'String.format("%2$s_%1$s", a, b)', "${b}_${a}"),
+        ("java", '"%1$s_%1$s".formatted(a)', "${a}_${a}"),
+        ("swift", 'String(format: "%@_%ld", id, count)', "${id}_${count}"),
+        ("swift", 'String(format: "%@_x", locale: .current, id)', "${id}_x"),
+        ("swift", 'String(format: "%d_%u", 1, 2)', "1_2"),
+        # A format inside a format is not filled in: it is a hole of the outer one.
+        ("kotlin", '"%s_x".format("%s".format(id))', "${id}_x"),
+    ],
+)
+def test_a_printf_style_format_is_filled_in(language: str, argument: str, name: str) -> None:
+    value = _read_both_ways(language, argument)
+    assert (value.kind, value.text, value.interpolated) == ("text", name, "${" in name)
+
+
+def test_an_objective_c_format_is_filled_in() -> None:
     value = _evaluated("objc", '[tracker track:[NSString stringWithFormat:@"%@_x", y]];')
-    assert (value.reason, value.expression) == ("format", "format of %@_x")
+    assert (value.kind, value.text) == ("text", "${y}_x")
+
+
+@pytest.mark.parametrize(
+    ("language", "argument"),
+    [
+        # More or fewer arguments than conversions, or both kinds of position.
+        ("kotlin", '"%s_%s".format(a)'),
+        ("kotlin", '"%s".format(a, b)'),
+        ("kotlin", '"x".format(a)'),
+        ("java", 'String.format("%1$s_%s", a, b)'),
+        # A conversion printed in a way the scan does not reproduce.
+        ("kotlin", '"%S".format(a)'),
+        ("kotlin", '"%05d".format(n)'),
+        ("kotlin", '"%-5s".format(a)'),
+        ("kotlin", '"%ld".format(n)'),
+        ("java", 'String.format("%n%s", a)'),
+        ("java", 'String.format("%tY", date)'),
+        ("swift", 'String(format: "%.1f", ratio)'),
+        ("kotlin", '"x%".format()'),
+        # A number printed otherwise than it is written: 16, 8, 1.5.
+        ("kotlin", '"e_%s".format(0x10)'),
+        ("java", 'String.format("e_%d", 010)'),
+        ("kotlin", '"e_%s".format(1.50)'),
+        # An integer conversion given text, an argument that is nothing, a spread.
+        ("kotlin", '"%d".format(Events.Name.Open)'),
+        ("kotlin", '"%s".format(null)'),
+        ("kotlin", '"%s".format(*args)'),
+        ("swift", 'String(format: "%@", arguments: list)'),
+        ("swift", 'String(format: "%@", with: x)'),
+        # Not the language's printf: Swift has no `.format`, TypeScript no printf.
+        ("swift", '"%@".format(x)'),
+        ("ts", 'String.format("%s", x)'),
+        # A format string that is not text, or a format of a format.
+        ("kotlin", "pattern.format(x)"),
+        ("kotlin", '"%s".format(a).format(b)'),
+    ],
+)
+def test_a_format_the_scan_does_not_fill_in_stays_dynamic(language: str, argument: str) -> None:
+    value = _read_both_ways(language, argument)
+    assert (value.kind, value.reason) == ("dynamic", "format")
+
+
+_CONSTANTS = """
+object Events {
+    const val Prefix = "screen_"
+    const val Shown = "shown"
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("language", "argument", "name"),
+    [
+        ("kotlin", "Events.Prefix + Events.Shown", "screen_shown"),
+        ("kotlin", "(Events.Prefix + Events.Shown) + Events.Shown", "screen_shownshown"),
+        ("ts", "Events.Prefix + Events.Shown", "screen_shown"),
+        # A format that reads as text is a constant part too.
+        ("kotlin", 'Events.Prefix + "%s".format(id)', "screen_${id}"),
+        ("kotlin", 'Events.Prefix + String.format("%s", id)', "screen_${id}"),
+        # Next to a string literal, one number is joined as text.
+        ("java", '"n_" + 1 + 2', "n_12"),
+        ("java", '1 + "_x"', "1_x"),
+    ],
+)
+def test_constants_joined_with_plus_are_read(language: str, argument: str, name: str) -> None:
+    value = _read_both_ways(language, argument, _CONSTANTS)
+    assert (value.kind, value.text) == ("text", name)
+
+
+@pytest.mark.parametrize(
+    ("language", "argument"),
+    [
+        # Without a string literal, a part not read may make `+` a sum.
+        ("kotlin", "Events.Prefix + id"),
+        ("kotlin", "a + b"),
+        ("kotlin", "Events.Prefix + 1"),
+        ("kotlin", "Events.Prefix + -1"),
+        ("kotlin", "Events.Prefix + true"),
+        ("kotlin", "Events.Prefix + null"),
+        ("kotlin", "Events.Prefix + Unknown.Name"),
+        # Two numbers in front of a string literal are a sum: `1 + 2 + "x"` is
+        # "3x" in Java and TypeScript.
+        ("java", '1 + 2 + "x"'),
+        ("ts", '1 + 2 + "x"'),
+        # Objective-C has no `+` for strings.
+        ("objc", "Events.Prefix + Events.Shown"),
+    ],
+)
+def test_a_concatenation_that_may_be_a_sum_stays_dynamic(language: str, argument: str) -> None:
+    value = _read_both_ways(language, argument, _CONSTANTS)
+    assert (value.kind, value.reason) == ("dynamic", "concatenation")
+
+
+def _index(language: str, source: str) -> SymbolIndex:
+    symbols = SymbolIndex()
+    symbols.index_tokens(tokenize(textwrap.dedent(source), language), language)
+    return symbols
+
+
+def _read(symbols: SymbolIndex, language: str, argument: str) -> str | None:
+    value = Evaluator(symbols, language).evaluate(tokenize(argument, language))
+    return value.text if value.kind == "text" else None
+
+
+def test_a_named_companion_objects_constants_are_the_outer_types_too() -> None:
+    symbols = _index(
+        "kotlin",
+        """
+        class Screen {
+            companion object Keys {
+                const val HOME = "home"
+            }
+        }
+        class Other {
+            companion object {
+                const val OPEN = "open"
+            }
+        }
+        """,
+    )
+    assert _read(symbols, "kotlin", "Screen.HOME") == "home"
+    assert _read(symbols, "kotlin", "Screen.Keys.HOME") == "home"
+    assert _read(symbols, "kotlin", "Keys.HOME") == "home"
+    assert _read(symbols, "kotlin", "Other.OPEN") == "open"
+    # Still no file-scope constant: a bare name is not read from any type.
+    assert _read(symbols, "kotlin", "HOME") is None
+
+
+def test_a_swift_computed_property_returning_a_literal_is_a_constant_of_its_type() -> None:
+    symbols = _index(
+        "swift",
+        """
+        enum Screens {
+            static var paywall: String { "paywall_shown" }
+            static var onboarding: String { return "onboarding" }
+            class var legacy: String {
+                get { "legacy" }
+            }
+            var plain: String { get { return "plain" } }
+            static var templated: String { "a_\\(x)" }
+            static var joined: String { "a" + suffix }
+            static var stored: String = "stored"
+            static var observed: String { didSet { print("x") } }
+        }
+        var name: String { "file_scope" }
+        """,
+    )
+    assert _read(symbols, "swift", "Screens.paywall") == "paywall_shown"
+    assert _read(symbols, "swift", "Screens.onboarding") == "onboarding"
+    assert _read(symbols, "swift", "Screens.legacy") == "legacy"
+    assert _read(symbols, "swift", ".plain") == "plain"
+    for unread in ("templated", "joined", "stored", "observed"):
+        assert _read(symbols, "swift", f"Screens.{unread}") is None, unread
+    # A property is no function: nothing named after one reads as a call, and a
+    # file-scope one is not read, so `log(name)` anywhere in the run stays dynamic.
+    assert ("swift", "name") not in symbols.functions
+    assert ("swift", "paywall") not in symbols.functions
+    assert _read(symbols, "swift", "name") is None
+    assert _read(symbols, "swift", "name()") is None
+    assert _read(symbols, "kotlin", "name") is None
+
+
+def test_a_function_with_effects_or_a_throws_clause_is_read() -> None:
+    swift = _index(
+        "swift",
+        """
+        func eventName() async throws -> String { return "a" }
+        func typed() throws(LogError) -> String { "b" }
+        func rethrowing(_ f: () throws -> Void) rethrows -> String { return "c" }
+        func generic<T>(_ x: T) -> String where T: Equatable { return "d" }
+        func notString() async throws -> Int { return 1 }
+        """,
+    )
+    assert _read(swift, "swift", "try await eventName()") == "a"
+    assert _read(swift, "swift", "try typed()") == "b"
+    assert _read(swift, "swift", "try rethrowing { }") is None  # a trailing closure
+    assert _read(swift, "swift", "rethrowing(f)") == "c"
+    assert _read(swift, "swift", "generic(1)") == "d"
+    assert _read(swift, "swift", "notString()") is None
+    java = _index(
+        "java",
+        """
+        class Names {
+            static String opened() throws IOException, java.lang.IllegalStateException {
+                return "opened";
+            }
+            String closed() throws IOException { return x; }
+        }
+        """,
+    )
+    assert _read(java, "java", "opened()") == "opened"
+    assert _read(java, "java", "closed()") is None
+
+
+def test_typescript_nested_objects_and_static_readonly_members_are_read() -> None:
+    symbols = _index(
+        "ts",
+        """
+        export const Events = {
+            Screen: { Home: "home", Deep: { Inner: "inner" } },
+            Click: "click",
+        } as const;
+        export class Names<T extends { id: string }> extends Base {
+            static readonly Open = "open";
+            public static readonly Closed: string = "closed";
+            static Mutable = "mutable";
+            readonly instance = "instance";
+            static readonly Joined = "a" + suffix;
+            method() { const Hidden = "hidden"; }
+        }
+        """,
+    )
+    assert _read(symbols, "ts", "Events.Screen.Home") == "home"
+    assert _read(symbols, "ts", "Events.Screen.Deep.Inner") == "inner"
+    assert _read(symbols, "ts", "Events.Click") == "click"
+    assert _read(symbols, "ts", "Names.Open") == "open"
+    assert _read(symbols, "ts", "Names.Closed") == "closed"
+    for unread in ("Mutable", "instance", "Joined", "Hidden"):
+        assert _read(symbols, "ts", f"Names.{unread}") is None, unread
+
+
+_BARE_CONFIG = """
+project: demo
+event_types:
+  legacy: {calls: [{function: "Tracker.log", name_arg: 0}]}
+"""
+
+
+def test_a_constant_named_inside_its_own_type_is_read(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "src/Screen.kt": """
+                class Screen {
+                    companion object {
+                        const val HOME = "home"
+                    }
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                    fun shadowed(HOME: String) {
+                        Tracker.log(HOME)
+                    }
+                    fun local() {
+                        val HOME = compute()
+                        Tracker.log(HOME)
+                    }
+                    inner class Row {
+                        fun tap() {
+                            Tracker.log(HOME)
+                            Tracker.log("${HOME}_tapped")
+                        }
+                    }
+                }
+                class Other {
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                }
+            """,
+            "src/Names.java": """
+                class Names {
+                    static final String OPEN = "open";
+                    void open() {
+                        Tracker.log(OPEN);
+                    }
+                }
+            """,
+            "src/Screens.swift": """
+                struct Screens {
+                    static let home = "swift_home"
+                    func show() {
+                        Tracker.log(Self.home)
+                        Tracker.log(home)
+                    }
+                }
+                func free() {
+                    Tracker.log(Self.home)
+                }
+            """,
+        },
+    )
+    items = _summary(scan(_config(root, _BARE_CONFIG)).items)
+    assert [(item["at"], item["name"]) for item in items] == [
+        ("src/Names.java:4", "open"),
+        ("src/Screen.kt:6", "home"),
+        ("src/Screen.kt:9", None),
+        ("src/Screen.kt:13", None),
+        ("src/Screen.kt:17", "home"),
+        # Inside an interpolation the name is looked up where its string is.
+        ("src/Screen.kt:18", "home_tapped"),
+        ("src/Screen.kt:24", None),
+        ("src/Screens.swift:4", "swift_home"),
+        # A bare Swift name is never a static member: that needs `Self.`.
+        ("src/Screens.swift:5", None),
+        ("src/Screens.swift:9", None),
+    ]
+
+
+def test_a_type_s_own_constant_wins_over_a_file_scope_one(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "src/Top.kt": 'const val HOME = "top"\n',
+            "src/Screen.kt": """
+                class Screen {
+                    companion object {
+                        const val HOME = "home"
+                    }
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                }
+                class Other {
+                    fun show() {
+                        Tracker.log(HOME)
+                    }
+                }
+            """,
+        },
+    )
+    items = _summary(scan(_config(root, _BARE_CONFIG)).items)
+    assert [(item["at"], item["name"]) for item in items] == [
+        ("src/Screen.kt:6", "home"),
+        ("src/Screen.kt:11", "top"),
+    ]
 
 
 def test_a_plain_reference_keeps_its_path_and_a_long_expression_is_cut() -> None:
@@ -1101,14 +1474,17 @@ def test_a_concatenation_ending_in_a_format_reads_each_operand_once(
 
 
 @pytest.mark.parametrize(
-    ("language", "opening", "inner", "closing", "reads"),
+    ("language", "opening", "inner", "closing", "plain", "explained"),
     [
-        ("kotlin", "", "x", ".format(a)", 2),
-        ("java", "String.format(Locale.US, ", '"%s"', ", y)", 2),
-        ("swift", "String(format: ", '"%@"', ", y)", 2),
-        ("objc", "[NSString stringWithFormat:", '@"%@"', ", y]", 2),
-        # The format string `("a" + …)` is read, with its operands.
-        ("kotlin", '("a" + ', "x", ").format(z)", 4),
+        # The whole and its format string; `--list` reads the format string
+        # again for the template it shows.
+        ("kotlin", "", "x", ".format(a)", 2, 3),
+        ("java", "String.format(Locale.US, ", '"%s"', ", y)", 2, 3),
+        ("swift", "String(format: ", '"%@"', ", y)", 2, 3),
+        ("objc", "[NSString stringWithFormat:", '@"%@"', ", y]", 2, 3),
+        # The format string `("a" + …)` is read, with its operands; the format
+        # among them is not filled in, so the string has no `%` for `z`.
+        ("kotlin", '("a" + ', "x", ").format(z)", 4, 7),
     ],
 )
 def test_reading_a_format_string_never_nests(
@@ -1117,14 +1493,18 @@ def test_reading_a_format_string_never_nests(
     opening: str,
     inner: str,
     closing: str,
-    reads: int,
+    plain: int,
+    explained: int,
 ) -> None:
-    """The formats inside a format string are not read in turn, however many there are."""
+    """The formats inside a format are not read in turn, however many there are."""
     argument = opening * 1000 + inner + closing * 1000
     counted = _count_reads(monkeypatch)
+    value = Evaluator(SymbolIndex(), language).evaluate(tokenize(argument, language))
+    assert (value.kind, sum(counted.values())) == ("dynamic", plain)
+    counted.clear()
     evaluator = Evaluator(SymbolIndex(), language, explain=True)
     value = evaluator.evaluate(tokenize(argument, language))
-    assert (value.kind, value.reason, sum(counted.values())) == ("dynamic", "format", reads)
+    assert (value.kind, value.reason, sum(counted.values())) == ("dynamic", "format", explained)
 
 
 def test_a_format_string_nested_past_the_stack_is_not_read() -> None:
@@ -1151,7 +1531,8 @@ def test_only_an_explaining_evaluator_works_out_why_a_value_was_not_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Plain ``tripl check`` gives up on a value with its hint alone; ``--list`` explains it."""
-    tokens = tokenize('String.format("%s_x", y)', "java")
+    # `%x` is a conversion the scan does not fill in.
+    tokens = tokenize('String.format("%x_x", y)', "java")
     reads = _count_reads(monkeypatch)
     plain = Evaluator(SymbolIndex(), "java").evaluate(tokens)
     assert (plain.kind, plain.hint, plain.reason, plain.expression, plain.path) == (
@@ -1161,11 +1542,12 @@ def test_only_an_explaining_evaluator_works_out_why_a_value_was_not_read(
         "",
         (),
     )
-    # The format string is read only for the `expression` `--list` shows.
-    assert sum(reads.values()) == 1
+    # The whole, and the format string to fill it in.
+    assert sum(reads.values()) == 2
     explained = Evaluator(SymbolIndex(), "java", explain=True).evaluate(tokens)
-    assert (explained.reason, explained.expression) == ("format", "format of %s_x")
-    assert sum(reads.values()) == 3
+    assert (explained.reason, explained.expression) == ("format", "format of %x_x")
+    # The same two, and the format string again for the `expression` `--list` shows.
+    assert sum(reads.values()) == 5
     assert explained == plain
 
 
@@ -1269,19 +1651,24 @@ def _deepest_evaluation(config: CheckConfig) -> int:
 
 
 @pytest.mark.parametrize(
-    ("path", "source", "leaf"),
+    ("path", "source", "leaf", "frames"),
     [
-        ("src/A.kt", "fun go() {\n    Tracker.log(ARGUMENT)\n}\n", "x"),
-        ("src/A.kt", "fun go() {\n    Tracker.log(ARGUMENT)\n}\n", "a.b"),
+        ("src/A.kt", "fun go() {\n    Tracker.log(ARGUMENT)\n}\n", "x", 48),
+        ("src/A.kt", "fun go() {\n    Tracker.log(ARGUMENT)\n}\n", "a.b", 48),
+        ("src/A.kt", "class A { fun go() {\n    Tracker.log(ARGUMENT)\n} }\n", "HOME", 48),
+        # A format is filled in from its format string and arguments, which
+        # are read one level down, as a concatenation reads its operands: its
+        # `_format` and the format string's `evaluate` are two frames more.
         (
             "src/A.java",
             "class A { void go() {\n    Tracker.log(ARGUMENT);\n} }\n",
             'String.format("%s", y)',
+            50,
         ),
     ],
 )
 def test_plain_check_stacks_no_more_frames_than_before_list(
-    tmp_path: Path, path: str, source: str, leaf: str
+    tmp_path: Path, path: str, source: str, leaf: str, frames: int
 ) -> None:
     """Plain ``tripl check`` reads an argument nested as deeply as it did before ``--list``.
 
@@ -1304,9 +1691,10 @@ def test_plain_check_stacks_no_more_frames_than_before_list(
     # and 3.14 alike: scan, map_call (now collect_call), _evaluate, evaluate,
     # then _concatenation and evaluate for each of the 20 levels, and the
     # innermost "a"'s _single, _string, template_text and its generator. No
-    # leaf goes deeper; the path's _reference, variable_name, re.sub and
-    # re._compile go exactly as deep.
-    assert _deepest_evaluation(config) == 48
+    # other leaf goes deeper; the path's _reference, variable_name, re.sub and
+    # re._compile go exactly as deep, and a constant's lookup in the type
+    # around it no deeper.
+    assert _deepest_evaluation(config) == frames
 
 
 # --- target reasons ------------------------------------------------------------------
@@ -2593,7 +2981,7 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
 def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
     tmp_path: Path,
 ) -> None:
-    """Locals are found with no regard to blocks: the one named may be out of scope."""
+    """A local is read only where its block is still open; past it, the name is a constant."""
     root = _repo(
         tmp_path,
         {
@@ -2633,7 +3021,8 @@ def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
     )
     found = inventory(_config(root, LOG_EVENT_CONFIG))
     # After each block, and after the lambda, the name is a constant the scan
-    # could not resolve, not the local; inside, nothing tells the two apart.
+    # could not resolve, not the local. Inside, a local set to a constant is
+    # read; one set to a variable (`if let`, `const kName = n`) is not.
     assert [(call.origin.path, call.origin.line) for call in found.calls] == [
         ("app/Report.kt", 4),
         ("app/Report.kt", 6),
@@ -2644,9 +3033,18 @@ def test_a_name_that_reads_as_a_constant_is_no_local_a_block_may_have_closed(
         ("web/report.ts", 11),
         ("web/report.ts", 12),
     ]
+    unknown = {"name": ("unknown_constant", None, None)}
     assert [_reads(call) for call in found.calls] == [
-        {"name": ("unknown_constant", None, None)}
-    ] * len(found.calls)
+        {},
+        unknown,
+        unknown,
+        unknown,
+        {},
+        unknown,
+        unknown,
+        unknown,
+    ]
+    assert [call.items[0].name for call in found.calls if call.fully_read] == ["a_open"] * 2
 
 
 def test_unmapped_arguments_and_fields_read_from_default_labels(tmp_path: Path) -> None:

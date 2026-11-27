@@ -46,6 +46,7 @@ from tripl_cli.check.config import (
 from tripl_cli.check.lint import lint_items
 from tripl_cli.check.model import (
     LINT_CODES,
+    REASON_AMBIGUOUS_CONSTANT,
     REASON_LOCAL,
     REASON_NOT_PASSED,
     REASON_PARAMETER,
@@ -370,7 +371,7 @@ def inventory(config: CheckConfig, *, discovery: bool = False) -> Inventory:
         )
         index = -1
         languages[found.source.relative] = found.source.language
-        scopes = ScopeIndex(found.tokens, found.source.language, found.text)
+        scopes = found.places.scopes
         # A call `find_calls` reports with a parameter list's end is that
         # declaration, with a body or without one.
         declarations = scopes.bodiless.union(scope.signature_end for scope in scopes.functions)
@@ -485,17 +486,17 @@ def _refine(
 
     The parameter check comes first, so Swift's ``guard let event = event``
     stays a parameter. A path whose head reads as a constant (``kEvent``,
-    ``EVENT.name``) and names a parameter is that parameter, or a property of
-    it, whatever its case: a parameter hides a constant of that name in the
-    whole body. Such a head is never a local: locals are found without regard
-    to blocks, so one of that name may be out of scope at the call, and naming
-    it would hide the advice a constant gets (add its file to ``enums:`` or
-    ``sources:``); a variable has no advice to hide. Lambdas are no scopes: a
-    lambda's own parameter stays a ``variable`` unless the named function
-    around it has one of that name.
+    ``EVENT.name``), unresolved or ambiguous, and names a parameter is that
+    parameter, or a property of it, whatever its case: a parameter hides a
+    constant of that name in the whole body. Such a head is never a local:
+    locals are found without regard to blocks, so one of that name may be out
+    of scope at the call, and naming it would hide the advice a constant gets
+    (add its file to ``enums:`` or ``sources:``); a variable has no advice to
+    hide. Lambdas are no scopes: a lambda's own parameter stays a ``variable``
+    unless the named function around it has one of that name.
     """
     variable = value.reason == REASON_VARIABLE
-    constant = value.reason == REASON_UNKNOWN_CONSTANT
+    constant = value.reason in (REASON_UNKNOWN_CONSTANT, REASON_AMBIGUOUS_CONSTANT)
     if not (variable or constant) or not value.path or scope is None:
         return ReadValue(value, value.reason)
     head = value.path[0]
