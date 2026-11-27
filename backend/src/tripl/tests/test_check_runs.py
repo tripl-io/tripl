@@ -660,3 +660,159 @@ def test_cleanup_keeps_current_runs_and_recent_summaries(
     with session_factory() as session:
         left = set(session.scalars(select(CheckRun.id)).all())
     assert left == {kept_current.id, kept_recent.id}
+
+
+@pytest.mark.asyncio
+async def test_the_history_lists_its_repositories_and_check_directories(
+    client: AsyncClient,
+) -> None:
+    opened, _closed = await _project_with_event(client, "cr-dirs")
+    base = "/api/v1/projects/cr-dirs"
+    empty = await client.get(f"{base}/check-runs/directories")
+    assert empty.status_code == 200, empty.text
+    assert empty.json() == {"items": []}
+
+    for body in (
+        _run("main", [_call(opened, "apps/ios/Cart.swift", 3)], check_root="apps/ios"),
+        _run("feature/x", [], check_root="apps/ios"),
+        _run("main", [], repository="shop/android"),
+    ):
+        uploaded = await client.post(f"{base}/check-runs", json=body)
+        assert uploaded.status_code == 201, uploaded.text
+
+    listed = await client.get(f"{base}/check-runs/directories")
+    assert listed.status_code == 200, listed.text
+    rows = [(row["repository"], row["check_root"], row["runs"]) for row in listed.json()["items"]]
+    assert rows == [("shop/android", ".", 1), ("shop/web", "apps/ios", 2)]
+
+
+@pytest.mark.asyncio
+async def test_an_editor_sets_the_code_link_template_and_the_usage_carries_it(
+    client: AsyncClient,
+) -> None:
+    opened, _closed = await _project_with_event(client, "cr-links")
+    base = "/api/v1/projects/cr-links"
+    unset = await client.get(f"{base}/check-run-settings")
+    assert unset.status_code == 200, unset.text
+    assert unset.json() == {"code_url_template": None}
+    uploaded = await client.post(
+        f"{base}/check-runs", json=_run("main", [_call(opened, "a.ts", 1)])
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    usage = await client.get(f"{base}/events/{opened}/code-usage")
+    assert usage.json()["code_url_template"] is None
+
+    template = "https://github.com/{repository}/blob/{commit}/{path}#L{line}"
+    saved = await client.patch(
+        f"{base}/check-run-settings", json={"code_url_template": f" {template} "}
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json() == {"code_url_template": template}
+    assert (await client.get(f"{base}/check-run-settings")).json() == {
+        "code_url_template": template
+    }
+    usage = await client.get(f"{base}/events/{opened}/code-usage")
+    assert usage.json()["code_url_template"] == template
+
+    # A body without the field keeps it; an empty string clears it.
+    kept = await client.patch(f"{base}/check-run-settings", json={})
+    assert kept.json() == {"code_url_template": template}
+    cleared = await client.patch(f"{base}/check-run-settings", json={"code_url_template": ""})
+    assert cleared.json() == {"code_url_template": None}
+
+    audit = await client.get(f"{base}/audit", params={"action": "check_run_settings.update"})
+    assert audit.status_code == 200, audit.text
+    assert audit.json()["total"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "template",
+    [
+        "javascript:alert(1)//{path}",
+        "ftp://git.example.com/{path}",
+        "git.example.com/{path}",
+        "https://git.example.com/blob/main/",
+        "https://git.example.com/{branch}/{path}",
+        "https://git.example.com/{path",
+        "https://git.example.com/ {path}",
+        "https://{repository}/{path}",
+        "https://git.example.com{path}",
+        "https://git.example.com/{repository_url}/{path}",
+        "{repository}/{path}",
+        # The run's address must end where a path, query or fragment starts.
+        "{repository_url}{path}",
+        "{repository_url}{ref}/{path}",
+        "{repository_url}blob/{path}",
+        # Invisible format characters (zero width, right-to-left override).
+        "https://git.example.com/\u200b/{path}",
+        "https://git.example.com/\u202e/{path}",
+    ],
+)
+async def test_a_code_link_template_that_is_not_an_http_link_is_refused(
+    client: AsyncClient, template: str
+) -> None:
+    await client.post("/api/v1/projects", json={"name": "Bad", "slug": "cr-bad-template"})
+    refused = await client.patch(
+        "/api/v1/projects/cr-bad-template/check-run-settings", json={"code_url_template": template}
+    )
+    assert refused.status_code == 422, refused.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "template",
+    [
+        "https://github.com/org/app/blob/{ref}/{path}#L{line}",
+        "{repository_url}/-/blob/{commit}/{path}#L{line}",
+        "http://git.internal:8080/{repository}/src/{commit}/{path}?line={line}",
+        "{repository_url}?file={path}",
+    ],
+)
+async def test_a_code_link_template_of_each_kind_is_kept(
+    client: AsyncClient, template: str
+) -> None:
+    await client.post("/api/v1/projects", json={"name": "Good", "slug": "cr-good-template"})
+    saved = await client.patch(
+        "/api/v1/projects/cr-good-template/check-run-settings",
+        json={"code_url_template": template},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["code_url_template"] == template
+
+
+@pytest.mark.asyncio
+async def test_only_an_editor_changes_the_code_link_template(client: AsyncClient) -> None:
+    await _project_with_event(client, "cr-link-roles")
+    base = "/api/v1/projects/cr-link-roles"
+    body = {"code_url_template": "https://git.example.com/{path}"}
+    upload_key = await _issue_key(client, "check_upload", "cr-link-roles")
+    read_key = await _issue_key(client, "read", "cr-link-roles")
+    # Neither a check_upload key nor a read key changes a project setting.
+    for token in (upload_key, read_key):
+        refused = await client.patch(
+            f"{base}/check-run-settings", json=body, headers=_bearer(token)
+        )
+        assert refused.status_code == 403, refused.text
+        read = await client.get(f"{base}/check-run-settings", headers=_bearer(token))
+        assert read.status_code == 200, read.text
+
+    await client.post("/api/v1/auth/logout")
+    for email, role, expected in (
+        ("cr-link-viewer@example.com", "viewer", 403),
+        ("cr-link-editor@example.com", "editor", 200),
+    ):
+        registered = await client.post(
+            "/api/v1/auth/register", json={"email": email, "password": PASSWORD, "name": role}
+        )
+        assert registered.status_code == 201, registered.text
+        await add_member_by_slug("cr-link-roles", email, role)
+        changed = await client.patch(f"{base}/check-run-settings", json=body)
+        assert changed.status_code == expected, changed.text
+        assert (await client.get(f"{base}/check-run-settings")).status_code == 200
+        await client.post("/api/v1/auth/logout")
+
+
+def test_the_code_link_setting_is_a_project_setting() -> None:
+    path = "/api/v1/projects/{slug}/check-run-settings"
+    assert project_permissions.classify(path) == project_permissions.SETTINGS_MANAGE

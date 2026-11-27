@@ -30,6 +30,7 @@ import { EnterpriseFeature } from '@/components/settings/EnterpriseFeature'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
+const CheckRunsSection = lazyWithReload(() => import('./CheckRunsSection'))
 const ProjectMembersSection = lazyWithReload(() => import('./ProjectMembersSection'))
 const MembersSection = lazyWithReload(() => import('./MembersSection'))
 const OrganizationGeneralSection = lazyWithReload(() => import('./OrganizationGeneralSection'))
@@ -361,6 +362,7 @@ function renderSection({
     )
   }
   if (section === 'project/plan-rules') return <PlanRulesSection slug={slug} />
+  if (section === 'project/check-runs') return <CheckRunsSection slug={slug} />
   if (section === 'project/members') return <ProjectMembersSection slug={slug} />
   return <ProjectGeneralSection slug={slug} onSlugChanged={onSlugChanged} />
 }

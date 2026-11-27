@@ -77,6 +77,11 @@ class Project(UUIDMixin, TimestampMixin, Base):
     # app opens notes in for people. NULL serves the original.
     docs_agent_lang: Mapped[str | None] = mapped_column(String(35), nullable=True, default=None)
     docs_human_lang: Mapped[str | None] = mapped_column(String(35), nullable=True, default=None)
+    # How "used in code" on an event links a place a check run found to the
+    # repository: a URL template with ``{repository_url}``, ``{repository}``,
+    # ``{ref}``, ``{commit}``, ``{path}`` and ``{line}``. NULL shows the places
+    # as plain text. Set through ``/check-run-settings``.
+    code_url_template: Mapped[str | None] = mapped_column(String(2000), nullable=True, default=None)
 
     # ── Demo identity & provisioning lifecycle ─────────────────────────────
     # A demo is a first-class, generated project. Identity is this explicit

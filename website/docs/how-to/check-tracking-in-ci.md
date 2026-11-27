@@ -530,6 +530,14 @@ and every other run goes to the check history. See
    when the config is that directory's own `.tripl/check.yml`, else the config
    file's own path (`ci/web.yml`), so two configs that scan one directory with
    different `sources` keep one each too.
+5. **See it in tripl.** Each event's page lists under **Used in code** the
+   files and lines the current run of each repository found it at, with that
+   run's ref, commit and age. **Settings → Project → Check runs** lists every
+   run kept (default branch or merge request, calls and findings, current or
+   history only), filtered by repository and check directory. To make each
+   `file:line` a link, an editor sets the link template there, for example
+   `https://github.com/org/app/blob/{commit}/{path}#L{line}`, or
+   `{repository_url}/-/blob/{commit}/{path}#L{line}` for GitLab.
 
 The upload never changes the exit code; with `--json`, the document's `upload`
 key says whether it was recorded (`ok`, `error`). It is refused (exit 2) with `--branch` and with a pinned plan revision:

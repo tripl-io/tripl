@@ -2386,19 +2386,52 @@ but `calls` (`check_root` normalized), `is_default_branch`, `is_current`,
 `calls` as counts
 (`total`, `ok`, `warning`, `error`, `dynamic`) and `created_at`.
 
-Two reads, for any project member:
+Three reads, for any project member:
 
 - `GET /projects/{slug}/check-runs?repository=&check_root=&default_branch=&limit=&offset=`:
   the runs, newest first (by upload), as `{items, total}`. `default_branch=true`
   keeps the default-branch runs only. `check_root` is normalized as an upload's
   is (`apps/ios/` finds the runs of `apps/ios`), and an absolute path or one
   leaving the repository is `422`.
+- `GET /projects/{slug}/check-runs/directories`: every repository and check
+  directory with a run still kept, as `{items: [{repository, check_root, runs,
+  last_run_at}]}`, sorted by repository and directory: what the history can be
+  filtered by.
 - `GET /projects/{slug}/events/{event_id}/code-usage`: per repository and check
   directory that has a current run, `{repository, check_root, repository_url,
   run, calls}`, where `calls` are that run's calls of the event (`path`,
   `line`, `column`, `status`, `findings`), sorted by file and line. An empty
   `calls` means the event is not sent in that directory's code as of `run`.
-  `404` for an event of another project.
+  The answer also carries the project's `code_url_template` (below), `null`
+  when none is set. `404` for an event of another project.
+
+### Links to the code {#check-run-settings}
+
+`GET /projects/{slug}/check-run-settings` answers `{code_url_template}`, the
+template the app turns each place "used in code" lists into a link with; `null`
+shows the places as plain text. Any project member reads it.
+`PATCH /projects/{slug}/check-run-settings` with `{"code_url_template": "…"}`
+sets it, and `""` or `null` clears it; a body without the field changes
+nothing. Changing it needs an editing role (the permission `settings.manage`
+where custom roles are in use); a `read` or `check_upload` key gets `403`. The
+change is in the project's audit log as `check_run_settings.update`.
+
+```bash
+curl -s -X PATCH "$TRIPL_URL/api/v1/projects/demo/check-run-settings" \
+  -H "Authorization: Bearer $TRIPL_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"code_url_template": "https://github.com/{repository}/blob/{commit}/{path}#L{line}"}'
+```
+
+The template may name `{repository_url}` (the address the upload sent),
+`{repository}` (`org/app`, as the CI names it), `{ref}`, `{commit}`, `{path}`
+(relative to the repository root) and `{line}`, and must name `{path}`. It
+starts with `http://` or `https://` and a host written out, or with
+`{repository_url}` and then `/`, `?` or `#` (it may appear only there);
+anything else, an unknown placeholder, an unmatched brace, a space, a control
+character or an invisible one (zero width, right to left) is `422`. The
+app escapes each segment of the path, ref and repository when it fills the
+template in, and shows plain text for a path with a `.` or `..` segment or a
+run without the `{repository_url}` the template needs.
 
 ## Plan export {#plan-export}
 

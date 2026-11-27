@@ -238,6 +238,19 @@ is not offered. On the monitoring page the card is read-only and only says how
 many properties the field values use. See
 [An event's property list](./variables-and-templates.md#an-events-property-list).
 
+Under the form, **Used in code** says where the code sends the event, from the
+check runs CI uploads with `tripl check --upload`: for each repository and
+check directory, the files and lines (`src/cart.ts:12`) its latest
+default-branch run found the event at, with that run's ref, commit, age and a
+link to its pipeline. A call the check flagged carries its verdict
+(**Warning**, **Error**, **Name not read**). A directory whose run found no
+call of the event says so, and a project no default-branch run was ever
+uploaded to says that, with a link to
+[how to upload](../integrate/tripl-check.md#send-results-to-tripl). With a link
+template set in [Settings › Project › **Check runs**](#check-runs) each place is a link to the
+file in the repository; without one it is plain text. On a branch the block
+shows the event on main, which is what a check run resolves its calls to.
+
 The **app version column** is deliberately absent from the breakdown picker, and
 adding it by hand is refused: app versions are already collected as their own
 version series, so listing the column as a breakdown would collect the same
@@ -1302,6 +1315,32 @@ Rules set once for every project of the organization (naming patterns, required
 and forbidden properties, approval of sensitive fields, a protected main) are
 [plan governance](../enterprise/governance.md), in the Enterprise edition; the
 page says so in Community and links to them in Enterprise.
+
+### Check runs {#check-runs}
+
+**Where:** Settings › Project › **Check runs** (route
+`/settings/project/check-runs`). Every project member reads it.
+
+**History** lists the runs `tripl check --upload` recorded and tripl still
+keeps, newest first, 50 to a page: when each was uploaded, its repository and
+check directory, its ref (marked **Default branch**, **Merge request** or
+**Branch**), its commit and pipeline, how many calls it checked, how many of
+them ended in an error, a warning or a name the check could not read, and
+whether it is the **Current** run (the one an event's **Used in code** shows)
+or **History only**. Two filters narrow it to one repository and one check
+directory. Runs other than the current ones are deleted after 90 days (see
+[Send results to tripl](../integrate/tripl-check.md#send-results-to-tripl)).
+
+**Links to the code** holds the repository URL template that turns each place
+**Used in code** lists into a link, for example
+`https://github.com/org/app/blob/{commit}/{path}#L{line}`, or
+`{repository_url}/-/blob/{commit}/{path}#L{line}` for GitLab. It may name
+`{repository_url}`, `{repository}`, `{ref}`, `{commit}`, `{path}` and
+`{line}`, must name `{path}`, and must be an `http(s)` address whose host is
+written out (or that starts with `{repository_url}` and then `/`, `?` or
+`#`). The field shows an
+example link as you type. An editor changes it, with the Save bar at the top
+of the page; a viewer sees it read-only. Emptying it goes back to plain text.
 
 ### New project & templates {#project-templates}
 

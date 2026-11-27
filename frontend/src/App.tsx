@@ -639,6 +639,7 @@ export default function App() {
               <Route path="/settings/data-sources/:dsId" element={<Takeover section="data-sources" />} />
               <Route path="/settings/project/general" element={<Takeover section="project/general" />} />
               <Route path="/settings/project/plan-rules" element={<Takeover section="project/plan-rules" />} />
+              <Route path="/settings/project/check-runs" element={<Takeover section="project/check-runs" />} />
               <Route path="/settings/project/members" element={<Takeover section="project/members" />} />
               {/* The platform console (F20): one organization. */}
               <Route path="/settings/platform/orgs/:orgSlug" element={<PlatformOrgTakeover />} />

@@ -9496,13 +9496,91 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/check-runs/directories": {
+      "get": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "List Check Run Directories",
+        "description": "Every repository and check directory with a run still kept, with its run count.\n\nWhat the history's repository and check directory filters offer.",
+        "operationId": "list_check_run_directories_api_v1_projects__slug__check_runs_directories_get",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckRunDirectoryListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/events/{event_id}/code-usage": {
       "get": {
         "tags": [
           "check-runs"
         ],
         "summary": "Get Event Code Usage",
-        "description": "Where the code sends this event: the calls in each repository directory's current run.\n\nA directory whose current run has no call of the event is listed with no\ncalls; one that never uploaded a default-branch run is not listed.",
+        "description": "Where the code sends this event: the calls in each repository directory's current run.\n\nA directory whose current run has no call of the event is listed with no\ncalls; one that never uploaded a default-branch run is not listed.\n``code_url_template`` is the project's link template, null when unset.",
         "operationId": "get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get",
         "security": [
           {
@@ -9537,6 +9615,170 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventCodeUsageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/check-run-settings": {
+      "get": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "Get Check Run Settings",
+        "description": "How the project links a place a check run found to its file.",
+        "operationId": "get_check_run_settings_api_v1_projects__slug__check_run_settings_get",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckRunSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "Update Check Run Settings",
+        "description": "Set or clear the link template; an editor's change (``settings.manage``).\n\nNot under ``/check-runs``: a ``check_upload`` key, which a viewer may hold,\nmay write there, and this is a project setting.",
+        "operationId": "update_check_run_settings_api_v1_projects__slug__check_run_settings_patch",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRunSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckRunSettings"
                 }
               }
             }
@@ -42883,6 +43125,52 @@
         "title": "CheckRunCreate",
         "description": "One ``tripl check --upload`` run."
       },
+      "CheckRunDirectory": {
+        "properties": {
+          "repository": {
+            "type": "string",
+            "title": "Repository"
+          },
+          "check_root": {
+            "type": "string",
+            "title": "Check Root"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "last_run_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Run At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repository",
+          "check_root",
+          "runs",
+          "last_run_at"
+        ],
+        "title": "CheckRunDirectory",
+        "description": "One repository and check directory with runs still kept, for the history's filter."
+      },
+      "CheckRunDirectoryListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunDirectory"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CheckRunDirectoryListResponse"
+      },
       "CheckRunFinding": {
         "properties": {
           "code": {
@@ -43078,6 +43366,42 @@
         ],
         "title": "CheckRunResponse",
         "description": "A run as the history lists it: a summary, whatever was stored with it."
+      },
+      "CheckRunSettings": {
+        "properties": {
+          "code_url_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Url Template"
+          }
+        },
+        "type": "object",
+        "title": "CheckRunSettings",
+        "description": "How the project shows its check runs: the link from a place to its file."
+      },
+      "CheckRunSettingsUpdate": {
+        "properties": {
+          "code_url_template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Url Template"
+          }
+        },
+        "type": "object",
+        "title": "CheckRunSettingsUpdate"
       },
       "ClickHouseSettings": {
         "properties": {},
@@ -48272,6 +48596,17 @@
             },
             "type": "array",
             "title": "Repositories"
+          },
+          "code_url_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Url Template"
           }
         },
         "type": "object",

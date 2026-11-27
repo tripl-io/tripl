@@ -2364,6 +2364,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/check-run-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Check Run Settings
+         * @description How the project links a place a check run found to its file.
+         */
+        get: operations["get_check_run_settings_api_v1_projects__slug__check_run_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Check Run Settings
+         * @description Set or clear the link template; an editor's change (``settings.manage``).
+         *
+         *     Not under ``/check-runs``: a ``check_upload`` key, which a viewer may hold,
+         *     may write there, and this is a project setting.
+         */
+        patch: operations["update_check_run_settings_api_v1_projects__slug__check_run_settings_patch"];
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/check-runs": {
         parameters: {
             query?: never;
@@ -2389,6 +2416,28 @@ export interface paths {
          *     run, kept as a summary. At most 5000 calls per run.
          */
         post: operations["upload_check_run_api_v1_projects__slug__check_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/check-runs/directories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Check Run Directories
+         * @description Every repository and check directory with a run still kept, with its run count.
+         *
+         *     What the history's repository and check directory filters offer.
+         */
+        get: operations["list_check_run_directories_api_v1_projects__slug__check_runs_directories_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3383,6 +3432,7 @@ export interface paths {
          *
          *     A directory whose current run has no call of the event is listed with no
          *     calls; one that never uploaded a default-branch run is not listed.
+         *     ``code_url_template`` is the project's link template, null when unset.
          */
         get: operations["get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get"];
         put?: never;
@@ -8512,6 +8562,28 @@ export interface components {
              */
             strict: boolean;
         };
+        /**
+         * CheckRunDirectory
+         * @description One repository and check directory with runs still kept, for the history's filter.
+         */
+        CheckRunDirectory: {
+            /** Check Root */
+            check_root: string;
+            /**
+             * Last Run At
+             * Format: date-time
+             */
+            last_run_at: string;
+            /** Repository */
+            repository: string;
+            /** Runs */
+            runs: number;
+        };
+        /** CheckRunDirectoryListResponse */
+        CheckRunDirectoryListResponse: {
+            /** Items */
+            items: components["schemas"]["CheckRunDirectory"][];
+        };
         /** CheckRunFinding */
         CheckRunFinding: {
             /** Code */
@@ -8580,6 +8652,19 @@ export interface components {
             repository_url: string | null;
             /** Strict */
             strict: boolean;
+        };
+        /**
+         * CheckRunSettings
+         * @description How the project shows its check runs: the link from a place to its file.
+         */
+        CheckRunSettings: {
+            /** Code Url Template */
+            code_url_template?: string | null;
+        };
+        /** CheckRunSettingsUpdate */
+        CheckRunSettingsUpdate: {
+            /** Code Url Template */
+            code_url_template?: string | null;
         };
         /**
          * ClickHouseSettings
@@ -10727,6 +10812,8 @@ export interface components {
          * @description Where the code sends an event, per repository and check directory that upload runs.
          */
         EventCodeUsageResponse: {
+            /** Code Url Template */
+            code_url_template?: string | null;
             /**
              * Event Id
              * Format: uuid
@@ -27011,6 +27098,126 @@ export interface operations {
             };
         };
     };
+    get_check_run_settings_api_v1_projects__slug__check_run_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckRunSettings"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_check_run_settings_api_v1_projects__slug__check_run_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckRunSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckRunSettings"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_check_runs_api_v1_projects__slug__check_runs_get: {
         parameters: {
             query?: {
@@ -27101,6 +27308,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckRunResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_check_run_directories_api_v1_projects__slug__check_runs_directories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckRunDirectoryListResponse"];
                 };
             };
             /** @description No session or API key, or the API key is invalid, expired or revoked. */

@@ -5,6 +5,7 @@ import {
   Cpu,
   Database,
   Key,
+  ListChecks,
   Ticket,
   Lock,
   Mail,
@@ -125,6 +126,16 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         // Last in the group: the page lists the gates a plan change passes in
         // this project, and where the organization's own rules are set.
         keywords: ['naming rules', 'conventions', 'policy', 'merge policy', 'governance'],
+      },
+      // The runs `tripl check --upload` recorded, and the link template that
+      // turns "used in code" on an event into links to the repository.
+      {
+        id: 'check-runs',
+        label: 'Check runs',
+        icon: ListChecks,
+        path: 'project/check-runs',
+        wide: true,
+        keywords: ['tripl check', 'ci', 'upload', 'used in code', 'repository', 'link template', 'pipeline', 'commit'],
       },
     ],
   },
