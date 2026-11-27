@@ -226,6 +226,9 @@ class Settings(BaseSettings):
     # Scan previews and dry runs (scan_preview_jobs, scan_dry_run_jobs): an
     # answer the scan form polls for once, so a week is generous.
     scan_preview_retention_days: int = Field(default=7, ge=1)
+    # Uploaded tripl check runs (check_runs): every run but the latest
+    # default-branch run of each repository, which "used in code" shows.
+    check_run_retention_days: int = Field(default=90, ge=1)
     photo_allowed_mime: str = "image/jpeg,image/png,image/gif,image/webp"
     gcs_photo_bucket: str = ""
     # Path to a service-account JSON. Empty falls back to Application Default

@@ -23,13 +23,13 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from types import FrameType
-from typing import Any, SupportsIndex
+from typing import Any, SupportsIndex, overload
 
 import pytest
 
 from tripl_cli.check import inventory as inventory_module
 from tripl_cli.check import yamlish
-from tripl_cli.check.calls import find_calls
+from tripl_cli.check.calls import closers, find_calls, matching
 from tripl_cli.check.config import CheckConfig, parse
 from tripl_cli.check.inventory import (
     ForwardedParameter,
@@ -1465,8 +1465,20 @@ def test_a_field_named_like_a_reserved_target_is_not_that_target(tmp_path: Path)
             }
             """,
         ),
+        # An interface method with untyped parameters reads exactly like a call.
+        (
+            "web/tracking.ts",
+            """
+            export interface Tracker {
+              track(event, screen);
+            }
+            export function open() {
+              track("screen_view", "home");
+            }
+            """,
+        ),
     ],
-    ids=["kotlin", "java"],
+    ids=["kotlin", "java", "ts-interface"],
 )
 def test_a_function_declaration_is_not_sent_as_a_call(
     tmp_path: Path, path: str, source: str
@@ -1494,6 +1506,38 @@ def test_a_function_declaration_is_not_sent_as_a_call(
     ]
     # --list agrees: one call site, the real one.
     assert [call.items[0].name for call in inventory(config).calls] == ["screen_view"]
+
+
+def test_jsx_text_that_says_interface_does_not_hide_a_call(tmp_path: Path) -> None:
+    """UI copy with the word ``interface`` before a ``{…}`` child is no interface.
+
+    Read as one, the call that starts the child would be a method declaration,
+    and plain check would drop it without a word.
+    """
+    root = _repo(
+        tmp_path,
+        {
+            "web/Banner.tsx": """
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            """
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {calls: [{function: "track", positional: [name, "field:screen"]}]}
+        """,
+    )
+
+    items = scan(config).items
+
+    assert [(item.name, dict(item.fields)) for item in items] == [
+        ("banner_seen", {"screen": "home"})
+    ]
 
 
 # --- function scopes -----------------------------------------------------------------
@@ -1946,6 +1990,65 @@ def _bodiless(language: str, source: str) -> list[str]:
                 "export function format(event: string)",
             ],
         ),
+        # An interface holds no calls, so a method in its body declares with
+        # no type, modifier or `;`. Its `{` closing ends that: a call after
+        # the interface, or in an object type, is still not a declaration.
+        (
+            "ts",
+            """
+            export interface Tracker<T extends { id: string }> extends Base<T>, Other {
+              trackEvent(name, props);
+              flush()
+              send<E>(event)
+              log?(event);
+              delete(key)
+              options: {
+                emit(name);
+              };
+              handler: (name) => void;
+            }
+            declare global {
+              interface Window {
+                trackPage(page);
+              }
+            }
+            type Api = { emit(name); };
+            const tracker = { send(name) { trackEvent(name); } };
+            function relay(event: string) {
+              trackEvent(name, props);
+              config.interface(name)
+            }
+            """,
+            [
+                "trackEvent(name, props)",
+                "flush()",
+                "send<E>(event)",
+                "log?(event)",
+                "delete(key)",
+                "trackPage(page)",
+            ],
+        ),
+        # A header of any length still opens an interface body, and an untyped
+        # construct signature declares there too. The word `interface` in JSX
+        # text starts no declaration, so the call in the `{…}` after it stays a
+        # call, whatever follows the word.
+        (
+            "ts",
+            "export interface Wide extends "
+            + ", ".join(f"Base{number}<T>" for number in range(40))
+            + """ {
+              track(name, props);
+              new(config);
+            }
+            export function Banner() {
+              return <p>Our new interface is ready, {track("banner_seen", "home")}</p>;
+            }
+            export function Reset() {
+              return <p>Reset interface layout {logEvent("reset_shown")}</p>;
+            }
+            """,
+            ["track(name, props)", "new(config)"],
+        ),
     ],
 )
 def test_declarations_with_no_body_are_kept_and_calls_are_not(
@@ -2026,6 +2129,156 @@ def test_a_long_macro_is_not_read_again_for_each_line_it_continues() -> None:
     # Walking back to the `#define` from each of its lines would read the
     # macro once per line: twice the lines, four times the reading.
     assert _macro_read(400) < 3 * _macro_read(200)
+
+
+@pytest.mark.parametrize(
+    ("language", "source"),
+    [
+        ("ts", "f(a, [b, {c: d}], g(h()))"),
+        ("kotlin", "fun f(a: (Int) -> Unit = { x -> g(x) }) { h[0] }"),
+        ("java", "int f(int[] a) { return g(a[0]); }"),
+        # Never closed, closed twice, closed by the other kind.
+        ("ts", "f(a, (b, [c"),
+        ("ts", ") ] f(a)) } g("),
+        ("swift", "f(a: [b) ] { c ) }"),
+        ("objc", "( ] [ ) { ( } )"),
+        ("ts", ""),
+    ],
+)
+def test_the_bracket_table_closes_each_bracket_where_matching_does(
+    language: str, source: str
+) -> None:
+    tokens = tokenize(source, language)
+    table = closers(tokens)
+    assert len(table) == len(tokens)
+    for index, token in enumerate(tokens):
+        if token.is_punct("(", "[", "{"):
+            assert table[index] == matching(tokens, index), (index, token.text)
+
+
+class _Counted(list[Token]):
+    """A token list that counts the tokens its reads pass over: one per index, a slice's length."""
+
+    read = 0
+
+    @overload
+    def __getitem__(self, key: SupportsIndex) -> Token: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[Token]: ...
+
+    def __getitem__(self, key: SupportsIndex | slice) -> Token | list[Token]:
+        part = super().__getitem__(key)
+        self.read += len(part) if isinstance(part, list) else 1
+        return part
+
+
+def _nest_read(language: str, nest: str, inside: str, close: str, depth: int) -> int:
+    """How many tokens ``ScopeIndex`` reads on ``nest`` written ``depth`` times inside itself."""
+    text = nest * depth + inside + close * depth
+    tokens = _Counted(tokenize(text, language))
+    ScopeIndex(tokens, language, text)
+    return tokens.read
+
+
+@pytest.mark.parametrize(
+    ("language", "nest", "inside", "close"),
+    [
+        # Calls, which a TypeScript method's shape reads as declarations to rule out.
+        ("ts", "f(", "x", ")"),
+        ("ts", "f({a: ", "1", "})"),
+        # Declarations with no body, each in the last one's parameter list.
+        ("java", "int f(", "x", ")"),
+        ("objc", "int f(", "x", ")"),
+        ("kotlin", "fun f(", "", ")"),
+        ("swift", "func f(", "", ")"),
+        ("ts", "const a = async (a): (", "x", ")"),
+        # Declarations with a body, each in the last one's default value.
+        ("ts", "function f(a = ", "1", ") {}"),
+        ("ts", "function f({ a = ", "1", " }) {}"),
+        ("kotlin", "fun f(a: Int = ", "1", ") {}"),
+        ("swift", "func f(a: Int = ", "1", ") {}"),
+        # Declarations with an expression body, each in the last one's body.
+        ("ts", "const a = (x) => g(() => { ", "h(x)", " })"),
+        ("ts", "const a = x => g(", "1", ")"),
+        ("ts", "const a = (x): T => g(", "1", ")"),
+        ("kotlin", "fun f() = run { ", "1", " }"),
+        ("kotlin", "fun f(): Int = g(", "1", ")"),
+    ],
+)
+def test_brackets_nested_deep_are_not_read_again_at_each_level(
+    language: str, nest: str, inside: str, close: str
+) -> None:
+    # Looking for each level's closing bracket from its opening one, or
+    # reading each level's parameter list whole, reads all the levels inside
+    # it again: twice the depth, four times the reading.
+    shallow = _nest_read(language, nest, inside, close, 500)
+    assert _nest_read(language, nest, inside, close, 1000) < 3 * shallow
+
+
+def test_a_typescript_parameter_list_tells_a_declaration_from_a_call() -> None:
+    # With no body, no return type and no modifier, only the parameters say
+    # this is a member's declaration: a type, a `?`, or a destructured
+    # parameter's type, past decorators and modifiers. An argument has none.
+    source = """
+        class Base {
+          optional(event?);
+          rest(...names: string[]);
+          decorated(@Inject() readonly service: Service);
+          destructured({ a, b }: Props);
+          listed([first, second]: string[]);
+          generic(map: Map<string, number>, other);
+          nested({ a: { b } }: Deep);
+          maybe(count?: number);
+          f(a, b);
+          f({ a: g({ b: 1 }) });
+          f([a, b]);
+          f(a ? b : c);
+          f(...rest);
+        }
+        """
+    assert _bodiless("ts", source) == [
+        "optional(event?)",
+        "rest(...names: string[])",
+        "decorated(@Inject() readonly service: Service)",
+        "destructured({ a, b }: Props)",
+        "listed([first, second]: string[])",
+        "generic(map: Map<string, number>, other)",
+        "nested({ a: { b } }: Deep)",
+        "maybe(count?: number)",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "names"),
+    [
+        (
+            "kotlin",
+            "fun f(a: Int = g(1, 2), b: (Int) -> Unit = { x -> h(x) }, vararg c: String) {}",
+            [("a", 0, "a"), ("b", 1, "b"), ("c", 2, "c")],
+        ),
+        (
+            "swift",
+            "func f(_ a: Int = g(x: 1), label b: [String: Int] = [:], c: (Int) -> Void) {}",
+            [("a", 0, None), ("b", 1, "label"), ("c", 2, "c")],
+        ),
+        (
+            "ts",
+            "function f({ a, b }: Props, c = { d: [1, 2] }, @Inject() e?: E, ...rest: R[]) {}",
+            [("c", 1, None), ("e", 2, None), ("rest", 3, None)],
+        ),
+        (
+            "java",
+            'void f(@Named("x") final Map<String, List<Integer>> a, int[] b, String... c) {}',
+            [("a", 0, None), ("b", 1, None), ("c", 2, None)],
+        ),
+    ],
+)
+def test_a_parameter_is_named_by_what_stands_before_its_default(
+    language: str, source: str, names: list[tuple[str, int, str | None]]
+) -> None:
+    (scope,) = ScopeIndex(tokenize(source, language), language, source).functions
+    assert [(found.name, found.index, found.label) for found in scope.parameters] == names
 
 
 @pytest.mark.parametrize("language", ["java", "objc"])
@@ -2295,6 +2548,12 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
                     fun property(kEvent: Event) {
                         analytics.logEvent(kEvent.name)
                     }
+                    fun upperPath(EVENT: E) {
+                        analytics.logEvent(EVENT.name)
+                    }
+                    fun typed(event: Event) {
+                        analytics.logEvent(Event.NAME)
+                    }
                     fun local() {
                         val SCREEN = pick()
                         analytics.logEvent(SCREEN)
@@ -2316,7 +2575,10 @@ def test_a_name_that_reads_as_a_constant_is_the_parameter_it_names(tmp_path: Pat
         # A parameter hides a constant of its name, whatever its case.
         {"name": ("parameter", "log", 2)},
         {"name": ("parameter", "upper", 5)},
-        # A bare name only: one of more segments stays a constant's.
+        # A longer path through it is a property of that parameter.
+        {"name": ("parameter_property", "property", 8)},
+        {"name": ("parameter_property", "upperPath", 11)},
+        # The head must be the parameter's exact name: its type's stays a constant.
         {"name": ("unknown_constant", None, None)},
         # Never a local, which may be one a block declared (the test below).
         {"name": ("unknown_constant", None, None)},
@@ -2582,6 +2844,246 @@ def test_unmatched_groups_sort_constants_first_then_by_calls(tmp_path: Path) -> 
     ]
 
 
+# App code a TypeScript repository names after its events and trackers, none of
+# it tracking: query keys, hooks, setters, getters, factories, renderers, list
+# keys, testing-library's events and a bare `event(…)` test helper.
+TS_APP_CODE_NAMED_AFTER_EVENTS = """
+    eventTypesKey(slug);
+    projectEventsKey(slug, branch);
+    eventHref(id);
+    useEventRoster({});
+    useProjectEventStream(slug);
+    setEvent(value);
+    setSelectedEventIds(ids);
+    getEventMetrics(slug);
+    isProjectEventType(type);
+    hasEventTarget(row);
+    makeEvent({});
+    renderEventsPage([]);
+    screenEvent(id);
+    events(3);
+    event({ name: "x" });
+    getTrackers(org);
+    updateTrackers(org, trackers);
+    trackerFieldError(field, value);
+    setTrackerOpen(true);
+    withTrackerEdit(state);
+    trackBy(index, item);
+    trackById(index, item);
+    trackByFn(index, item);
+    TrackBy(index, item);
+    useTrackBy(index);
+    pageEvents(slug);
+    useAnalyticsTab(tab);
+    fireEvent(button, click);
+    fireEvent.click(button);
+    calendar.addEvent({ title });
+    bus.emitEvent("saved");
+    pc.addTrack(track, stream);
+"""
+
+
+def test_typescript_name_signal_leaves_out_app_code_named_after_events(tmp_path: Path) -> None:
+    root = _repo(tmp_path, {"web/app.tsx": TS_APP_CODE_NAMED_AFTER_EVENTS})
+    found = inventory(_config(root, "project: demo\n"))
+    assert found.unmatched == ()
+
+
+def test_typescript_name_signal_keeps_tracking_calls(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/track.ts": """
+                track("Signed Up");
+                trackEvent("signup");
+                trackPageView({});
+                trackStructEvent({});
+                trackSelfDescribingEvent({});
+                track_pageview({});
+                trackingPixel("home");
+                TrackEvent("x");
+                logEvent(analytics, "signup");
+                logCustomEvent("x");
+                sendEvent("x");
+                sendEvents([]);
+                recordEvent("x");
+                reportEvent("x");
+                captureEvent({});
+                log_event("x");
+                capture("x");
+                screen("home");
+                logScreenView({});
+                logPurchase({});
+                gtag.event("login", {});
+                ReactGA.event({ category: "x" });
+                event({ name: "fixture" });
+                Countly.add_event({ key: "x" });
+                useTrackEvent("x");
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    assert sorted((group.method, group.signal) for group in found.unmatched) == sorted(
+        (method, "name")
+        for method in (
+            "track",
+            "trackEvent",
+            "trackPageView",
+            "trackStructEvent",
+            "trackSelfDescribingEvent",
+            "track_pageview",
+            "trackingPixel",
+            "TrackEvent",
+            "logEvent",
+            "logCustomEvent",
+            "sendEvent",
+            "sendEvents",
+            "recordEvent",
+            "reportEvent",
+            "captureEvent",
+            "log_event",
+            "capture",
+            "screen",
+            "logScreenView",
+            "logPurchase",
+            "event",
+            "add_event",
+            "useTrackEvent",
+        )
+    )
+    # `gtag.event` and `ReactGA.event` are one group; a bare `event(…)` is not in it.
+    [event] = [group for group in found.unmatched if group.method == "event"]
+    assert dict(event.receivers) == {"gtag": 1, "ReactGA": 1}
+
+
+def test_typescript_tracking_receivers_are_still_listed(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/app.ts": """
+                tracker.sendOpen(screen);
+                analytics.logOpen(screen);
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # Their names say nothing, but a tracking vendor's receiver calls a tracking verb.
+    assert sorted((group.method, group.signal) for group in found.unmatched) == [
+        ("logOpen", "receiver"),
+        ("sendOpen", "receiver"),
+    ]
+
+
+def test_typescript_wrappers_named_after_their_sdk_are_listed(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/wrappers.ts": """
+                amplitudeLogEvent("signup", {});
+                firebaseLogEvent("x", {});
+                gaEvent("cat", "act");
+                gtagEvent("login", {});
+                mixpanelTrack("x", {});
+                segmentTrack("x", {});
+                analyticsTrack("x", {});
+                fbqTrack("Purchase", {});
+                useMixpanelTrack("x");
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # No receiver to name the SDK: the name's first word does, and a later
+    # `track` or `event` word says what it does with it.
+    assert sorted((group.method, group.signal) for group in found.unmatched) == sorted(
+        (method, "name")
+        for method in (
+            "amplitudeLogEvent",
+            "firebaseLogEvent",
+            "gaEvent",
+            "gtagEvent",
+            "mixpanelTrack",
+            "segmentTrack",
+            "analyticsTrack",
+            "fbqTrack",
+            "useMixpanelTrack",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "vue-gtag";',
+        'import { config, event } from "@/lib/gtag";',
+        'import ReactGA, { event } from "react-ga";',
+        'const { event } = require("./analytics");',
+    ],
+)
+def test_a_bare_event_a_tracking_module_exports_is_listed(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert [(group.method, group.signal, group.calls) for group in found.unmatched] == [
+        ("event", "name", 1)
+    ]
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        'import { event } from "./factories";',
+        'import { track as event } from "vue-gtag";',
+        "",
+    ],
+)
+def test_a_bare_event_from_elsewhere_is_left_out(tmp_path: Path, imports: str) -> None:
+    root = _repo(tmp_path, {"web/app.ts": f'{imports}\nevent("login", {{}});\n'})
+    found = inventory(_config(root, "project: demo\n"))
+    assert found.unmatched == ()
+
+
+def test_a_typescript_hook_is_read_without_its_use(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "web/hooks.ts": """
+                useScreenView("home");
+                useLogScreenView("home");
+                useTrackEvent("x");
+                useTrackBy(index);
+            """,
+        },
+    )
+    found = inventory(_config(root, "project: demo\n"))
+    # The five fixed names hold for a hook too, and so does the `trackBy` exclusion.
+    assert sorted(group.method for group in found.unmatched) == [
+        "useLogScreenView",
+        "useScreenView",
+        "useTrackEvent",
+    ]
+
+
+def test_name_signal_is_unchanged_outside_typescript(tmp_path: Path) -> None:
+    # The same names in Kotlin are listed as before: the narrower rule is
+    # TypeScript's and JavaScript's.
+    kotlin = "\n".join(
+        line.rstrip(";") for line in TS_APP_CODE_NAMED_AFTER_EVENTS.splitlines() if line.strip()
+    )
+    root = _repo(tmp_path, {"app/App.kt": f"fun app() {{\n{kotlin}\n}}\n"})
+    found = inventory(_config(root, "project: demo\n"))
+    methods = {group.method for group in found.unmatched if group.signal == "name"}
+    assert {
+        "eventTypesKey",
+        "useEventRoster",
+        "setEvent",
+        "getTrackers",
+        "trackerFieldError",
+        "trackBy",
+        "fireEvent",
+        "addEvent",
+        "event",
+    } <= methods
+
+
 def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Path) -> None:
     root = _repo(
         tmp_path,
@@ -2636,6 +3138,7 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
             "web/tracker.ts": """
                 export interface Tracker {
                   trackEvent(name: string, props: object);
+                  logEvent(name, params);
                 }
                 tracker.trackEvent("shown", {});
             """,
@@ -2658,7 +3161,9 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
         ("TrackEvent", 1, "ios/Track.m", 5),
         ("logEvent", 1, "src/Base.java", 4),
     ]
-    # ... and only those calls are counted as the forwarders' callers.
+    # ... and only those calls are counted as the forwarders' callers. Both
+    # Java functions have one unmatched Java caller (the Kotlin and TypeScript
+    # `trackEvent` calls are another language's), so their names order them.
     assert [
         (
             forwarder.function,
@@ -2670,8 +3175,8 @@ def test_a_declaration_with_no_body_is_neither_a_call_nor_a_caller(tmp_path: Pat
         for forwarder in found.forwarders
     ] == [
         ("TrackEvent", "ios/Track.m", 1, 0, Location("ios/Track.m", 5, 5)),
-        ("trackEvent", "src/Tracker.java", 0, 3, Location("app/Tracker.kt", 5, 5)),
         ("logEvent", "src/Tracker.java", 0, 1, Location("src/Base.java", 4, 9)),
+        ("trackEvent", "src/Tracker.java", 0, 3, Location("app/Tracker.kt", 5, 5)),
     ]
 
 
@@ -3147,6 +3652,13 @@ def test_an_initializer_is_a_forwarder_under_its_type_s_name(tmp_path: Path) -> 
         {"name": ("parameter", "constructor", 2)},
         {"name": ("parameter", "constructor", 7)},
     ]
+    # ... and it says which type it builds, unless the scan cannot name it.
+    assert [
+        None
+        if call.read.name is None or call.read.name.declared is None
+        else call.read.name.declared.type
+        for call in found.calls
+    ] == ["ScreenView", "PageView", None]
     # Its callers write its type's name, never `super.init` or `self.init`. A
     # class with no name has no callers to count: it is left out.
     assert [
@@ -3163,6 +3675,262 @@ def test_an_initializer_is_a_forwarder_under_its_type_s_name(tmp_path: Path) -> 
         ("ScreenView", "App/ScreenView.swift", 2, 1, Location("App/Home.swift", 6, 13)),
     ]
     assert [forwarder.callers.same_file for forwarder in found.forwarders] == [0, 0]
+
+
+EXPLICIT_INIT_SOURCES = {
+    "App/Home.swift": """
+        final class HomeViewController: UIViewController {
+            func show() {
+                _ = ScreenView(screen: "home")
+                _ = ScreenView.init(screen: "settings")
+                _ = UI.ScreenView.init(screen: "profile")
+                let implicit: ScreenView = .init(screen: "about")
+                _ = factory().init(screen: "factory")
+                _ = metatype.init(screen: "metatype")
+            }
+        }
+    """,
+    "App/ScreenView.swift": """
+        struct ScreenView {
+            init(screen: String) {
+                analytics.track(screen)
+            }
+            init() {
+                self.init(screen: "default")
+            }
+            static func make() -> ScreenView {
+                Self.init(screen: "made")
+            }
+        }
+    """,
+}
+
+
+def test_a_swift_type_s_init_called_by_name_is_a_call_of_the_type(tmp_path: Path) -> None:
+    root = _repo(tmp_path, EXPLICIT_INIT_SOURCES)
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.track", name_arg: 0}]}
+        """,
+    )
+    [forwarder] = inventory(config).forwarders
+    # `ScreenView(…)`, `ScreenView.init(…)` and `UI.ScreenView.init(…)` are
+    # its callers. The implicit `.init(…)` names no type, a call's result or a
+    # variable is no type name, and `self.init`, `Self.init` are its own.
+    assert forwarder.function == "ScreenView"
+    callers = forwarder.callers
+    assert (callers.same_file, callers.other_files, callers.other_files_same_language) == (0, 3, 3)
+    assert callers.first_unmatched == Location("App/Home.swift", 3, 13)
+
+
+def test_a_spec_for_a_swift_type_matches_its_init_called_by_name(tmp_path: Path) -> None:
+    root = _repo(tmp_path, EXPLICIT_INIT_SOURCES)
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event:
+            calls:
+              - {function: "analytics.track", name_arg: 0}
+              - {function: "ScreenView", args: {screen: name}}
+        """,
+    )
+    # The scan reads all three spellings of the call, and only those.
+    assert [(item.origin.path, item.name) for item in scan(config).items] == [
+        ("App/Home.swift", "home"),
+        ("App/Home.swift", "settings"),
+        ("App/Home.swift", "profile"),
+        ("App/ScreenView.swift", None),
+    ]
+    # So the forwarder's callers are all matched.
+    [forwarder] = inventory(config).forwarders
+    callers = forwarder.callers
+    assert (callers.other_files, callers.other_files_matched) == (3, 3)
+    assert callers.first_unmatched is None
+
+
+def test_a_spec_for_a_swift_type_s_init_matches_nothing_in_another_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/Main.kt": 'fun main() {\n    ScreenView.init("home")\n}\n',
+            "App/Main.swift": 'func main() {\n    ScreenView.init("home")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "ScreenView", name_arg: 0}]}
+        """,
+    )
+    # Only Swift calls an initializer `init`.
+    assert [item.origin.path for item in scan(config).items] == ["App/Main.swift"]
+
+
+def test_callers_elsewhere_are_also_counted_in_the_forwarder_s_own_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/Tracking.kt": "object Tracking {\n"
+            "    fun track(event: String) = analytics.logEvent(event)\n"
+            "}\n",
+            "app/Home.kt": 'fun home() {\n    Tracking.track("home")\n}\n',
+            # Java calls the Kotlin wrapper: a caller by name, of another language.
+            "app/Legacy.java": (
+                'class Legacy {\n  void a() { Tracking.INSTANCE.track("legacy"); }\n}\n'
+            ),
+            # Another function of the same name, in Swift.
+            "ios/Shop.swift": 'func shop() {\n    tracker.track("shop")\n}\n',
+            "web/page.ts": "export function page(path: string) {\n  analytics.logEvent(path)\n}\n",
+            # A `.js` file is in the language of a `.ts` one.
+            "web/main.js": 'page("/")\n',
+            "web/other.kt": 'fun other() {\n    page("/")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.logEvent", name_arg: 0}]}
+        """,
+    )
+    found = {forwarder.function: forwarder for forwarder in inventory(config).forwarders}
+    assert (found["track"].language, found["page"].language) == ("kotlin", "ts")
+    track = found["track"].callers
+    # By name, as before: every language.
+    assert (track.same_file, track.other_files, track.other_files_matched) == (0, 3, 0)
+    assert track.first_unmatched == Location("app/Home.kt", 2, 5)
+    # In Kotlin only: the Swift `tracker.track` and the Java call are left out.
+    assert (track.other_files_same_language, track.other_files_same_language_matched) == (1, 0)
+    assert track.first_unmatched_same_language == Location("app/Home.kt", 2, 5)
+    page = found["page"].callers
+    assert (page.other_files, page.other_files_same_language) == (2, 1)
+    assert page.first_unmatched == Location("web/main.js", 1, 1)
+    assert page.first_unmatched_same_language == Location("web/main.js", 1, 1)
+
+
+def test_forwarders_are_ordered_by_their_unmatched_callers_in_their_own_language(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "app/W.kt": "object W {\n"
+            "    fun alpha(name: String) { analytics.track(name) }\n"
+            "    fun beta(name: String) { analytics.track(name) }\n"
+            "}\n",
+            # Three calls of `alpha`, all from Java: none counted in Kotlin.
+            "app/J.java": 'class J {\n  void f() { alpha("a"); alpha("b"); alpha("c"); }\n}\n',
+            "app/K.kt": 'fun k() {\n    W.beta("x"); W.beta("y")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.track", name_arg: 0}]}
+        """,
+    )
+    # `beta` has two unmatched Kotlin callers, `alpha` none: `beta` comes first,
+    # though `alpha` has more calls by name in every language.
+    found = inventory(config).forwarders
+    assert [forwarder.function for forwarder in found] == ["beta", "alpha"]
+    assert [forwarder.callers.other_files for forwarder in found] == [2, 3]
+
+
+def test_a_swift_type_s_init_through_its_metatype_is_a_call_of_the_type(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "ios/S.swift": "struct Screen {\n"
+            "    init(screen: String) { analytics.track(screen) }\n"
+            "}\n"
+            "func f() {\n"
+            '    _ = Screen.self.init(screen: "a")\n'
+            '    _ = Screen.init(screen: "b")\n'
+            '    _ = Self.self.init(screen: "c")\n'
+            "}\n",
+        },
+    )
+    track = '{function: "analytics.track", name_arg: 0}'
+    listed = _config(root, f"project: demo\nevent_types:\n  event: {{calls: [{track}]}}\n")
+    # `Screen.self.init(…)` is the call `Screen(…)`; `Self.self.init` names no type.
+    [forwarder] = inventory(listed).forwarders
+    assert (forwarder.function, forwarder.callers.same_file) == ("Screen", 2)
+    assert forwarder.callers.first_unmatched == Location("ios/S.swift", 5, 9)
+    spec = '{function: "Screen", args: {screen: name}}'
+    config = _config(root, f"project: demo\nevent_types:\n  event: {{calls: [{track}, {spec}]}}\n")
+    # A spec for `Screen` reads both spellings.
+    assert [item.name for item in scan(config).items if item.name is not None] == ["a", "b"]
+
+
+def test_a_pattern_spec_matches_a_swift_type_s_init_called_by_name(tmp_path: Path) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "App/S.swift": "func f() {\n"
+            '    tracker.track(ScreenView(name: "home"))\n'
+            '    tracker.track(ScreenView.init(name: "settings"))\n'
+            '    tracker.track(SPScreenView.self.init(name: "about"))\n'
+            "}\n",
+            # Only Swift calls an initializer `init`.
+            "app/S.kt": 'fun f() {\n    tracker.track(ScreenView.init(name = "kotlin"))\n}\n',
+        },
+    )
+    # The Snowplow preset matches the type with a `pattern:`.
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          screen: {preset: snowplow_screen_view}
+        """,
+    )
+    assert [(item.origin.path, item.name) for item in scan(config).items] == [
+        ("App/S.swift", "home"),
+        ("App/S.swift", "settings"),
+        ("App/S.swift", "about"),
+    ]
+
+
+def test_the_first_unmatched_caller_in_the_language_skips_other_languages(
+    tmp_path: Path,
+) -> None:
+    root = _repo(
+        tmp_path,
+        {
+            "a/Other.swift": 'func a() {\n    relay("swift")\n}\n',
+            "b/Relay.kt": "fun relay(event: String) = analytics.logEvent(event)\n",
+            "c/Caller.kt": 'fun c() {\n    relay("kotlin")\n}\n',
+        },
+    )
+    config = _config(
+        root,
+        """
+        project: demo
+        event_types:
+          event: {calls: [{function: "analytics.logEvent", name_arg: 0}]}
+        """,
+    )
+    [forwarder] = inventory(config).forwarders
+    callers = forwarder.callers
+    # By name, the first is the Swift call; in Kotlin, the Kotlin one.
+    assert callers.first_unmatched == Location("a/Other.swift", 2, 5)
+    assert callers.first_unmatched_same_language == Location("c/Caller.kt", 2, 5)
 
 
 # --- the inventory as a whole ----------------------------------------------------------

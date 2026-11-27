@@ -1,9 +1,9 @@
 """What every ``tripl events`` and ``tripl plan`` verb does identically.
 
-Seven verbs read seven resources and print seven tables. Everything AROUND that
+Eight verbs read eight resources and print eight tables. Everything AROUND that
 — resolving ``--branch``, opening a counting reader, stamping the run, choosing
 which stream the human lines go to, and writing at most one JSON document — is
-the same seven times, and was already spelled six times across ``scans.py`` and
+the same eight times, and was already spelled six times across ``scans.py`` and
 ``drifts.py`` before these landed. It is spelled once here.
 
 The ``--branch`` rule is the load-bearing part. Every plan read is answered from
@@ -59,9 +59,9 @@ MAIN = Branch()
 def add_branch(parser: argparse.ArgumentParser) -> None:
     """``--branch REF`` on every verb whose route resolves a plan revision.
 
-    NOT on ``tripl plan branches``: the branch listing is a property of the
-    project, not of a revision, and a flag that quietly did nothing would be
-    read as one that did something.
+    NOT on ``tripl plan branches`` or ``tripl plan revisions``: both listings
+    are a property of the project, not of one plan, and a flag that quietly did
+    nothing would be read as one that did something.
     """
     parser.add_argument(
         "--branch",
@@ -151,7 +151,7 @@ def emit(read: PlanRead, context: ReadContext, *, as_json: bool, human: str) -> 
     """The header, the body, and at most one JSON document. One stream rule, one place.
 
     Under ``--json`` every human line goes to stderr — including the header —
-    so stdout carries the document and nothing else. Seven verbs, one
+    so stdout carries the document and nothing else. Eight verbs, one
     implementation of that promise.
     """
     stream = sys.stderr if as_json else sys.stdout

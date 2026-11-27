@@ -21,7 +21,7 @@ from tripl.middleware.org_context import (
     path_org_slug,
     require_org_id,
 )
-from tripl.models.domain_enums import OrganizationRole
+from tripl.models.domain_enums import ApiKeyScope, OrganizationRole
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -351,18 +351,26 @@ async def require_org_member(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_MEMBERSHIP_REQUIRED)
 
 
-def require_write_scope(request: Request) -> None:
-    """API keys carry a scope; ``read`` keys are blocked from mutation endpoints.
+#: 403 detail when a ``check_upload`` key reaches any other write.
+CHECK_UPLOAD_SCOPE_ONLY = "API key may only upload check runs"
 
-    Session-authenticated users have no scope tag on request.state and so
-    bypass this check — their role is the only gate.
+
+def require_write_scope(request: Request) -> None:
+    """API keys carry a scope; only a ``write`` key passes the mutation endpoints.
+
+    A ``read`` key is refused, and so is a ``check_upload`` key: its one write
+    is recording a check run, behind :func:`get_check_upload_user`, which
+    does not call this. Session-authenticated users have no scope tag on
+    request.state and so bypass this check — their role is the only gate.
     """
     scope = getattr(request.state, "api_key_scope", None)
-    if scope == "read":
+    if scope == ApiKeyScope.read:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key has read-only scope",
         )
+    if scope is not None and scope != ApiKeyScope.write:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=CHECK_UPLOAD_SCOPE_ONLY)
 
 
 def require_browser_session(request: Request, detail: str = BROWSER_SESSION_REQUIRED) -> None:
@@ -561,6 +569,29 @@ async def get_editor_user(request: Request, session: SessionDep, user: CurrentUs
     else:
         await _ensure_request_org(request, session, user)
         await require_org_member(session, user)
+    return user
+
+
+async def get_check_upload_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """The write gate for recording a ``tripl check`` run, and nothing else.
+
+    A ``check_upload`` key, the narrow project-bound key a CI job holds, needs
+    only membership of the path's project: a viewer's key uploads, since
+    recording what the code does changes nothing in the plan. Its user's role
+    is resolved like every slug route's (a non-member gets the membership
+    gate's 404), and an extension is not asked: the key is the permission.
+
+    Anything else is :func:`get_editor_user`: a browser session or a ``write``
+    key of an editor, whom an extension may refuse ``check_runs.upload``. A
+    ``read`` key is 403.
+    """
+    if getattr(request.state, "api_key_scope", None) == ApiKeyScope.check_upload:
+        await _project_role(request, session, user)
+        return user
+    require_write_scope(request)
+    await require_project_mutation_access(request, session, user)
     return user
 
 
@@ -843,6 +874,7 @@ ManagedOrgDep = Annotated[org_service.ManagedOrg, Depends(get_managed_org)]
 
 WriteUserDep = Annotated[User, Depends(get_write_user)]
 EditorUserDep = Annotated[User, Depends(get_editor_user)]
+CheckUploadUserDep = Annotated[User, Depends(get_check_upload_user)]
 OwnerUserDep = Annotated[User, Depends(get_owner_user)]
 KeyReachableOwnerUserDep = Annotated[User, Depends(get_key_reachable_owner_user)]
 OrgOwnerUserDep = Annotated[User, Depends(get_org_owner_user)]
@@ -859,6 +891,7 @@ _GateReplay = Callable[[Request, AsyncSession, User], Awaitable[User]]
 _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_write_user: lambda request, _session, user: get_write_user(request, user),
     get_editor_user: get_editor_user,
+    get_check_upload_user: get_check_upload_user,
     get_owner_user: get_owner_user,
     get_key_reachable_owner_user: get_key_reachable_owner_user,
     require_platform_admin: lambda request, _session, user: require_platform_admin(request, user),
@@ -878,7 +911,10 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
 WRITE_GATES = frozenset(_WRITE_GATE_REPLAYS)
 # Gates that resolve the path's project as well as the caller's role:
 # ``get_editor_user`` runs :func:`require_project_mutation_access` (an editing
-# project role: org owner/admin or ``editor`` member), and the two owner gates
+# project role: org owner/admin or ``editor`` member), ``get_check_upload_user``
+# does the same for a session or a ``write`` key and resolves the path
+# project's role for a ``check_upload`` key (a viewer passes: that key is bound
+# to the project and may record check runs only), and the two owner gates
 # demand org owner/admin of the bound organization AND project role ``owner``
 # in the path's project, which only an owner/admin of that project's own
 # organization holds; the slug is resolved inside the bound organization, so
@@ -887,7 +923,9 @@ WRITE_GATES = frozenset(_WRITE_GATE_REPLAYS)
 # :func:`require_project_membership` is deliberately NOT in this set: it is
 # mounted on every route by the router and admits viewer members, so counting it
 # would make every slug-scoped mutation pass the audit trivially.
-PROJECT_SCOPED_GATES = frozenset({get_editor_user, get_owner_user, get_key_reachable_owner_user})
+PROJECT_SCOPED_GATES = frozenset(
+    {get_editor_user, get_check_upload_user, get_owner_user, get_key_reachable_owner_user}
+)
 
 # A merged branch is the record of what landed on main and a closed one is
 # shelved until someone reopens it, so neither takes plan writes. Main is stored

@@ -142,6 +142,17 @@ KNOWN_GAPS: dict[tuple[str, str], str] = {}
 
 # Recreated by a later step, so losing them on merge is harmless.
 DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
+    ("check_run_calls", "event_id"): (
+        "A call of the current uploaded tripl check run of a repository, and the event the "
+        "check resolved it to. NOTE the FK is ondelete SET NULL, not CASCADE. MERGE: the "
+        "source's calls lose their event and keep their identity, path and line; the next "
+        "default-branch upload of the repository replaces the whole snapshot, and the check "
+        "resolves each call against the plan as it stands then, so the survivor gets its calls "
+        "back from that run. Re-pointing would claim the code sends the survivor before any "
+        "check has said so. DELETE: the same SET NULL, and nothing goes into "
+        "DELETE_PATH_COLUMNS: 'used in code' is read per event, so a call with no event is "
+        "shown on no page, and the next upload drops it."
+    ),
     ("alert_pending_items", "event_id"): (
         "An alert matched but NOT yet delivered, waiting for its destination's next digest "
         "window. MERGE: the FK is ondelete CASCADE (unlike alert_delivery_items.event_id, which "

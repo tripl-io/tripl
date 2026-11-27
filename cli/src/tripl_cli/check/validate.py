@@ -14,7 +14,8 @@ warning (and so exit 1).
 
 Every item is held to the route's size limits before it is sent
 (``payloads.enforce_limits``); what had to be cut is reported on the item as an
-``oversize_value`` warning.
+``oversize_value`` warning. The lint's findings (``lint.py``) arrive on the item
+the same way, already in its notes, and merge with the verdict like those.
 
 A finding a ``tripl-check-ignore`` marker waives (``suppress.py``) is marked
 here too, once every finding is known, the CLI's own included. It stays in the

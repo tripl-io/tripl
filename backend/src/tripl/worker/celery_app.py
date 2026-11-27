@@ -100,6 +100,10 @@ celery_app.conf.beat_schedule = {
         "task": "tripl.worker.tasks.maintenance.cleanup_scan_jobs",
         "schedule": crontab(hour=4, minute=0),
     },
+    "cleanup-check-runs": {
+        "task": "tripl.worker.tasks.maintenance.cleanup_check_runs",
+        "schedule": crontab(hour=4, minute=30),
+    },
     "cleanup-distribution-drifts": {
         "task": "tripl.worker.tasks.maintenance.cleanup_distribution_drifts",
         "schedule": crontab(hour=5, minute=0),

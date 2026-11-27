@@ -45,6 +45,7 @@ from .conftest import (
     make_event_type,
     make_field,
     make_job,
+    make_revision,
     make_scan_config,
     make_search_result,
     make_variable,
@@ -376,6 +377,42 @@ def test_plan_branches_sample(
     )
 
 
+def test_plan_revisions_sample(
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The first column is the id ``tripl check --revision`` takes."""
+    tripl_api.revisions(
+        "prod",
+        [
+            make_revision(
+                "5e6f7a8b-0000-4000-8000-00000000cafe",
+                summary="Merge checkout-redesign",
+                kind="merge",
+                branch_id="7c1d2e3f-0000-4000-8000-000000009f21",
+                created_at="2026-08-01T09:00:00Z",
+            ),
+            make_revision(),
+        ],
+    )
+    assert main(["plan", "revisions", "--project", "prod"]) == 0
+    assert capsys.readouterr().out == (
+        "tripl plan revisions - http://tripl.test (from $TRIPL_BASE_URL)\n"
+        "\n"
+        "prod\n"
+        "  5e6f7a8b-0000-4000-8000-00000000cafe  2026-08-01T09:00:00Z  merge     "
+        "branch 7c1d2e3f-0000-4000-8000-000000009f21  "
+        "4 event types, 23 events, 9 fields, 6 properties, 1 relation  Merge checkout-redesign\n"
+        "  0a1b2c3d-0000-4000-8000-00000000beef  2026-07-30T14:05:11Z  snapshot  "
+        "-                                            "
+        "4 event types, 23 events, 9 fields, 6 properties, 1 relation  "
+        "Before the checkout redesign\n"
+        "\n"
+        "2 revisions.\n"
+    )
+
+
 def test_plan_search_sample(
     tripl_api: FakeInstance,
     configured_env: None,
@@ -541,11 +578,11 @@ class Screen {
     }
     fun promo(id: String) { analytics.logEvent(Events.PROMO.format(id), mapOf("id" to id)) }
     fun show() {
-        analytics.logEvent()
+        analytics.logEvent() // tripl-check-ignore[too_dynamic] -- filled in by the SDK
         logEvent("home_shown", bundle)
         wrap(Events.Name.Open)
     }
-}
+} // tripl-check-ignore[unknown_event]
 """
 
 
@@ -609,7 +646,14 @@ def test_every_sample_is_ascii(
     # section of calls that look like tracking has rows, not just its heading.
     assert main(["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")]) == 0
     listing = capsys.readouterr().out
-    for section in ("Why (call sites", "Functions that forward", "Calls that look like tracking"):
+    for section in (
+        "Why (call sites",
+        "Functions that forward",
+        "    tripl-check-ignore[too_dynamic] -- filled in by the SDK (line 11)\n",
+        "Suppression markers: 2 read, covering 1 call site.\n",
+        "Suppression ignored: app/Screen.kt:15 ",
+        "Calls that look like tracking",
+    ):
         assert section in listing
     assert "  1  wrap      constant  app/Screen.kt:13:9  wrap(Events.Name.Open)\n" in listing
     # Nor for discovery: it stopped at the cap, and said so.

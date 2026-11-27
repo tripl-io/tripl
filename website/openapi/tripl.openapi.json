@@ -9256,6 +9256,334 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/check-runs": {
+      "post": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "Upload Check Run",
+        "description": "Record one ``tripl check`` run of a repository directory.\n\nA run whose ``ref`` is its ``default_branch`` becomes the current run of\nits repository and ``check_root``: its calls replace the previous\ndefault-branch run's as what \"used in code\" shows. A default-branch run\nolder than the current one (by ``pipeline_created_at`` when both carry it,\nelse by ``committed_at``) goes to the history only, and so does any other\nrun, kept as a summary. At most 5000 calls per run.",
+        "operationId": "upload_check_run_api_v1_projects__slug__check_runs_post",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "List Check Runs",
+        "description": "The project's uploaded runs, newest first, each as a summary.",
+        "operationId": "list_check_runs_api_v1_projects__slug__check_runs_get",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the runs of this repository.",
+              "title": "Repository"
+            },
+            "description": "Only the runs of this repository."
+          },
+          {
+            "name": "check_root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the runs of this check directory (`.` for the repository root).",
+              "title": "Check Root"
+            },
+            "description": "Only the runs of this check directory (`.` for the repository root)."
+          },
+          {
+            "name": "default_branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only the runs on their repository's default branch.",
+              "default": false,
+              "title": "Default Branch"
+            },
+            "description": "Only the runs on their repository's default branch."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000000,
+              "minimum": 0,
+              "description": "How many items to skip, for paging.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "How many items to skip, for paging."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckRunListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/code-usage": {
+      "get": {
+        "tags": [
+          "check-runs"
+        ],
+        "summary": "Get Event Code Usage",
+        "description": "Where the code sends this event: the calls in each repository directory's current run.\n\nA directory whose current run has no call of the event is listed with no\ncalls; one that never uploaded a default-branch run is not listed.",
+        "operationId": "get_event_code_usage_api_v1_projects__slug__events__event_id__code_usage_get",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventCodeUsageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key, or the API key is invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in, but this account or API key may not do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project (or the caller is not a member of it), or no such object in it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/events": {
       "get": {
         "tags": [
@@ -40441,9 +40769,11 @@
         "type": "string",
         "enum": [
           "read",
-          "write"
+          "write",
+          "check_upload"
         ],
-        "title": "ApiKeyScope"
+        "title": "ApiKeyScope",
+        "description": "What an API key may do (``api_keys.scope``).\n\n``read`` reads; ``write`` does whatever its user's role allows;\n``check_upload`` reads like ``read`` and may also record ``tripl check``\nruns (``POST /projects/{slug}/check-runs``), and nothing else. A\n``check_upload`` key is always bound to one project: it is the key a CI\njob holds."
       },
       "AppVersionAdoptionResponse": {
         "properties": {
@@ -42251,6 +42581,503 @@
         ],
         "title": "ChartAnnotationSource",
         "description": "Who put a chart annotation there.\n\n``manual`` is a person in the UI, ``api`` is a CI/CLI client posting a\ndeploy marker, and ``release`` is the metrics worker marking the bucket an\napp version activated in. ``release`` is reserved to the worker: the create\nAPI refuses it, so every release marker is one the activation gate drew."
+      },
+      "CheckRunCallIn": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "line": {
+            "type": "integer",
+            "maximum": 10000000.0,
+            "minimum": 0.0,
+            "title": "Line"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "error",
+              "dynamic"
+            ],
+            "title": "Status"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunFinding"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Findings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "status"
+        ],
+        "title": "CheckRunCallIn",
+        "description": "One call as the check saw it: where it is, what it resolved to, and its verdict."
+      },
+      "CheckRunCallLocation": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "error",
+              "dynamic"
+            ],
+            "title": "Status"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunFinding"
+            },
+            "type": "array",
+            "title": "Findings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "column",
+          "status",
+          "findings"
+        ],
+        "title": "CheckRunCallLocation"
+      },
+      "CheckRunCounts": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "warning": {
+            "type": "integer",
+            "title": "Warning"
+          },
+          "error": {
+            "type": "integer",
+            "title": "Error"
+          },
+          "dynamic": {
+            "type": "integer",
+            "title": "Dynamic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "ok",
+          "warning",
+          "error",
+          "dynamic"
+        ],
+        "title": "CheckRunCounts"
+      },
+      "CheckRunCreate": {
+        "properties": {
+          "repository": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Repository"
+          },
+          "check_root": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Check Root",
+            "default": "."
+          },
+          "repository_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Url"
+          },
+          "commit_sha": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 4,
+            "pattern": "^[0-9a-fA-F]+$",
+            "title": "Commit Sha"
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Ref"
+          },
+          "default_branch": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Branch"
+          },
+          "pipeline_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Url"
+          },
+          "merge_request": {
+            "type": "boolean",
+            "title": "Merge Request",
+            "default": false
+          },
+          "pipeline_created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Created At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
+          "strict": {
+            "type": "boolean",
+            "title": "Strict",
+            "default": false
+          },
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunCallIn"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "title": "Calls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repository",
+          "commit_sha",
+          "ref"
+        ],
+        "title": "CheckRunCreate",
+        "description": "One ``tripl check --upload`` run."
+      },
+      "CheckRunFinding": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Message"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "suppressed": {
+            "type": "boolean",
+            "title": "Suppressed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "CheckRunFinding"
+      },
+      "CheckRunListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "CheckRunListResponse"
+      },
+      "CheckRunResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "repository": {
+            "type": "string",
+            "title": "Repository"
+          },
+          "check_root": {
+            "type": "string",
+            "title": "Check Root"
+          },
+          "repository_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Url"
+          },
+          "commit_sha": {
+            "type": "string",
+            "title": "Commit Sha"
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "default_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Branch"
+          },
+          "merge_request": {
+            "type": "boolean",
+            "title": "Merge Request"
+          },
+          "is_default_branch": {
+            "type": "boolean",
+            "title": "Is Default Branch"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          },
+          "pipeline_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Url"
+          },
+          "pipeline_created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Created At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
+          "strict": {
+            "type": "boolean",
+            "title": "Strict"
+          },
+          "calls": {
+            "$ref": "#/components/schemas/CheckRunCounts"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "repository",
+          "check_root",
+          "repository_url",
+          "commit_sha",
+          "ref",
+          "default_branch",
+          "merge_request",
+          "is_default_branch",
+          "is_current",
+          "pipeline_url",
+          "pipeline_created_at",
+          "committed_at",
+          "strict",
+          "calls",
+          "created_at"
+        ],
+        "title": "CheckRunResponse",
+        "description": "A run as the history lists it: a summary, whatever was stored with it."
       },
       "ClickHouseSettings": {
         "properties": {},
@@ -47388,6 +48215,72 @@
           "created_at"
         ],
         "title": "EventChangeResponse"
+      },
+      "EventCodeUsageRepository": {
+        "properties": {
+          "repository": {
+            "type": "string",
+            "title": "Repository"
+          },
+          "check_root": {
+            "type": "string",
+            "title": "Check Root"
+          },
+          "repository_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Url"
+          },
+          "run": {
+            "$ref": "#/components/schemas/CheckRunResponse"
+          },
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunCallLocation"
+            },
+            "type": "array",
+            "title": "Calls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repository",
+          "check_root",
+          "repository_url",
+          "run",
+          "calls"
+        ],
+        "title": "EventCodeUsageRepository",
+        "description": "One repository's current run of one check directory, and its calls that send the event.\n\n``calls`` is empty when that run found no call of the event: the event is\nnot used in that directory's code, as of ``run``. ``check_root`` is ``.``\nfor a check of the whole repository."
+      },
+      "EventCodeUsageResponse": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "repositories": {
+            "items": {
+              "$ref": "#/components/schemas/EventCodeUsageRepository"
+            },
+            "type": "array",
+            "title": "Repositories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "repositories"
+        ],
+        "title": "EventCodeUsageResponse",
+        "description": "Where the code sends an event, per repository and check directory that upload runs."
       },
       "EventCommentActionRequest": {
         "properties": {
@@ -69794,6 +70687,10 @@
     {
       "name": "plan-validation",
       "description": "Check tracking calls or captured payloads against the plan (tripl check)."
+    },
+    {
+      "name": "check-runs",
+      "description": "Uploaded tripl check runs: the history, and where the code sends each event."
     },
     {
       "name": "plan-export",

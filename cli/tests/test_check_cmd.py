@@ -834,6 +834,23 @@ def test_an_empty_capture_file_is_fine_with_allow_empty(
     assert not validator.called
 
 
+def test_a_missing_capture_file_is_exit_2_even_with_allow_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A test run that never wrote its file (it crashed, or wrote it elsewhere)
+    # is not a run that sent nothing: --allow-empty passes an empty file only.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    argv = ["check", "--payloads", "events.ndjson", "--project", "demo", "--allow-empty"]
+    assert main(argv) == 2
+    assert "--payloads: events.ndjson does not exist." in capsys.readouterr().err
+    assert not validator.called
+
+
 def test_a_file_the_scan_did_not_read_is_reported(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1190,8 +1207,10 @@ LIST_DOCUMENT_KEYS: dict[str, Any] = {
     "truncated": bool,
     "files_scanned": int,
     "skipped": list,
+    "lint": bool,
     "summary": dict,
     "calls": list,
+    "suppressions": list,
     "forwarders": list,
     "unmatched": list,
 }
@@ -1228,9 +1247,22 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         },
         "targets": {"event": {"name": 3, "properties": 3, "key": 1}},
         "default_label_fields": {"event": ["key"]},
+        "lint": {},
+        "suppressions": {"markers": 0, "invalid": 0, "no_call": 0, "calls_covered": 0},
     }
+    assert document["lint"] is False  # the config has no `lint:` section
     forwarding, formatted, shaped, sent = document["calls"]
-    assert set(forwarding) == {"location", "snippet", "event_type", "read", "dynamic", "items"}
+    assert set(forwarding) == {
+        "location",
+        "snippet",
+        "event_type",
+        "read",
+        "dynamic",
+        "items",
+        "lint",
+        "suppressions",
+    }
+    assert all(call["lint"] == [] for call in document["calls"])
     assert forwarding["location"] == {
         "path": "app/Screen.kt",
         "line": 3,
@@ -1246,7 +1278,8 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
         "entries": None,
         "reason": "parameter",
         "expression": "event",
-        "declared": {"function": "logEvent", "line": 2},
+        # `type` names an initializer's type; `logEvent` is none.
+        "declared": {"function": "logEvent", "line": 2, "type": None},
     }
     assert forwarding["dynamic"] == {"name": "parameter", "properties": "parameter"}
     # Nothing about it is known: `tripl check` reports it as dynamic and sends nothing.
@@ -1297,7 +1330,12 @@ def test_list_json_is_one_document_on_stdout_with_every_key(
             "other_files": 0,
             "other_files_matched": 0,
             "first_unmatched": {"path": "app/Screen.kt", "line": 11, "column": 9},
+            # The calls elsewhere in files of its own language: none here either.
+            "other_files_same_language": 0,
+            "other_files_same_language_matched": 0,
+            "first_unmatched_same_language": {"path": "app/Screen.kt", "line": 11, "column": 9},
         },
+        "language": "kotlin",
     }
     assert document["unmatched"] == [
         {
@@ -1717,10 +1755,14 @@ def test_list_says_why_a_call_passes_nothing_the_scan_reads(
     assert [call["read"]["object_argument"] for call in calls] == [
         None,
         None,
-        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1}},
+        {**unread, "expression": "evt", "declared": {"function": "send", "line": 1, "type": None}},
         None,
         None,
-        {**unread, "expression": "props", "declared": {"function": "opened", "line": 8}},
+        {
+            **unread,
+            "expression": "props",
+            "declared": {"function": "opened", "line": 8, "type": None},
+        },
     ]
     assert [
         (forwarder["function"], forwarder["parameters"]) for forwarder in document["forwarders"]
@@ -1891,6 +1933,63 @@ def test_list_says_where_a_forwarder_s_calls_are_and_which_files_it_did_not_read
     )
 
 
+def test_list_counts_a_forwarder_s_callers_elsewhere_in_its_own_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    files = {
+        ".tripl/check.yml": LIST_FORWARDERS_CONFIG,
+        **LIST_FORWARDERS_SOURCES,
+        # Java calls the Kotlin wrappers, and Swift has a `report` of its own.
+        "app/Legacy.java": (
+            "class Legacy {\n"
+            '  void a() { WrappersKt.relay("legacy"); WrappersKt.lonely("x"); }\n'
+            "}\n"
+        ),
+        "app/Other.swift": 'func other() {\n    report("swift")\n}\n',
+    }
+    _checkout(tmp_path / "repo", files, monkeypatch)
+    assert main(["check", "--list"]) == 0
+    out = capsys.readouterr().out
+    start = out.index("Functions that forward")
+    section = out[start : out.index("\n\n", start)].splitlines()[1:]
+    assert section == [
+        "  relay   app/Wrappers.kt:4  forwards event (#0) to name  "
+        "1 call named relay elsewhere, none matched (first app/Screen.kt:2); "
+        "1 call named relay in other languages, not counted",
+        "  lonely  app/Wrappers.kt:1  forwards event (#0) to name  "
+        "no calls found; 1 call named lonely in other languages, not counted",
+        "  report  app/Wrappers.kt:7  forwards event (#0) to name  "
+        "its calls are matched; 1 call named report in other languages, not counted",
+    ]
+    # The JSON keeps the counts by name, and adds the ones in Kotlin.
+    assert main(["check", "--list", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+
+    def path(place: dict[str, Any] | None) -> str | None:
+        return None if place is None else place["path"]
+
+    assert [
+        (
+            forwarder["function"],
+            forwarder["language"],
+            forwarder["callers"]["other_files"],
+            forwarder["callers"]["other_files_matched"],
+            forwarder["callers"]["other_files_same_language"],
+            forwarder["callers"]["other_files_same_language_matched"],
+            path(forwarder["callers"]["first_unmatched"]),
+            path(forwarder["callers"]["first_unmatched_same_language"]),
+        )
+        for forwarder in document["forwarders"]
+    ] == [
+        ("relay", "kotlin", 2, 0, 1, 0, "app/Legacy.java", "app/Screen.kt"),
+        ("lonely", "kotlin", 1, 0, 0, 0, "app/Legacy.java", None),
+        ("report", "kotlin", 1, 1, 0, 0, None, None),
+    ]
+
+
 def test_list_names_a_field_two_labels_reach_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1952,6 +2051,10 @@ def test_list_json_items_are_within_the_validator_s_limits(
         ([], "--report writes a check's verdicts, and --list checks nothing"),
         (["--branch", "redesign"], "--branch names the plan branch to check against"),
         (["--strict"], "--strict changes what fails a check, and --list checks nothing"),
+        (
+            ["--strict-suppressions"],
+            "--strict-suppressions fails a check on its markers, and --list checks nothing",
+        ),
         (["--allow-empty"], "--list never fails because nothing matched; drop --allow-empty."),
         (["--format", "sarif"], "--list prints text or JSON, not sarif; drop --format sarif."),
         (["--format", "codequality"], "--list prints text or JSON, not codequality"),
@@ -2432,6 +2535,149 @@ def test_an_unused_marker_is_listed_and_never_fails(
             "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
             "matched no finding."
         ) in out
+
+
+# A call the plan has, under a marker that therefore waives nothing.
+STALE = (
+    "func o() {\n"
+    "    // tripl-check-ignore[unknown_event] -- the call below was fixed\n"
+    '    Analytics.shared.logEvent("trial_started")\n'
+    "}\n"
+)
+
+
+def test_strict_suppressions_fails_a_clean_run_on_an_unused_marker(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check"]) == 0
+    assert "fail the run" not in capsys.readouterr().out
+    assert main(["check", "--strict-suppressions"]) == 1
+    out = capsys.readouterr().out
+    assert out.rstrip().endswith(
+        "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
+        "matched no finding.\n"
+        "1 suppression marker fails the run (--strict-suppressions)."
+    )
+
+
+def test_strict_suppressions_fails_on_a_malformed_marker_whatever_it_covers(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Above no call at all, and with no reason: nothing fails but the marker.
+    _write(repo, {"Sources/Note.swift": "// tripl-check-ignore[unknown_event]\nfunc n() {}\n"})
+    assert main(["check"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run (--strict-suppressions)." in capsys.readouterr().out
+
+
+def test_strict_suppressions_passes_a_marker_that_did_its_job(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, _debug("// tripl-check-ignore[unknown_event] -- debug menu only"))
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["summary"]["failing_suppressions"] == 0
+    assert [entry["fails"] for entry in document["suppressions"]] == [False]
+
+
+def test_the_json_names_the_failing_markers_only_with_the_flag(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--json"]) == 0
+    plain = json.loads(capsys.readouterr().out)
+    assert "failing_suppressions" not in plain["summary"]
+    assert all("fails" not in entry for entry in plain["suppressions"])
+    assert main(["check", "--json", "--strict-suppressions"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert document["exit_code"] == 1
+    # `failing` counts calls, and no call fails: the marker is counted apart.
+    assert document["summary"]["failing"] == 0
+    assert document["summary"]["failing_suppressions"] == 1
+    [entry] = document["suppressions"]
+    assert (entry["used"], entry["fails"]) == (False, True)
+
+
+def test_a_dynamic_value_marker_is_not_unused_in_a_run_that_cannot_raise_it(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    marked = (
+        "func d(l: String) {\n"
+        "    // tripl-check-ignore[dynamic_value] -- the label is the screen name\n"
+        "    Analytics.shared.log(category: .home, action: .open, label: l)\n"
+        "}\n"
+    )
+    _write(repo, {"Sources/Dyn.swift": marked})
+    # --strict raises the finding and the marker waives it; without --strict
+    # the finding is not raised, so the marker is listed and does not fail.
+    assert main(["check", "--strict-suppressions"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Dyn.swift:2" in out
+    assert "fail the run" not in out
+    assert main(["check", "--strict", "--strict-suppressions", "--json"]) == 0
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert (entry["used"], entry["fails"]) == (True, False)
+
+
+def test_strict_suppressions_does_not_fail_a_run_that_writes_a_baseline(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--strict-suppressions", "--write-baseline", "known.json"]) == 0
+    out = capsys.readouterr().out
+    assert "Unused suppression: Sources/Old.swift:2" in out
+    assert "fail the run (--strict-suppressions)" not in out
+    # The flag is ignored, so its JSON key is not there either.
+    argv = ["check", "--strict-suppressions", "--write-baseline", "known.json", "--json"]
+    assert main(argv) == 0
+    assert "failing_suppressions" not in json.loads(capsys.readouterr().out)["summary"]
+
+
+def test_strict_suppressions_fails_a_doc_comment_line_that_starts_with_the_keyword(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    example = (
+        "/// Waive a finding with a comment like this one:\n"
+        "/// tripl-check-ignore[unknown_event] -- debug menu only\n"
+        "func helper() {}\n"
+    )
+    _write(repo, {"Sources/Help.swift": example})
+    assert main(["check", "--strict-suppressions"]) == 1
+    assert "Unused suppression: Sources/Help.swift:2" in capsys.readouterr().out
+    # In backticks the line does not start with the keyword: not a marker.
+    _write(
+        repo,
+        {
+            "Sources/Help.swift": example.replace("/// tripl", "/// `tripl").replace(
+                "only\n", "only`\n"
+            )
+        },
+    )
+    assert main(["check", "--strict-suppressions", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out).get("suppressions", []) == []
+
+
+def test_strict_suppressions_fails_an_allow_empty_run_on_a_marker_it_scanned(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources/Feed.swift").unlink()  # the fixture's only calls
+    _write(repo, {"Sources/Old.swift": STALE})
+    assert main(["check", "--allow-empty"]) == 0
+    capsys.readouterr()
+    assert main(["check", "--allow-empty", "--strict-suppressions"]) == 1
+    assert "1 suppression marker fails the run" in capsys.readouterr().out
+
+
+def test_strict_suppressions_is_refused_with_payloads_before_any_request(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capture = repo / "capture.ndjson"
+    capture.write_text('{"event_type": "legacy", "name": "trial_started"}\n', encoding="utf-8")
+    assert main(["check", "--payloads", str(capture), "--strict-suppressions"]) == 2
+    assert "a captured event has no source to hold one" in capsys.readouterr().err
+    assert not validator.called
 
 
 def test_every_format_shows_the_suppression_from_one_run(

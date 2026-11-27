@@ -267,7 +267,7 @@ def marker_states(
     )
 
 
-def label(marker: Marker) -> str:
+def label(marker: Marker | Suppression) -> str:
     """The marker as its targets read: ``tripl-check-ignore[unknown_event,unknown_field:x]``.
 
     A target naming a rule reads as it is written, ``policy_violation@naming.event:x``.

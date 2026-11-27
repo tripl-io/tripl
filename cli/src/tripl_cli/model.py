@@ -435,12 +435,12 @@ class DriftsSnapshot:
 class PlanRead:
     """One read of the plan or the event catalog, from any ``events``/``plan`` verb.
 
-    ONE snapshot for all seven verbs rather than seven near-identical ones, and
+    ONE snapshot for all eight verbs rather than eight near-identical ones, and
     the same for the document ``report.plan_read_document`` builds from it. Each
     verb reads a different resource, but every one of them answers the same four
     questions — which project, which plan revision, how much of the resource
-    came back, and what the rows are — so seven types would be seven places for
-    the envelope to drift and seven ``jq`` idioms for a consumer to learn.
+    came back, and what the rows are — so eight types would be eight places for
+    the envelope to drift and eight ``jq`` idioms for a consumer to learn.
     The rows themselves stay verbatim; ``kind`` says what one of
     them IS.
 
@@ -456,9 +456,9 @@ class PlanRead:
     run: Run
     # "events list", "plan types", ... — the same string the envelope carries.
     command: str
-    # What ONE item is: "event", "event_type", "field", "variable", "branch",
-    # "search_result". Published in the document so a consumer can tell which
-    # shape `items` holds without parsing `command`.
+    # What ONE item is: "event", "event_type", "field", "property", "branch",
+    # "revision", "search_result". Published in the document so a consumer can
+    # tell which shape `items` holds without parsing `command`.
     kind: str
     project: str
     items: tuple[JsonDict, ...] = ()
@@ -666,11 +666,11 @@ def names_by_id(items: JsonList) -> dict[str, str]:
 def page_items(payload: Any) -> JsonList:
     """``{"items": [...], "total": n}`` -> the items. Anything else reads as empty.
 
-    Seven routes answer this envelope — events, variables, branches, search,
-    alert deliveries, one event type's drifts, and reconciliation's dead/shadow
-    listings — and each of them used to unwrap it at its own call site or not at
-    all. One definition, so "the API answered an object where a list belongs" is
-    decided in one place.
+    Eight routes answer this envelope — events, variables, branches, plan
+    revisions, search, alert deliveries, one event type's drifts, and
+    reconciliation's dead/shadow listings — and each of them used to unwrap it
+    at its own call site or not at all. One definition, so "the API answered an
+    object where a list belongs" is decided in one place.
 
     Re-exported through ``tripl_cli.api`` for ``tripl_mcp``, which read the same
     envelope by hand at three tool sites until recently. Both distributions
@@ -757,7 +757,13 @@ def format_duration(seconds: float) -> str:
 # token prefix, which the backend derives from the scope's first letter.
 ACCESS_READ = "read"
 ACCESS_WRITE = "write"
-_ACCESS_BY_PREFIX = {"tk_r_": ACCESS_READ, "tk_w_": ACCESS_WRITE}
+# Reads, and records ``tripl check`` runs (``--upload``): a CI job's key.
+ACCESS_CHECK_UPLOAD = "check_upload"
+_ACCESS_BY_PREFIX = {
+    "tk_r_": ACCESS_READ,
+    "tk_w_": ACCESS_WRITE,
+    "tk_c_": ACCESS_CHECK_UPLOAD,
+}
 
 
 @dataclass(frozen=True)
@@ -782,7 +788,7 @@ class Whoami:
 
 
 def access_of_key(api_key: str | None) -> str | None:
-    """``read`` / ``write`` from the token prefix, or ``None`` for anything else."""
+    """``read`` / ``write`` / ``check_upload`` from the token prefix, else ``None``."""
     for prefix, access in _ACCESS_BY_PREFIX.items():
         if api_key and api_key.startswith(prefix):
             return access

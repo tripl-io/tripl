@@ -323,6 +323,25 @@ async def test_the_permission_check_skips_owners_and_never_lets_a_viewer_write(
     assert yes.asked == []
 
 
+async def test_uploading_check_runs_is_its_own_permission(people: People) -> None:
+    client, project_id = await _subject(people)
+    await add_member_by_slug("granted", "subject@example.com", "editor")
+    check = _Grants(refuse=frozenset({project_permissions.CHECK_RUNS_UPLOAD}))
+    run = {"repository": "shop/web", "commit_sha": "abcd", "ref": "main", "calls": []}
+    with override_extensions([check]):
+        refused = await client.post(f"{API}/projects/granted/check-runs", json=run)
+        assert refused.status_code == 403, refused.text
+        assert refused.json()["detail"] == deps.PROJECT_PERMISSION_REFUSED
+        # Taking it away leaves the plan editable.
+        allowed = await client.post(f"{API}/projects/granted/event-types", json=EVENT_TYPE)
+        assert allowed.status_code == 201, allowed.text
+    subject_id = people.ids["subject"]
+    assert check.asked == [
+        (subject_id, project_id, project_permissions.CHECK_RUNS_UPLOAD),
+        (subject_id, project_id, project_permissions.PLAN_EDIT),
+    ]
+
+
 async def test_a_failing_permission_check_fails_the_write(people: People) -> None:
     client, _ = await _subject(people)
     await add_member_by_slug("granted", "subject@example.com", "editor")
@@ -344,7 +363,8 @@ def _editor_gated(route: Any) -> bool:
             walk(sub)
 
     walk(route.dependant)
-    return deps.get_editor_user in seen
+    # ``get_check_upload_user`` asks the permission of a session or write key.
+    return deps.get_editor_user in seen or deps.get_check_upload_user in seen
 
 
 def test_every_editor_gated_project_route_names_a_permission() -> None:
@@ -376,6 +396,7 @@ def test_the_permission_map_on_known_paths() -> None:
     assert p.permission_for(f"{base}/alert-inbox/bulk-actions") == p.ALERTS_MANAGE
     assert p.permission_for(f"{base}/scans/{{scan_id}}/run") == p.DATA_SOURCES_MANAGE
     assert p.permission_for(f"{base}/metrics") == p.METRICS_MANAGE
+    assert p.permission_for(f"{base}/check-runs") == p.CHECK_RUNS_UPLOAD
     assert p.permission_for(base) == p.SETTINGS_MANAGE
     # Unknown: the widest permission, never none.
     assert p.classify(f"{base}/something-new") is None
