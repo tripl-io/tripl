@@ -127,11 +127,16 @@ input is optional:
 | `version` | the release in the URL | The CLI release to run (`X.Y.Z`). |
 | `image` | `ghcr.io/tripl-io/tripl-cli` | The CLI image without its tag, for a registry mirror. |
 | `stage` | `test` | The stage the job runs in. |
+| `job` | `tripl-check` | The job's name. Include the file a second time, under another name, to check the events your UI tests sent as well. |
 | `project` | `""` | The tripl project. Empty reads it from the check config. |
 | `check_config` | `""` | The check config, relative to the repository root. Empty finds the nearest `.tripl/check.yml`. |
 | `directory` | `.` | Where to run, relative to the repository root, for a repository with several apps. |
 | `baseline` | `.tripl/check-baseline.json` | The committed [baseline](../integrate/tripl-check.md#baseline), used when the file exists (the log says when it does not). Empty never uses one. |
-| `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. |
+| `payloads` | `""` | Check the events a test run captured instead of the code (`--payloads`), from this file, relative to the repository root. See [Check the events your UI tests send](./record-events-in-ui-tests.md#gitlab). |
+| `payloads_baseline` | `.tripl/check-payloads-baseline.json` | With `payloads`, the baseline used in place of `baseline`, when the file exists. Empty never uses one. |
+| `needs` | `[]` | The jobs to wait for and download artifacts from, as GitLab's `needs` takes them (a job name, or `{job, optional, artifacts}`): with `payloads`, the job that wrote the file. The default starts at once and downloads nothing. |
+| `when` | `on_success` | `on_success` runs the job only when every job in `needs` passed; `always` runs it after a failed one too, to check the events of a failed UI-test job. |
+| `gate` | `true` | Fail only on findings the change brings in (`--new-from-rev`): a branch's since its merge base with the default branch, a merge request's since its base. Not applied with `payloads`. |
 | `pipelines` | `branches` | Where the job runs: `branches`, in branch pipelines on every branch; `merge_requests`, in merge request pipelines and on the default branch. See below. |
 | `strict` | `false` | Fail on warnings too. |
 | `args` | `""` | More `tripl check` arguments, separated by spaces. |
@@ -290,11 +295,15 @@ fetches the commits the gate needs into the shallow checkout; with
 `persist-credentials: false` on a private repository it cannot, so check
 out with `fetch-depth: 0` there. Its inputs
 match the GitLab template's: `version`, `base-url`, `api-key`, `project`,
-`check-config`, `directory`, `baseline`, `gate`, `strict` and `args`, plus
+`check-config`, `directory`, `baseline`, `payloads`, `payloads-baseline`,
+`gate`, `strict` and `args` (see
+[Check the events your UI tests send](./record-events-in-ui-tests.md#github-actions)
+for `payloads`), plus
 `pass-on-outage` (default `true`), `sarif` (default `true`; `false` skips
 the upload, for a repository without code scanning) and `category` (the code
 scanning category: `tripl-check`, or `tripl-check/<directory>` so that one
-step per app keeps each app's alerts). Its `exit-code` output
+step per app keeps each app's alerts; with `payloads`, `tripl-check-payloads`
+in its place). Its `exit-code` output
 is what `tripl check` exited with. For a tag that can never move, pin the
 commit instead: `tripl-io/tripl-check-action@<commit SHA> # vX.Y.Z`.
 [tripl-io/tripl-check-action](https://github.com/tripl-io/tripl-check-action)
@@ -391,7 +400,7 @@ an outage of tripl pass while a finding still blocks:
 | Exit code | Meaning |
 |-----------|---------|
 | 0 | No errors, or only [suppressed](#accept-one-call) ones, ones not new in the change (`--new-from-rev`) or ones the baseline holds (`--baseline`). Warnings pass unless you add `--strict`. |
-| 1 | At least one error (or warning, with `--strict`). Also a refused key or an unknown project: a retry would not fix those. |
+| 1 | At least one error (or warning, with `--strict`), or, with `--strict-suppressions`, a malformed or unused `tripl-check-ignore` marker. Also a refused key or an unknown project: a retry would not fix those. |
 | 2 | A configuration problem, including a configuration that matched no call, and a `--baseline` file that is missing or was written for another project, mode or tripl version's keys. |
 | 4 | The instance was unavailable: unreachable, timed out, or it answered `429` or a `5xx`. Nothing was checked. |
 
@@ -443,6 +452,44 @@ docker run --rm -u "$(id -u):$(id -g)" -e TRIPL_BASE_URL -e TRIPL_API_KEY \
   -v "$PWD:/src" ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl check --new-from-rev HEAD
 ```
 
+## 6. Keep the results in tripl {#upload}
+
+By default the verdicts stay in the CI log. Add `--upload` and each run is
+also recorded in tripl, under its commit, ref, repository and pipeline: the run
+on the default branch becomes where the code sends each event, file and line,
+and every other run goes to the check history. See
+[Send results to tripl](../integrate/tripl-check.md#send-results-to-tripl).
+
+1. **A key that may upload.** The upload is a write, so the read-only key of
+   step 1 is refused (the job says `Not uploaded:` and its result stands).
+   Create a key with the scope **Read & upload check runs** (`tk_c_`) for the
+   one project, and put it in `TRIPL_API_KEY` instead: it reads like the
+   read-only key and may record check runs, nothing else. The **viewer** role
+   in the project is enough for the bot user: recording a run edits nothing in
+   the plan. The key is minted only for a project its user can open.
+2. **The flag.** With the GitLab template, `args: "--upload"`; with the GitHub
+   action, `args: --upload`; in a job of your own, add `--upload` to the
+   `tripl check` line. The commit, ref, repository, pipeline and default
+   branch come from the CI's own variables (`CI_DEFAULT_BRANCH` in GitLab, the
+   event's repository in GitHub Actions); `--default-branch NAME` names another
+   default branch.
+3. **Run it on the default branch.** Only a default-branch run says where the
+   code sends each event, so keep the job on the default branch (both setups
+   above do) and on its schedule. A merge request's run is history only, and
+   never replaces it, even from a branch named like the default branch. Nor
+   does a retried old pipeline that finishes last: a default-branch run older
+   than the current one goes to the history.
+4. **Several apps in one repository.** Give each app its own check config and
+   job. Each keeps its own "used in code", told apart by its check directory:
+   the directory a config scans (its `root`, relative to the repository root)
+   when the config is that directory's own `.tripl/check.yml`, else the config
+   file's own path (`ci/web.yml`), so two configs that scan one directory with
+   different `sources` keep one each too.
+
+The upload never changes the exit code; with `--json`, the document's `upload`
+key says whether it was recorded (`ok`, `error`). It is refused (exit 2) with `--branch` and with a pinned plan revision:
+what it records is where the code sends the events of the live plan.
+
 ## Accept one call on purpose {#accept-one-call}
 
 Some calls are wrong on purpose: a debug-only event, or a field the plan will
@@ -458,13 +505,15 @@ The finding stops failing the run. It stays in the Code Quality, JUnit, SARIF
 and JSON reports, marked as suppressed with its reason, and the job log counts
 it in the summary (`1 finding suppressed`). The reason after `--` is required: a marker without one suppresses
 nothing, and the job log says so. A marker that no longer matches any finding
-is listed as unused, so you can remove it. Reviewers see the marker in the
+is listed as unused, so you can remove it; add `--strict-suppressions` to the
+job's arguments to fail the job on it instead. Reviewers see the marker in the
 diff like any other code, which keeps each exception a decision someone made.
 The guide's [Suppress a finding](../integrate/tripl-check.md#suppress) has the
 full grammar and the comment forms for each language.
 
 **More detail:** the [`tripl check` guide](../integrate/tripl-check.md) covers
 the configuration, presets, enums, every finding and the
-[report formats](../integrate/tripl-check.md#output). For checking captured
-events from UI tests instead of source code, see
-[payload mode](../integrate/tripl-check.md#modes).
+[report formats](../integrate/tripl-check.md#output). To check the events
+your UI tests send as well as the code, see
+[Check the events your UI tests send](./record-events-in-ui-tests.md): how to
+record them, and the same templates with `payloads` set.

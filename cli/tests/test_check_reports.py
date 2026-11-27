@@ -504,6 +504,102 @@ def test_the_listing_counts_a_suppressed_finding_and_names_marker_problems() -> 
     )
 
 
+# --- markers that fail the run (--strict-suppressions) ------------------------------------
+def test_marker_problems_fail_the_run_only_when_asked_to() -> None:
+    plain = _marked(_waived())
+    assert (plain.failing_markers, plain.exit_code) == ((), 0)
+    strict = replace(plain, strict_suppressions=True)
+    assert [state.marker.line for state in strict.failing_markers] == [30, 40]
+    assert strict.exit_code == 1
+    assert render_text(strict).endswith(
+        "\n2 suppression markers fail the run (--strict-suppressions)."
+    )
+    only_used = replace(strict, markers=strict.markers[:1])
+    assert (only_used.failing_markers, only_used.exit_code) == ((), 0)
+    assert "fail the run" not in render_text(only_used)
+
+
+def test_every_malformed_marker_fails_under_strict_suppressions() -> None:
+    for problem in ("no_codes", "not_suppressible", "no_reason"):
+        state = MarkerState(_marker(30, problem=problem), False)
+        report = _report(markers=(state,), strict_suppressions=True)
+        assert report.failing_markers == (state,)
+        assert report.exit_code == 1
+
+
+def _covered_by(line: int, targets: tuple[tuple[str, str | None], ...]) -> Suppression:
+    return Suppression("Sources/Pay.swift", line, 5, targets, "r")
+
+
+def test_a_marker_on_a_call_that_was_not_judged_does_not_fail_as_unused() -> None:
+    unused = MarkerState(_marker(40), False)
+    covering = (_covered_by(40, (("x", None),)),)
+    judged = _result(41, status="ok", findings=())
+    judged = replace(judged, item=replace(judged.item, suppressions=covering))
+    assert _report(judged, markers=(unused,), strict_suppressions=True).failing_markers == (unused,)
+    no_verdict = CheckFinding("no_verdict", "error", "the validator returned no verdict")
+    dropped = replace(judged, status="error", findings=(no_verdict,))
+    unsent = replace(judged, status="dynamic", item=replace(judged.item, sendable=False))
+    for result in (dropped, unsent):
+        report = _report(result, markers=(unused,), strict_suppressions=True)
+        assert report.failing_markers == ()
+    # A malformed marker on such a call is wrong whatever the call got.
+    broken = MarkerState(_marker(40, problem="no_reason"), False)
+    report = _report(dropped, markers=(broken,), strict_suppressions=True)
+    assert report.failing_markers == (broken,)
+
+
+def test_a_dynamic_value_marker_fails_as_unused_only_where_the_finding_can_be_raised() -> None:
+    targets: tuple[tuple[str, str | None], ...] = (("dynamic_value", None),)
+    text = "tripl-check-ignore[dynamic_value] -- r"
+    unused = MarkerState(Marker("Sources/Pay.swift", 40, 5, text, targets, "r"), False)
+    result = _result(41, status="ok", findings=())
+    covering = (_covered_by(40, targets),)
+    runtime = replace(result, item=replace(result.item, dynamic=("label",), suppressions=covering))
+    known = replace(result, item=replace(result.item, suppressions=covering))
+
+    def failing(result: CheckResult, *, strict: bool) -> tuple[MarkerState, ...]:
+        report = _report(result, strict=strict, markers=(unused,), strict_suppressions=True)
+        return report.failing_markers
+
+    # Outside --strict nothing raises the finding, whatever the call sends:
+    # the validator raises it for a property value the scan could not read,
+    # which the item does not list as dynamic.
+    assert failing(runtime, strict=False) == ()
+    assert failing(known, strict=False) == ()
+    assert failing(runtime, strict=True) == (unused,)
+    assert failing(known, strict=True) == (unused,)
+    # Any other code the marker names is still weighed outside --strict.
+    other = MarkerState(replace(unused.marker, targets=(("unknown_event", None),)), False)
+    report = _report(known, markers=(other,), strict_suppressions=True)
+    assert report.failing_markers == (other,)
+
+
+def test_the_json_marks_the_failing_markers_and_keeps_failing_for_results() -> None:
+    plain = check_document(_marked(_waived()))
+    assert "failing_suppressions" not in plain["summary"]
+    assert all("fails" not in entry for entry in plain["suppressions"])
+    document = check_document(replace(_marked(_waived()), strict_suppressions=True))
+    assert document["exit_code"] == 1
+    assert (document["summary"]["failing"], document["summary"]["failing_suppressions"]) == (0, 2)
+    assert [entry["fails"] for entry in document["suppressions"]] == [False, True, True]
+    # Nothing else in the document moves.
+    del document["summary"]["failing_suppressions"]
+    document["suppressions"] = [
+        {key: value for key, value in entry.items() if key != "fails"}
+        for entry in document["suppressions"]
+    ]
+    assert document == {**plain, "exit_code": 1}
+
+
+def test_the_ci_reports_are_the_same_with_strict_suppressions() -> None:
+    plain = _marked(_waived())
+    strict = replace(plain, strict_suppressions=True)
+    assert codequality_document(strict) == codequality_document(plain)
+    assert junit_document(strict) == junit_document(plain)
+    assert sarif_document(strict, root=None) == sarif_document(plain, root=None)
+
+
 def test_a_listed_result_shows_the_status_of_what_is_left() -> None:
     warning = CheckFinding("unknown_field", "warning", "unknown", field="ab")
     result = replace(_waived(), findings=(replace(UNKNOWN, suppression=WAIVER), warning))

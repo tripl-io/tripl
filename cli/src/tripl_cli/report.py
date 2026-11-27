@@ -65,7 +65,13 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
+    from tripl_cli.check.inventory import (
+        Forwarder,
+        Inventory,
+        Location,
+        ReadValue,
+        UnmatchedGroup,
+    )
     from tripl_cli.check.model import CheckReport, Marker, Origin, Suppression
     from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
@@ -320,11 +326,11 @@ def drifts_document(snapshot: DriftsSnapshot) -> JsonDict:
 
 
 def plan_read_document(read: PlanRead) -> JsonDict:
-    """``tripl events <verb>`` and ``tripl plan <verb>`` — ONE shape for all seven.
+    """``tripl events <verb>`` and ``tripl plan <verb>`` — ONE shape for all eight.
 
     The rows land under ``items`` whichever verb produced them, including the
     single-row detail reads, so ``.items[]`` is one selector for the whole family
-    rather than seven key names to look up. ``kind`` says what one item is;
+    rather than eight key names to look up. ``kind`` says what one item is;
     branch on that, never on ``command``'s wording.
 
     Rows are the API's own objects VERBATIM — no projection. A CLI writes to a
@@ -354,8 +360,8 @@ def plan_read_document(read: PlanRead) -> JsonDict:
     # "the resource ended" look identical from `items | length` alone, and the
     # second reading is the one that loses rows silently.
     document["truncated"] = read.truncated
-    # Route-level facts, `{}` on the six verbs whose route reports none. Present
-    # on all seven so a consumer never tests for the key.
+    # Route-level facts, `{}` on the seven verbs whose route reports none. Present
+    # on all eight so a consumer never tests for the key.
     document["meta"] = dict(read.meta)
     document["items"] = [dict(item) for item in read.items]
     return document
@@ -555,7 +561,9 @@ def check_document(report: CheckReport) -> JsonDict:
     is the NDJSON line, or 1 for an event in a JSON array (``snippet`` then
     names its position). Finding ``code``s are the validator's plus the CLI's
     own ``dynamic_value`` (``--strict`` only), ``oversize_value`` (a value over
-    the validator's size limits, sent as null) and ``no_verdict``. A finding's
+    the validator's size limits, sent as null), ``no_verdict``, and the lint's
+    ``name_characters``, ``name_pattern`` and ``duplicate_constant`` (only
+    with a ``lint:`` section in the check config). A finding's
     ``fingerprint`` is the line-free identity every machine format shares (see
     ``check/fingerprint.py``). ``skipped`` lists the configured files the scan
     did not read.
@@ -566,6 +574,11 @@ def check_document(report: CheckReport) -> JsonDict:
     result ``fails``, and each finding ``suppression`` and ``fails``. ``status``
     stays the plan's verdict; ``fails`` says whether it fails the run. With no
     marker the document is exactly what it was before markers existed.
+
+    With ``--strict-suppressions``, and only then, ``summary`` gains
+    ``failing_suppressions`` (the markers that fail the run) and each entry of
+    ``suppressions`` ``fails``. ``summary.failing`` still counts results alone,
+    so ``exit_code`` can be 1 with ``failing`` 0: a marker failed the run.
 
     Under a gate (``--new-from-rev``, ``--new-from-patch``), and only then, the
     top-level ``gate`` says what was compared (``check/gate.py``), ``summary``
@@ -585,12 +598,17 @@ def check_document(report: CheckReport) -> JsonDict:
 
     With ``--coverage``, and only then, the top-level ``coverage`` lists the
     planned events no call of this run sends (``check/coverage.py``).
+
+    With ``--upload``, and only then, the top-level ``upload`` says whether
+    tripl recorded the run and as what (``check/upload.py``). A failed upload
+    is ``ok: false`` with its ``error``; it never changes ``exit_code``.
     """
     from tripl_cli.check.baseline import baseline_document
     from tripl_cli.check.coverage import coverage_document
     from tripl_cli.check.fingerprint import finding_fingerprints
     from tripl_cli.check.gate import gate_document
     from tripl_cli.check.model import finding_fails
+    from tripl_cli.check.upload import upload_document
     from tripl_cli.check.validate import summary
 
     document = _run_envelope("check", report.run)
@@ -612,6 +630,9 @@ def check_document(report: CheckReport) -> JsonDict:
         counts["suppressed"] = report.suppressed
     if weighed:
         counts["failing"] = sum(1 for result in report.results if report.fails(result))
+    failing_markers = set(report.failing_markers)
+    if report.strict_suppressions:
+        counts["failing_suppressions"] = len(failing_markers)
     document["summary"] = counts
     document["exit_code"] = report.exit_code
     if gated:
@@ -626,6 +647,8 @@ def check_document(report: CheckReport) -> JsonDict:
         }
     if report.coverage is not None:
         document["coverage"] = coverage_document(report.coverage)
+    if report.upload is not None:
+        document["upload"] = upload_document(report.upload)
     document["results"] = [
         {
             "status": result.status,
@@ -676,6 +699,7 @@ def check_document(report: CheckReport) -> JsonDict:
                 "reason": state.marker.reason,
                 "used": state.used,
                 "problem": state.marker.problem,
+                **({"fails": state in failing_markers} if report.strict_suppressions else {}),
             }
             for state in report.markers
         ]
@@ -723,10 +747,13 @@ def check_list_document(
     (``check.model.REASON_CODES``), value ``kind``s and ``signal``s are the
     stable vocabulary; ``items`` are the ones ``tripl check`` would build,
     within the validator's size limits, ``sent`` false for a call it reports
-    as dynamic and sends nothing for. ``suppressions`` are the
-    ``tripl-check-ignore`` markers read: under a call the valid ones covering
-    it, at the top level every one with the number of matched ``calls`` it
-    covers (the check document has ``used`` there, which takes verdicts).
+    as dynamic and sends nothing for. ``lint`` says whether the check config
+    has a ``lint:`` section; each call's ``lint`` lists the lint's findings on
+    it, and ``summary.lint`` counts the calls with one, per code.
+    ``suppressions`` are the ``tripl-check-ignore`` markers read: under a call
+    the valid ones covering it, at the top level every one with the number of
+    matched ``calls`` it covers (the check document has ``used`` there, which
+    takes verdicts).
     """
     from tripl_cli.check.inventory import summarize
     from tripl_cli.check.payloads import enforce_limits
@@ -739,6 +766,7 @@ def check_list_document(
     document["truncated"] = found.truncated
     document["files_scanned"] = found.files
     document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in found.skipped]
+    document["lint"] = found.linted
     document["summary"] = {
         "calls": summary.calls,
         "items": summary.items,
@@ -753,6 +781,7 @@ def check_list_document(
             name: list(dict.fromkeys(field for field, _ in pairs))
             for name, pairs in summary.default_label_fields.items()
         },
+        "lint": dict(summary.lint),
         "suppressions": {
             "markers": summary.markers,
             "invalid": summary.markers_invalid,
@@ -783,6 +812,15 @@ def check_list_document(
                     "sent": item.sendable,
                 }
                 for item in map(enforce_limits, call.items)
+            ],
+            "lint": [
+                {
+                    "code": finding.code,
+                    "severity": finding.severity,
+                    "field": finding.field,
+                    "message": finding.message,
+                }
+                for finding in call.lint
             ],
             "suppressions": [
                 {
@@ -824,7 +862,17 @@ def _read_document(read: ReadValue | None) -> JsonDict | None:
     if read is None:
         return None
     declared = read.declared
-    where = None if declared is None else {"function": declared.function, "line": declared.line}
+    where = (
+        None
+        if declared is None
+        else {
+            "function": declared.function,
+            "line": declared.line,
+            # The type a Swift `init` or a TypeScript `constructor` builds, which
+            # is what its callers write; null for any other function.
+            "type": declared.type,
+        }
+    )
     return _value_document(read.value, reason=read.reason, declared=where)
 
 
@@ -869,18 +917,28 @@ def _forwarder_document(forwarder: Forwarder) -> JsonDict:
         "calls": forwarder.calls,
         # By name alone, the forwarder's own body left out: in its file and
         # elsewhere, a call of another function of the same name counts too.
+        # The `*_same_language` keys count the calls elsewhere only in files of
+        # the forwarder's own language.
         "callers": {
             "same_file": callers.same_file,
             "same_file_matched": callers.same_file_matched,
             "other_files": callers.other_files,
             "other_files_matched": callers.other_files_matched,
-            "first_unmatched": (
-                None
-                if first is None
-                else {"path": first.path, "line": first.line, "column": first.column}
+            "first_unmatched": _location_document(first),
+            "other_files_same_language": callers.other_files_same_language,
+            "other_files_same_language_matched": callers.other_files_same_language_matched,
+            "first_unmatched_same_language": _location_document(
+                callers.first_unmatched_same_language
             ),
         },
+        "language": forwarder.language,
     }
+
+
+def _location_document(place: Location | None) -> JsonDict | None:
+    if place is None:
+        return None
+    return {"path": place.path, "line": place.line, "column": place.column}
 
 
 def _unmatched_document(group: UnmatchedGroup) -> JsonDict:

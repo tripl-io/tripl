@@ -1,9 +1,11 @@
 """Payload mode: captured events (NDJSON or JSON) -> validation items.
 
-Each event is an object ``{event_type?, name?, fields?, properties?}``. The file
-is either one JSON array of them, one such object, or NDJSON — one object per
-line, blank lines ignored — which is what a test run or a staging proxy writes.
-``-`` reads standard input.
+Each event is an object ``{event_type?, name?, fields?, properties?, ref?}``.
+The file is either one JSON array of them, one such object, or NDJSON — one
+object per line, blank lines ignored — which is what a test run or a staging
+proxy writes. ``-`` reads standard input. ``ref`` is a label for whoever reads
+the file (the test, screen or step that sent the event): it is accepted and
+never checked, sent or compared, so two events that differ only in it are one.
 
 A captured payload is what the app ACTUALLY sent, so every item is
 ``complete``: the validator may report a required field as missing, which it
@@ -94,7 +96,7 @@ def _item(record: Any, label: str, number: int, positional: bool) -> CheckItem:
     if unknown:
         raise TriplConfigError(
             f"--payloads: {where} has unknown key(s) {', '.join(unknown)}; "
-            "an event is {event_type?, name?, fields?, properties?}."
+            "an event is {event_type?, name?, fields?, properties?, ref?}."
         )
     event_type = _optional_text(record.get("event_type"), f"{where}: event_type")
     name = _optional_text(record.get("name"), f"{where}: name")

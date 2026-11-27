@@ -111,6 +111,63 @@ def test_the_list_text_sample_is_what_check_list_prints(
     assert printed == documented
 
 
+# The lint sample: two constants of one object with one value, a Cyrillic `е`
+# in a Latin name and a typographic apostrophe in a property key.
+LINT_CONFIG = """
+project: shop
+sources: ["app/**"]
+lint:
+  name_pattern: "[a-z][a-z0-9_]*"
+event_types:
+  event:
+    calls:
+      - {function: "analytics.logEvent", positional: [name, properties]}
+"""
+
+LINT_SOURCES = {
+    "app/Settings.kt": """
+        package app
+
+        object Events {
+            const val SAVE_TAP = "save_tap"
+            const val SHARE_TAP = "save_tap"
+        }
+
+        class Settings {
+            fun onSave() {
+                analytics.logEvent(Events.SAVE_TAP)
+            }
+
+            fun onShare() {
+                analytics.logEvent(Events.SHARE_TAP)
+            }
+
+            fun onOpen() {
+                analytics.logEvent("sеttings_opened", mapOf("from" to "Menu", "it’s" to "x"))
+            }
+        }
+    """,
+}
+
+
+def test_the_list_lint_sample_is_what_check_list_prints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    documented = _fenced_block(DOCS_PATH, "When the check configuration has a [`lint:`", "text")
+    root = tmp_path / "shop"
+    for relative, body in {".tripl/check.yml": LINT_CONFIG, **LINT_SOURCES}.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(textwrap.dedent(body).lstrip("\n"), encoding="utf-8")
+    (root / ".git").mkdir()
+    monkeypatch.chdir(root)
+
+    assert main(["check", "--list"]) == 0
+    printed = capsys.readouterr().out.replace(str(root.resolve()), "/home/me/shop")
+
+    assert printed == documented
+
+
 def _without_run_details(document: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value

@@ -91,6 +91,17 @@ RULE_TEXT: dict[str, str] = {
     "policy_violation": "The call breaks a plan rule the server adds (an organization policy).",
     "oversize_value": "A value exceeded the validator's size limits and was sent as null.",
     "no_verdict": "The validator returned no verdict for this item.",
+    "name_characters": (
+        "An event name or key has a non-ASCII character, whitespace or a quote (lint: in the "
+        "check config)."
+    ),
+    "name_pattern": (
+        "An event name or key does not match the check config's name_pattern or key_pattern."
+    ),
+    "duplicate_constant": (
+        "The name or key comes from a constant that holds the same value as another constant "
+        "of the same object."
+    ),
     CODE_INVALID_SUPPRESSION: (
         "A tripl-check-ignore marker is malformed (no code, no reason, or no_verdict) "
         "and suppresses nothing."
@@ -196,6 +207,13 @@ def render_text(report: CheckReport) -> str:
     if report.baseline is not None:
         lines.extend(baseline_lines(report, known))
     lines.extend(_marker_lines(report))
+    failing = len(report.failing_markers)
+    if failing:
+        # An exit 1 the tally above does not explain: no call fails, a marker does.
+        lines.append(
+            f"{plural(failing, 'suppression marker')} {'fails' if failing == 1 else 'fail'} "
+            "the run (--strict-suppressions)."
+        )
     if report.skipped:
         lines.append(render_skipped(report.skipped))
     if report.coverage is not None:
@@ -336,8 +354,8 @@ def _marker_lines(report: CheckReport) -> list[str]:
     gate = report.gate
     if gate is None:
         return [marker_line(state) for state in shown]
-    inside = [state for state in shown if state.marker.path in gate.paths]
-    outside = [state for state in shown if state.marker.path not in gate.paths]
+    inside = [state for state in shown if gate.touches(state.marker.path)]
+    outside = [state for state in shown if not gate.touches(state.marker.path)]
     lines = [marker_line(state) for state in inside]
     if outside:
         ignored = sum(1 for state in outside if state.code == CODE_INVALID_SUPPRESSION)
@@ -547,7 +565,7 @@ def _marker_properties(state: MarkerState, report: CheckReport) -> JsonDict:
     properties: JsonDict = {"marker": marker.text, "problem": marker.problem}
     if report.gate is not None:
         # In the change when its file is: what the listing shows under a gate.
-        properties["inChange"] = marker.path in report.gate.paths
+        properties["inChange"] = report.gate.touches(marker.path)
     return properties
 
 
